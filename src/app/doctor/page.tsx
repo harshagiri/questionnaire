@@ -3,7 +3,7 @@ import { DoctorWorkflow } from "@/components/doctor-workflow";
 
 export default function DoctorPage() {
   return (
-    <AppShell>
+    <AppShell role="doctor">
       <DoctorWorkflow />
     </AppShell>
   );

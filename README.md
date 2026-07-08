@@ -1,91 +1,124 @@
 # Questionnaire
 
-SpinExpert Health Screening is a role-based screening questionnaire web app for patients, doctors, and admins.
+SpinExpert Health Screening is a role-based questionnaire app for patients, doctors, receptionists, and admins.
 
-## What is scaffolded
+This guide is the step-by-step source of truth for local run and droplet deployment.
 
-- Patient intake flow with confidentiality statement, progress, autosave, review, and thank-you state
-- Access screen with role selection and demo OTP copy popup for patients
-- Receptionist workspace for appointment booking, doctor matching, and questionnaire builder
-- Doctor dashboard with sectioned consult validation and discrete answer views
-- Admin metrics view for completion time, fill time, and backend-driven RBAC
-- REST API routes for health, questionnaire definitions, appointments, patient intake, and metrics
-- Middleware-based role guards using cookie-backed demo sessions
-- Prisma schema for PostgreSQL
-- Docker Compose for the app container and PostgreSQL container
+## 1. Prerequisites
 
-## Run locally
+Local machine:
+- Docker Desktop (or Docker Engine with buildx)
+- Node.js 20+
+- npm
+- sshpass (used by deployment scripts)
 
-1. Copy `.env.example` to `.env` and update the database URL if needed.
-2. Install dependencies.
-3. Run `npm run db:generate`.
-4. Run migrations with `npm run db:migrate`.
-5. Start the app with `npm run dev`.
+Droplet:
+- Ubuntu with SSH access
+- Docker installed (scripts will install if missing)
 
-`DOCTORS_STORAGE_MODE` controls `/api/doctors` persistence:
+## 2. Local setup (first time)
 
-- `auto` (default): use database if available, otherwise file store at `data/doctors.json`
-- `database`: require PostgreSQL/Prisma (returns 503 if unavailable)
-- `file`: always use local file store
-
-If you already created doctors in file mode and want to move them to Postgres:
-
-1. Set `DOCTORS_STORAGE_MODE=database` and ensure `DATABASE_URL` is reachable.
-2. Run `npm run db:migrate:doctors`.
-
-## Docker
-
-Build and start the two containers with:
+1. Copy env template:
 
 ```bash
-docker compose up --build
+cp .env.example .env
 ```
 
-The app listens on port `3000` and PostgreSQL on `5432`.
+2. Install dependencies:
 
-## RBAC and local access
+```bash
+npm ci
+```
 
-- The `/access` page issues a demo session cookie for the selected role.
-- Patient sessions use a popup OTP code instead of SMS or WhatsApp for now.
-- Protected routes are gated by middleware, so doctor, receptionist, and admin pages require the matching role cookie.
-- If you want to run the app locally while keeping PostgreSQL in Docker, point `DATABASE_URL` at the container and use `npm run dev`.
+3. Generate Prisma client:
 
-## Notes
+```bash
+npm run db:generate
+```
 
-- The current scaffold uses mocked dashboard data so the UX can be reviewed before the persistence layer is connected.
-- The backend schema is structured to support configurable RBAC, questionnaire versioning, patient-doctor association, and usage metrics.This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+4. Run database migration:
 
-## Getting Started
+```bash
+npm run db:migrate
+```
 
-First, run the development server:
+5. Start app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App URL: http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3. One-time deploy setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create deployment secrets file:
 
-## Learn More
+```bash
+cp .deploy.secrets.example .deploy.secrets
+```
 
-To learn more about Next.js, take a look at the following resources:
+2. Edit .deploy.secrets and set at minimum:
+- DEPLOY_REMOTE
+- DEPLOY_SSH_PASSWORD
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Optional but useful defaults are already included in .deploy.secrets.example.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 4. Deploy to droplet (repeatable one command)
 
-## Deploy on Vercel
+Run:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+./scripts/deploy-one-command.sh
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+What this command does:
+1. Builds linux/amd64 image locally.
+2. Streams image to droplet.
+3. Publishes to droplet-local registry (localhost:5000).
+4. Deploys with docker compose using no-build mode.
+
+## 5. HTTPS mode
+
+Default behavior:
+- Deploy script only updates app stack.
+
+To auto-configure HTTPS + firewall during deploy, set in .deploy.secrets:
+
+```bash
+DEPLOY_CONFIGURE_HTTPS='true'
+DEPLOY_HTTPS_DOMAIN=''
+```
+
+Notes:
+- Empty DEPLOY_HTTPS_DOMAIN means self-signed HTTPS on droplet IP.
+- Set DEPLOY_HTTPS_DOMAIN to your real domain for Let's Encrypt TLS.
+
+## 6. Useful operational commands
+
+Health check:
+
+```bash
+curl -k https://YOUR_DROPLET_IP/api/health
+```
+
+HTTP to HTTPS redirect check:
+
+```bash
+curl -I http://YOUR_DROPLET_IP
+```
+
+## 7. Storage mode note
+
+DOCTORS_STORAGE_MODE controls /api/doctors persistence:
+- auto: database if available, fallback to data/doctors.json
+- database: require PostgreSQL
+- file: always local JSON file
+
+If moving doctors from file to database:
+1. Set DOCTORS_STORAGE_MODE=database
+2. Run npm run db:migrate:doctors
+
+## 8. Related docs
+
+- Detailed deployment runbook: DEPLOYMENT.md

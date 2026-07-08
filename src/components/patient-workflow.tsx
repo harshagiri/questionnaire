@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { patientWorkflowSections } from "@/lib/workflow-data";
 import { calculateBmi, summarizeAnswer } from "@/lib/questionnaire";
+import { savePatientQuestionnaire } from "@/lib/portal-storage";
 
 type AnswerValue = string | number | boolean | string[];
 type AnswerMap = Record<string, AnswerValue>;
@@ -148,6 +149,7 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const questionAreaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -168,10 +170,14 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
   }, [registeredProfileDefaults, sessionId]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      `sei-pq:${sessionId}`,
-      JSON.stringify({ answers, sectionIndex, questionIndex, submitted }),
-    );
+    savePatientQuestionnaire({
+      sessionId,
+      answers,
+      sectionIndex,
+      questionIndex,
+      submitted,
+      updatedAt: new Date().toISOString(),
+    });
   }, [answers, questionIndex, sectionIndex, sessionId, submitted]);
 
   const hasRegisteredProfile = useMemo(
@@ -323,6 +329,7 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
   const setValue = (key: string, value: AnswerValue) =>
     setAnswers((current) => {
       const nextAnswers = { ...current, [key]: value };
+      setSaveMessage("");
 
       const redFlagKeys = [
         "redFlagBladderBowel",
@@ -352,6 +359,18 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
 
       return nextAnswers;
     });
+
+  const saveDraft = (message = "Progress saved.", nextSubmitted = submitted) => {
+    savePatientQuestionnaire({
+      sessionId,
+      answers,
+      sectionIndex,
+      questionIndex,
+      submitted: nextSubmitted,
+      updatedAt: new Date().toISOString(),
+    });
+    setSaveMessage(message);
+  };
 
   const toggleMultiSelect = (key: string, optionValue: string) => {
     const current = answers[key];
@@ -452,7 +471,10 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
           </p>
           <button
             type="button"
-            onClick={() => setSubmitted(false)}
+            onClick={() => {
+              setSubmitted(false);
+              saveDraft("Returned to edit mode.", false);
+            }}
             className="focus-ring mt-4 rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2 text-sm font-semibold"
           >
             Edit answers
@@ -656,13 +678,31 @@ export function PatientWorkflow({ sessionId }: { sessionId: string }) {
           ) : null}
           <button
             type="button"
-            onClick={() => setSubmitted(true)}
+            onClick={() => {
+              setSubmitted(true);
+              saveDraft("Answers saved for review.", true);
+            }}
             disabled={!hasConsent}
             className={`focus-ring w-full rounded-full border px-4 py-2.5 text-sm font-semibold lg:w-auto ${hasConsent ? "border-[rgba(21,32,43,0.12)] bg-white" : "cursor-not-allowed border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
           >
             Review answers
           </button>
+          <button
+            type="button"
+            onClick={() => saveDraft("Draft saved. You can resume later from this device.")}
+            className="focus-ring w-full rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2.5 text-sm font-semibold lg:w-auto"
+          >
+            Draft save
+          </button>
+          <button
+            type="button"
+            onClick={() => saveDraft("Progress saved. Use the same session link to resume later.")}
+            className="focus-ring w-full rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2.5 text-sm font-semibold lg:w-auto"
+          >
+            Resume later
+          </button>
         </div>
+        {saveMessage ? <p className="mt-2 text-sm font-medium text-[color:#2f6f57]">{saveMessage}</p> : null}
     </div>
   );
 }

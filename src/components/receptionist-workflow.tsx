@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { builderQuestionTypeCatalog, builderStarterQuestions, demoAppointments, receptionistAppointmentFields } from "@/lib/workflow-data";
 import type { BuilderQuestionType, WorkflowQuestion } from "@/lib/workflow-data";
+import type { ReceptionDraftRecord } from "@/lib/portal-storage";
+import { createSessionId, listAppointments, loadReceptionDraft, saveAppointment, saveReceptionDraft } from "@/lib/portal-storage";
 
 type BuilderDraft = WorkflowQuestion & {
   optionsText: string;
 };
+
+type BookingDraft = Omit<ReceptionDraftRecord, "sessionId" | "updatedAt"> & Record<string, string>;
 
 const initialBuilderDraft: BuilderDraft = {
   id: "",
@@ -36,6 +40,22 @@ export function ReceptionistWorkflow() {
   const [builderQuestions, setBuilderQuestions] = useState<BuilderDraft[]>(builderStarterQuestions.map((question) => ({ ...question, optionsText: "" })));
   const [draft, setDraft] = useState<BuilderDraft>(initialBuilderDraft);
   const [doctorOptions, setDoctorOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [bookingDraft, setBookingDraft] = useState<BookingDraft>(() => {
+    const savedDraft = loadReceptionDraft("booking");
+    return {
+      patientName: savedDraft?.patientName ?? "",
+      patientPhone: savedDraft?.patientPhone ?? "",
+      doctorName: savedDraft?.doctorName ?? "",
+      appointmentDate: savedDraft?.appointmentDate ?? "",
+      appointmentTime: savedDraft?.appointmentTime ?? "",
+      appointmentType: savedDraft?.appointmentType ?? "new",
+      status: savedDraft?.status ?? "booked",
+      notes: savedDraft?.notes ?? "",
+    };
+  });
+  const [saveMessage, setSaveMessage] = useState("");
+  const [issuedLink, setIssuedLink] = useState("");
+  const [savedQueue, setSavedQueue] = useState(() => listAppointments());
 
   useEffect(() => {
     let active = true;
@@ -72,6 +92,14 @@ export function ReceptionistWorkflow() {
     };
   }, []);
 
+  useEffect(() => {
+    saveReceptionDraft({
+      sessionId: "booking",
+      ...bookingDraft,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [bookingDraft]);
+
   const builderPreview = useMemo(
     () =>
       builderQuestions.map((question) => ({
@@ -93,6 +121,44 @@ export function ReceptionistWorkflow() {
       },
     ]);
     setDraft(initialBuilderDraft);
+  };
+
+  const updateBookingField = (field: string, value: string) => {
+    setBookingDraft((current) => ({ ...current, [field]: value }));
+    setSaveMessage("");
+  };
+
+  const saveBooking = async (issueLink = false) => {
+    if (!bookingDraft.patientName.trim() || !bookingDraft.patientPhone.trim() || !bookingDraft.doctorName.trim()) {
+      setSaveMessage("Fill patient name, phone, and doctor before saving.");
+      return;
+    }
+
+    const sessionId = createSessionId(bookingDraft.patientName || bookingDraft.patientPhone);
+    const now = new Date().toISOString();
+    const record = {
+      sessionId,
+      patientName: bookingDraft.patientName.trim(),
+      patientPhone: bookingDraft.patientPhone.trim(),
+      doctorName: bookingDraft.doctorName.trim(),
+      appointmentDate: bookingDraft.appointmentDate.trim(),
+      appointmentTime: bookingDraft.appointmentTime.trim(),
+      appointmentType: bookingDraft.appointmentType.trim() || "new",
+      status: bookingDraft.status.trim() || "booked",
+      notes: bookingDraft.notes.trim(),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    saveAppointment(record);
+    setSavedQueue(listAppointments());
+    setIssuedLink(`${window.location.origin}/access?role=patient&next=/patient/${sessionId}`);
+    setSaveMessage(issueLink ? "Appointment saved and consult link ready." : "Appointment saved.");
+
+    if (issueLink && typeof navigator !== "undefined" && navigator.clipboard) {
+      await navigator.clipboard.writeText(`${window.location.origin}/access?role=patient&next=/patient/${sessionId}`);
+      setSaveMessage("Appointment saved and link copied to clipboard.");
+    }
   };
 
   return (
@@ -136,32 +202,55 @@ export function ReceptionistWorkflow() {
                 <label key={field.id} className={field.type === "textarea" ? "sm:col-span-2" : ""}>
                   <span className="text-sm font-semibold text-[color:var(--foreground)]">{field.label}</span>
                   {field.type === "select" ? (
-                    <select className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3">
+                    <select
+                      value={bookingDraft[field.id] ?? ""}
+                      onChange={(event) => updateBookingField(field.id, event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3"
+                    >
                       {(field.id === "doctorName" ? doctorOptions : field.options ?? []).map((option) => (
-                        <option key={option.value}>{option.label}</option>
+                        <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                       {field.id === "doctorName" && doctorOptions.length === 0 ? (
                         <option>No doctors yet. Add from admin.</option>
                       ) : null}
                     </select>
                   ) : field.type === "textarea" ? (
-                    <textarea rows={3} placeholder={field.placeholder} className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none" />
+                    <textarea
+                      rows={3}
+                      value={bookingDraft[field.id] ?? ""}
+                      onChange={(event) => updateBookingField(field.id, event.target.value)}
+                      placeholder={field.placeholder}
+                      className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none"
+                    />
                   ) : (
-                    <input type={field.type} placeholder={field.placeholder} className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none" />
+                    <input
+                      type={field.type}
+                      value={bookingDraft[field.id] ?? ""}
+                      onChange={(event) => updateBookingField(field.id, event.target.value)}
+                      placeholder={field.placeholder}
+                      className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none"
+                    />
                   )}
                 </label>
               ))}
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white">Save appointment</button>
-              <button className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-3 text-sm font-semibold">Issue consult link</button>
+              <button type="button" onClick={() => saveBooking(false)} className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white">Save appointment</button>
+              <button type="button" onClick={() => saveBooking(true)} className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-3 text-sm font-semibold">Save and issue consult link</button>
             </div>
+            {saveMessage ? <p className="mt-3 text-sm font-medium text-[color:#2f6f57]">{saveMessage}</p> : null}
+            {issuedLink ? <p className="mt-2 break-all text-xs text-[color:var(--muted)]">{issuedLink}</p> : null}
           </div>
 
           <div className="rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-sm">
             <h2 className="headline text-3xl font-semibold">Today’s queue</h2>
             <div className="mt-4 space-y-3">
-              {demoAppointments.map((item) => (
+              {(savedQueue.length ? savedQueue.map((item) => ({
+                name: item.patientName,
+                doctor: item.doctorName,
+                slot: `${item.appointmentDate || "today"} ${item.appointmentTime || ""}`.trim(),
+                status: item.status,
+              })) : demoAppointments).map((item) => (
                 <div key={`${item.name}-${item.slot}`} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="font-semibold">{item.name}</span>

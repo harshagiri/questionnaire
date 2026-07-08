@@ -9,7 +9,7 @@ const adminSummary = getAdminSummary();
 
 export default function AdminPage() {
   return (
-    <AppShell>
+    <AppShell role="admin">
       <div className="space-y-6">
         <section className="glass-panel rounded-[2rem] p-6 lg:p-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_0.75fr] lg:items-center">

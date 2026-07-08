@@ -9,7 +9,7 @@ export default async function PatientSessionPage({
   const { sessionId } = await params;
 
   return (
-    <AppShell showNavigation={false}>
+    <AppShell role="patient">
       <PatientWorkflow sessionId={sessionId} />
     </AppShell>
   );

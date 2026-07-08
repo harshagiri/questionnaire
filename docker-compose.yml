@@ -1,5 +1,6 @@
 services:
   app:
+    image: ${APP_IMAGE:-questionnaire:dev}
     build:
       context: .
       dockerfile: Dockerfile

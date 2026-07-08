@@ -9,8 +9,16 @@ set -euo pipefail
 #   ./scripts/configure-https-firewall.sh root@168.144.67.25 'YourPassword' app.example.com
 
 REMOTE=${1:?Please provide user@host}
-PASS=${2:-}
+PASS=${2:-${DEPLOY_SSH_PASSWORD:-}}
 DOMAIN=${3:-}
+
+# Optional local secrets file (never commit secrets):
+#   ./.deploy.secrets containing: DEPLOY_SSH_PASSWORD='your_password'
+if [[ -z "$PASS" && -f ./.deploy.secrets ]]; then
+  # shellcheck disable=SC1091
+  source ./.deploy.secrets
+  PASS=${DEPLOY_SSH_PASSWORD:-}
+fi
 
 if [[ -z "$PASS" ]]; then
   read -r -s -p "SSH password for ${REMOTE}: " PASS

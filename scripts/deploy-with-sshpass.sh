@@ -8,11 +8,19 @@ set -euo pipefail
 #   ./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'P@ssw0rd' main /home/ubuntu/questionnaire ./.env.production true
 
 REMOTE=${1:?Please specify user@host}
-PASS=${2:-}
+PASS=${2:-${DEPLOY_SSH_PASSWORD:-}}
 BRANCH=${3:-main}
 TARGET_DIR=${4:-/home/${REMOTE%%@*}/questionnaire}
 ENV_FILE=${5:-}
 RUN_DOCTOR_MIGRATION=${6:-false}
+
+# Optional local secrets file (never commit secrets):
+#   ./.deploy.secrets containing: DEPLOY_SSH_PASSWORD='your_password'
+if [[ -z "$PASS" && -f ./.deploy.secrets ]]; then
+  # shellcheck disable=SC1091
+  source ./.deploy.secrets
+  PASS=${DEPLOY_SSH_PASSWORD:-}
+fi
 
 if [[ -z "$PASS" ]]; then
   read -r -s -p "SSH password for ${REMOTE}: " PASS

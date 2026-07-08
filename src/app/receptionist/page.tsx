@@ -3,7 +3,7 @@ import { ReceptionistWorkflow } from "@/components/receptionist-workflow";
 
 export default function ReceptionistPage() {
   return (
-    <AppShell>
+    <AppShell role="receptionist">
       <ReceptionistWorkflow />
     </AppShell>
   );

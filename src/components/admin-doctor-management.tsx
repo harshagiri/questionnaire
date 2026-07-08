@@ -138,6 +138,7 @@ export function AdminDoctorManagement() {
         </div>
 
         <div className="mt-3 flex items-center gap-3 rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={selectedPreview} alt="Doctor preview" className="h-11 w-11 rounded-full object-cover" />
           <div className="text-xs text-[color:var(--muted)]">Default avatar: Gravatar identicon. Custom photo URL overrides this.</div>
         </div>
@@ -162,6 +163,7 @@ export function AdminDoctorManagement() {
           ) : (
             doctors.map((doctor) => (
               <div key={doctor.id ?? doctor.email} className="flex items-center gap-3 rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={doctor.photoUrl ?? "https://www.gravatar.com/avatar/?d=identicon&s=256"} alt={doctor.name} className="h-10 w-10 rounded-full object-cover" />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold">{doctor.name}</div>

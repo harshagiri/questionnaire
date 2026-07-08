@@ -1,108 +1,102 @@
-Production deployment instructions for a single Droplet (password or SSH-key)
+Production deployment runbook (single Ubuntu droplet)
 
-This document explains how to deploy the repository to a Linux droplet (Ubuntu 22.04+) at a public IP.
-It does NOT contain any secrets. You must run the commands yourself on your local machine and on the droplet.
+This file contains the detailed deployment flow. For the quick path, use README.md.
 
-Overview
-- Prepare the droplet: create a non-root user, install Docker and Docker Compose plugin, optionally set up an SSH key.
-- Push your code to a Git remote accessible from the droplet (GitHub/GitLab) or copy the project using scp/rsync.
-- On the droplet, create a `.env` file (copy from `.env.example`), run `docker compose up -d --build`.
-- Configure an Nginx reverse proxy and obtain TLS via Certbot if you want a public HTTPS site.
+## 1. Recommended path
 
-Security note
-- Password-based SSH is convenient for first-time access but is less secure than key-based authentication. After you finish setup, strongly consider adding an SSH key and disabling PasswordAuthentication in `/etc/ssh/sshd_config`.
+Run this from your local machine:
 
-Quick commands (assumes Ubuntu, run as your remote sudo-capable user)
+```bash
+./scripts/deploy-one-command.sh
+```
 
-1) Update & install dependencies on the droplet
+This command does all of the following:
+1. Builds a linux/amd64 image locally.
+2. Streams that image to the droplet.
+3. Publishes it to droplet-local registry as localhost:5000/questionnaire:latest.
+4. Deploys with docker compose in no-build mode.
+5. Optionally configures HTTPS/firewall.
 
-  sudo apt update && sudo apt upgrade -y
-  sudo apt install -y ca-certificates curl gnupg lsb-release git nginx
+## 2. One-time setup
 
-2) Install Docker (official guide)
+1. Create deploy secrets file:
 
-  sudo mkdir -p /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt update
-  sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-  sudo usermod -aG docker $USER
+```bash
+cp .deploy.secrets.example .deploy.secrets
+```
 
-3) Clone repo on droplet (example)
+2. Update .deploy.secrets values.
 
-  # on the droplet
-  git clone https://github.com/<your-org-or-username>/questionnaire.git /home/$USER/questionnaire
-  cd /home/$USER/questionnaire
+Required:
+- DEPLOY_REMOTE
+- DEPLOY_SSH_PASSWORD
 
-4) Create environment and run docker compose
+Important optional values:
+- DEPLOY_CONFIGURE_HTTPS='true' to run HTTPS setup each deploy
+- DEPLOY_HTTPS_DOMAIN='your.domain.com' for Let's Encrypt
 
-  cp .env.example .env
-  # edit .env and set SESSION_SECRET and any production DATABASE_URL if used
-  docker compose up -d --build
+## 3. Repeat deploy
 
-5) Configure Nginx as reverse proxy (example config included in repo `deploy/nginx/questionnaire.conf`)
+```bash
+./scripts/deploy-one-command.sh
+```
 
-  sudo ln -s /etc/nginx/sites-available/questionnaire /etc/nginx/sites-enabled/questionnaire
-  sudo nginx -t && sudo systemctl reload nginx
+## 4. Script reference
 
-6) (Optional) Obtain TLS certificate using Certbot
+Primary wrapper:
+- scripts/deploy-one-command.sh
 
-  sudo apt install -y certbot python3-certbot-nginx
-  sudo certbot --nginx -d your.domain.example
+Low-level deploy (image-based):
 
-Rolling updates
-- To deploy a new version: on droplet `git pull origin master` and `docker compose up -d --build`.
+```bash
+./scripts/deploy-with-sshpass.sh user@ip 'password' [branch] [remote_dir] [env_file] [run_doctor_migration] [app_image]
+```
 
-If you want an automated script that does everything from your workstation using password SSH (insecure) or using an SSH key (recommended), see `scripts/deploy-to-droplet.sh` and `scripts/remote-setup.sh` in this repo. You must run those locally — I cannot run them for you.
+HTTPS/firewall setup:
 
-One-shot deploy with sshpass (includes Docker install + optional env upload + optional doctors migration)
+```bash
+./scripts/configure-https-firewall.sh user@ip 'password' [domain]
+```
 
-- Script: `scripts/deploy-with-sshpass.sh`
-- Signature:
+## 5. Verification
 
-  `./scripts/deploy-with-sshpass.sh user@ip 'password' [branch] [remote_dir] [env_file] [run_doctor_migration]`
+HTTP redirect:
 
-- Example 1 (deploy with generated/existing remote `.env`, no migration):
+```bash
+curl -I http://YOUR_DROPLET_IP
+```
 
-  `./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'YourPassword' main /home/ubuntu/questionnaire`
+HTTPS root:
 
-- Example 2 (upload local env file and run doctors migration):
+```bash
+curl -k -I https://YOUR_DROPLET_IP
+```
 
-  `./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'YourPassword' main /home/ubuntu/questionnaire ./.env.production true`
+Health endpoint:
 
-Notes:
-- If `env_file` is provided, it is uploaded to the droplet and used as `.env`.
-- If `run_doctor_migration=true`, the script runs `npm run db:migrate:doctors` inside the app container after `docker compose up -d --build`.
+```bash
+curl -k https://YOUR_DROPLET_IP/api/health
+```
 
-HTTPS + firewall + proxy hardening
+## 6. Troubleshooting
 
-- Script: `scripts/configure-https-firewall.sh`
-- Signature:
+If deploy hangs or fails:
+1. Check SSH service on droplet: systemctl status ssh --no-pager
+2. Check registry port: ss -lntp | grep :5000
+3. Check registry container: docker ps | grep registry
 
-  `./scripts/configure-https-firewall.sh user@ip 'password' [domain]`
+Start registry if missing:
 
-- Example 1 (IP-only HTTPS, self-signed certificate):
+```bash
+docker run -d --restart unless-stopped -p 5000:5000 --name registry registry:2
+```
 
-  `./scripts/configure-https-firewall.sh root@168.144.67.25 'YourPassword'`
+## 7. Security note
 
-- Example 2 (trusted HTTPS with domain via Let's Encrypt):
+Password-based SSH is supported for quick setup. For production, move to SSH keys and disable password auth.
 
-  `./scripts/configure-https-firewall.sh root@168.144.67.25 'YourPassword' app.yourdomain.com`
+## 8. Demo users
 
-This script does the following on the droplet:
-- Installs/ensures `nginx`, `ufw`, and TLS tools.
-- Opens firewall ports `22`, `80`, and `443`.
-- Configures nginx reverse proxy to `http://127.0.0.1:3000`.
-- Enables HTTPS:
-  - self-signed cert when no domain is provided, or
-  - trusted cert (Let's Encrypt) when a domain is provided and DNS points to droplet.
-
-Staff credentials and user management
-
-- Default demo users:
-  - `doctor@spinexpert.local / Doctor@123`
-  - `reception@spinexpert.local / Reception@123`
-  - `admin@spinexpert.local / Admin@123`
-- Admin can create additional `doctor`, `receptionist`, and `admin` users from the Admin panel.
+- doctor@spinexpert.local / Doctor@123
+- reception@spinexpert.local / Reception@123
+- admin@spinexpert.local / Admin@123
