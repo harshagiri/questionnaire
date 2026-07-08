@@ -25,10 +25,14 @@ function hasValidStaffCredentials(email: string | undefined, password: string | 
 
 export async function POST(request: Request) {
   const body = (await request.json()) as SessionBody;
+  const protoHeader = request.headers.get("x-forwarded-proto")?.toLowerCase();
+  const isSecureRequest = protoHeader === "https" || new URL(request.url).protocol === "https:";
 
   if (!body.role || !roleHomePath[body.role]) {
     return NextResponse.json({ ok: false, message: "Unsupported role" }, { status: 400 });
   }
+
+  let resolvedStaffDisplayName: string | undefined;
 
   if (body.role === "patient") {
     if (!hasValidPatientPhone(body.phone)) {
@@ -51,14 +55,33 @@ export async function POST(request: Request) {
     if (!authResult.ok) {
       return NextResponse.json({ ok: false, message: "Invalid staff credentials" }, { status: 401 });
     }
+
+    resolvedStaffDisplayName = authResult.displayName;
   }
 
   const response = NextResponse.json({ ok: true, role: body.role, nextPath: body.nextPath ?? roleHomePath[body.role] });
-  response.cookies.set("se_role", body.role, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 7 });
-  const sessionName = body.role === "patient" ? body.phone ?? "patient-demo" : body.email ?? body.name ?? `${body.role}-demo`;
-  response.cookies.set("se_name", sessionName, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 7 });
+  const cookieOptions = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    secure: isSecureRequest,
+  };
+
+  response.cookies.set("se_role", body.role, cookieOptions);
+  const sessionName =
+    body.role === "patient"
+      ? body.phone ?? "patient-demo"
+      : resolvedStaffDisplayName ?? body.email ?? body.name ?? `${body.role}-demo`;
+  response.cookies.set("se_name", sessionName, cookieOptions);
   if (body.role === "patient") {
-    response.cookies.set("se_demo_otp", demoOtpCode, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 });
+    response.cookies.set("se_demo_otp", demoOtpCode, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+      secure: isSecureRequest,
+    });
   }
   return response;
 }

@@ -287,7 +287,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
                 />
                 <p className="rounded-xl bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                  Demo staff credentials: doctor@spinexpert.local / Doctor@123, reception@spinexpert.local / Reception@123, admin@spinexpert.local / Admin@123.
+                  Demo staff credentials: doctor@spinexpert.local / Doctor@123, reception@spinexpert.local / Reception@123, admin@spinexpert.local / Admin@123. Admin can create additional users from Admin panel.
                 </p>
                 {staffMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{staffMessage}</p> : null}
                 <button

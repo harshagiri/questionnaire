@@ -75,3 +75,34 @@ One-shot deploy with sshpass (includes Docker install + optional env upload + op
 Notes:
 - If `env_file` is provided, it is uploaded to the droplet and used as `.env`.
 - If `run_doctor_migration=true`, the script runs `npm run db:migrate:doctors` inside the app container after `docker compose up -d --build`.
+
+HTTPS + firewall + proxy hardening
+
+- Script: `scripts/configure-https-firewall.sh`
+- Signature:
+
+  `./scripts/configure-https-firewall.sh user@ip 'password' [domain]`
+
+- Example 1 (IP-only HTTPS, self-signed certificate):
+
+  `./scripts/configure-https-firewall.sh root@168.144.67.25 'YourPassword'`
+
+- Example 2 (trusted HTTPS with domain via Let's Encrypt):
+
+  `./scripts/configure-https-firewall.sh root@168.144.67.25 'YourPassword' app.yourdomain.com`
+
+This script does the following on the droplet:
+- Installs/ensures `nginx`, `ufw`, and TLS tools.
+- Opens firewall ports `22`, `80`, and `443`.
+- Configures nginx reverse proxy to `http://127.0.0.1:3000`.
+- Enables HTTPS:
+  - self-signed cert when no domain is provided, or
+  - trusted cert (Let's Encrypt) when a domain is provided and DNS points to droplet.
+
+Staff credentials and user management
+
+- Default demo users:
+  - `doctor@spinexpert.local / Doctor@123`
+  - `reception@spinexpert.local / Reception@123`
+  - `admin@spinexpert.local / Admin@123`
+- Admin can create additional `doctor`, `receptionist`, and `admin` users from the Admin panel.

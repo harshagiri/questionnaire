@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminDoctorManagement } from "@/components/admin-doctor-management";
+import { AdminStaffManagement } from "@/components/admin-staff-management";
 import { getAdminSummary } from "@/lib/metrics";
 import { usageMetrics } from "@/lib/mock-data";
 import { roleCapabilities } from "@/lib/rbac";
@@ -83,6 +84,7 @@ export default function AdminPage() {
         </section>
 
         <AdminDoctorManagement />
+        <AdminStaffManagement />
       </div>
     </AppShell>
   );
