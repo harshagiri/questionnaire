@@ -2,9 +2,22 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
-import type { DoctorProfile, User } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+
+type DbDoctorRecord = {
+  id: string;
+  name: string;
+  phone: string;
+  registrationNumber: string;
+  licenseNumber: string;
+  bio: string | null;
+  photoUrl: string | null;
+  createdAt: Date;
+  user: {
+    email: string;
+  };
+};
 
 const doctorCreateSchema = z.object({
   name: z.string().min(2),
@@ -75,7 +88,7 @@ export async function GET() {
 
       return NextResponse.json({
         ok: true,
-        doctors: doctors.map((doctor: DoctorProfile & { user: User }) => ({
+        doctors: doctors.map((doctor: DbDoctorRecord) => ({
           id: doctor.id,
           name: doctor.name,
           email: doctor.user.email,
