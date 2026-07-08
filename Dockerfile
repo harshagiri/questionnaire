@@ -7,6 +7,7 @@ COPY package*.json ./
 RUN npm ci
 
 FROM base AS builder
+ENV DATABASE_URL=postgresql://questionnaire:questionnaire@postgres:5432/questionnaire?schema=public
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run db:generate && npm run build
