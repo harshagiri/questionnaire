@@ -115,6 +115,9 @@ docker compose pull || true
 docker compose up -d --build
 
 if [ "${RUN_DOCTOR_MIGRATION}" = "true" ]; then
+  echo "[remote] Applying Prisma schema to database"
+  docker compose exec -T app npx prisma db push
+
   echo "[remote] Running doctors migration inside app container"
   docker compose exec -T app npm run db:migrate:doctors
 fi
