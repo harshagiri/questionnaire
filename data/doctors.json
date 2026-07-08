@@ -1,0 +1,13 @@
+[
+  {
+    "id": "doc-1783503124442",
+    "name": "Dr. Test One",
+    "email": "doc1@spinexpert.local",
+    "phone": "9999999999",
+    "registrationNumber": "REG-1001",
+    "licenseNumber": "LIC-1001",
+    "bio": "",
+    "photoUrl": "https://www.gravatar.com/avatar/dba98ad00c745f3a72c448dbc131f2cf?d=identicon&s=256",
+    "createdAt": "2026-07-08T09:32:04.442Z"
+  }
+]

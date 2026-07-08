@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3efe7;
+  --foreground: #15202b;
+  --muted: #607080;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-strong: #ffffff;
+  --border: rgba(21, 32, 43, 0.08);
+  --accent: #0f766e;
+  --accent-soft: #d9f0ec;
+  --accent-warm: #ff8a5b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 30%),
+    radial-gradient(circle at right 15%, rgba(255, 138, 91, 0.15), transparent 25%),
+    linear-gradient(180deg, #fbfaf7 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 80px rgba(21, 32, 43, 0.1);
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(21, 32, 43, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 32, 43, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.headline {
+  font-family: var(--font-display), system-ui, sans-serif;
+  letter-spacing: -0.05em;
+}
+
+.subtle-shadow {
+  box-shadow: 0 12px 40px rgba(21, 32, 43, 0.08);
+}
+
+.noise {
+  position: relative;
+}
+
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(21, 32, 43, 0.045) 1px, transparent 1px);
+  background-size: 12px 12px;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Prevent native selects and inputs from forcing overflow inside flex/grid containers
+   Some browsers and layouts cause dropdowns to overflow the viewport when the control
+   cannot shrink. Ensure form controls can shrink and never exceed their container. */
+input, select, textarea, .focus-ring {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* If you have any custom dropdown menus, constrain them to the viewport width */
+.dropdown-menu {
+  max-width: calc(100vw - 2rem);
+  left: 0;
+  right: auto;
+}

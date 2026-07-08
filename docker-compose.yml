@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: questionnaire
+      POSTGRES_USER: questionnaire
+      POSTGRES_PASSWORD: questionnaire
+    ports:
+      - "5432:5432"
+    volumes:
+      - questionnaire_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  questionnaire_pgdata:
