@@ -56,3 +56,22 @@ Rolling updates
 - To deploy a new version: on droplet `git pull origin master` and `docker compose up -d --build`.
 
 If you want an automated script that does everything from your workstation using password SSH (insecure) or using an SSH key (recommended), see `scripts/deploy-to-droplet.sh` and `scripts/remote-setup.sh` in this repo. You must run those locally — I cannot run them for you.
+
+One-shot deploy with sshpass (includes Docker install + optional env upload + optional doctors migration)
+
+- Script: `scripts/deploy-with-sshpass.sh`
+- Signature:
+
+  `./scripts/deploy-with-sshpass.sh user@ip 'password' [branch] [remote_dir] [env_file] [run_doctor_migration]`
+
+- Example 1 (deploy with generated/existing remote `.env`, no migration):
+
+  `./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'YourPassword' main /home/ubuntu/questionnaire`
+
+- Example 2 (upload local env file and run doctors migration):
+
+  `./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'YourPassword' main /home/ubuntu/questionnaire ./.env.production true`
+
+Notes:
+- If `env_file` is provided, it is uploaded to the droplet and used as `.env`.
+- If `run_doctor_migration=true`, the script runs `npm run db:migrate:doctors` inside the app container after `docker compose up -d --build`.
