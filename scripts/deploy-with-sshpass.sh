@@ -3,16 +3,21 @@ set -euo pipefail
 
 # One-shot deploy to a droplet using password-based SSH (sshpass).
 # WARNING: Using password-based SSH is less secure than SSH keys. Use this only for quick testing.
-# Usage: ./scripts/deploy-with-sshpass.sh user@ip 'password' [branch] [remote_dir] [env_file] [run_doctor_migration]
+# Usage: ./scripts/deploy-with-sshpass.sh user@ip [password] [branch] [remote_dir] [env_file] [run_doctor_migration]
 # Example:
 #   ./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'P@ssw0rd' main /home/ubuntu/questionnaire ./.env.production true
 
 REMOTE=${1:?Please specify user@host}
-PASS=${2:?Please specify SSH password (careful, this will be visible in your shell history)}
+PASS=${2:-}
 BRANCH=${3:-main}
 TARGET_DIR=${4:-/home/${REMOTE%%@*}/questionnaire}
 ENV_FILE=${5:-}
 RUN_DOCTOR_MIGRATION=${6:-false}
+
+if [[ -z "$PASS" ]]; then
+  read -r -s -p "SSH password for ${REMOTE}: " PASS
+  echo
+fi
 
 if [[ "$RUN_DOCTOR_MIGRATION" != "true" && "$RUN_DOCTOR_MIGRATION" != "false" ]]; then
   echo "run_doctor_migration must be 'true' or 'false'" >&2
@@ -36,23 +41,37 @@ if [[ -n "$ENV_FILE" ]]; then
   sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$ENV_FILE" "$REMOTE:/tmp/questionnaire.env"
 fi
 
-sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" bash -s <<EOF
+sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" "TARGET_DIR='${TARGET_DIR}' BRANCH='${BRANCH}' RUN_DOCTOR_MIGRATION='${RUN_DOCTOR_MIGRATION}' bash -s" <<'EOF'
 set -euo pipefail
 
+if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+run() {
+  if [ -n "$SUDO" ]; then
+    $SUDO "$@"
+  else
+    "$@"
+  fi
+}
+
 echo "[remote] Updating packages"
-sudo apt update -y
+run apt update -y
 
 echo "[remote] Installing prerequisites"
-sudo apt install -y ca-certificates curl gnupg lsb-release git
+run apt install -y ca-certificates curl gnupg lsb-release git
 
 echo "[remote] Installing Docker (if absent)"
 if ! command -v docker >/dev/null 2>&1; then
-  sudo mkdir -p /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt update -y
-  sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-  sudo systemctl enable --now docker
+  run mkdir -p /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | run gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | run tee /etc/apt/sources.list.d/docker.list > /dev/null
+  run apt update -y
+  run apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  run systemctl enable --now docker
 fi
 
 echo "[remote] Ensure target dir exists: ${TARGET_DIR}"

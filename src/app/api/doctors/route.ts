@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
+import type { DoctorProfile, User } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
@@ -74,7 +75,7 @@ export async function GET() {
 
       return NextResponse.json({
         ok: true,
-        doctors: doctors.map((doctor) => ({
+        doctors: doctors.map((doctor: DoctorProfile & { user: User }) => ({
           id: doctor.id,
           name: doctor.name,
           email: doctor.user.email,
