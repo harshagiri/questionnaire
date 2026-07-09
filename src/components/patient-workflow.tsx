@@ -339,14 +339,18 @@ export function PatientWorkflow({
   const skippedInitialAutosaveRef = useRef(false);
   const latestDraftRef = useRef<{
     sessionId: string;
+    patientPhone: string;
     answers: AnswerMap;
     sectionIndex: number;
     questionIndex: number;
     submitted: boolean;
   } | null>(null);
 
+  const patientPhone = String(answers.phone ?? registeredProfileDefaults.phone ?? "").replace(/\D/g, "");
+
   const persistDraft = (record: {
     sessionId: string;
+    patientPhone: string;
     answers: AnswerMap;
     sectionIndex: number;
     questionIndex: number;
@@ -396,6 +400,7 @@ export function PatientWorkflow({
 
     const record = {
       sessionId,
+      patientPhone,
       answers,
       sectionIndex,
       questionIndex,
@@ -403,9 +408,9 @@ export function PatientWorkflow({
       updatedAt: new Date().toISOString(),
     };
 
-    latestDraftRef.current = { sessionId, answers, sectionIndex, questionIndex, submitted };
+    latestDraftRef.current = { sessionId, patientPhone, answers, sectionIndex, questionIndex, submitted };
     persistDraft(record);
-  }, [answers, questionIndex, sectionIndex, sessionId, submitted]);
+  }, [answers, patientPhone, questionIndex, sectionIndex, sessionId, submitted]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -641,6 +646,7 @@ export function PatientWorkflow({
   const saveDraft = (nextSubmitted = submitted) => {
     const record = {
       sessionId,
+      patientPhone,
       answers,
       sectionIndex,
       questionIndex,
@@ -648,7 +654,7 @@ export function PatientWorkflow({
       updatedAt: new Date().toISOString(),
     };
 
-    latestDraftRef.current = { sessionId, answers, sectionIndex, questionIndex, submitted: nextSubmitted };
+    latestDraftRef.current = { sessionId, patientPhone, answers, sectionIndex, questionIndex, submitted: nextSubmitted };
     persistDraft(record);
   };
 

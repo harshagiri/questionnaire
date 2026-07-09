@@ -9,6 +9,7 @@ type PatientAnswerValue = string | number | boolean | string[];
 
 type PatientQuestionnairePayload = {
   sessionId: string;
+  patientPhone?: string;
   answers: Record<string, PatientAnswerValue>;
   sectionIndex: number;
   questionIndex: number;
@@ -322,7 +323,8 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
     return { ok: true as const, storage: "local" as const, persisted: false };
   }
 
-  const { user: patientUser, phone } = await upsertPatientUser(record.answers, record.sessionId);
+  const explicitPhone = normalizePhone(record.patientPhone);
+  const { user: patientUser, phone } = await upsertPatientUser({ ...record.answers, phone: explicitPhone || record.answers.phone }, record.sessionId);
   const doctorUser = await resolveAssignedDoctorUser();
   const status = record.submitted ? "submitted" : "draft";
   const bmi = calculateBmi(Number(record.answers.weightKg), Number(record.answers.heightCm));
@@ -363,7 +365,7 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
         patientId: patientUser.id,
         doctorId: doctorUser.id,
         sessionId: record.sessionId,
-        patientPhone: phone || null,
+        patientPhone: explicitPhone || phone || null,
         status,
         sectionIndex: record.sectionIndex,
         questionIndex: record.questionIndex,
@@ -372,7 +374,7 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
         bmi,
       },
       update: {
-        patientPhone: phone || null,
+        patientPhone: explicitPhone || phone || null,
         status,
         sectionIndex: record.sectionIndex,
         questionIndex: record.questionIndex,

@@ -6,6 +6,7 @@ const answerValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(
 
 const patientQuestionnaireSaveSchema = z.object({
   sessionId: z.string().min(1),
+  patientPhone: z.string().optional(),
   answers: z.record(z.string(), answerValueSchema),
   sectionIndex: z.coerce.number().int().min(0),
   questionIndex: z.coerce.number().int().min(0),

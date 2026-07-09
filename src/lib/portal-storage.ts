@@ -23,6 +23,7 @@ export type AppointmentRecord = {
 
 export type PatientQuestionnaireRecord = {
 	sessionId: string;
+	patientPhone?: string;
 	answers: Record<string, unknown>;
 	sectionIndex: number;
 	questionIndex: number;
