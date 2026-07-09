@@ -316,7 +316,9 @@ async function resolveAssignedDoctorUser() {
 }
 
 export async function savePatientQuestionnaireToDatabase(record: PatientQuestionnairePayload) {
-  if (!prisma) {
+  const database = prisma;
+
+  if (!database) {
     return { ok: true as const, storage: "local" as const, persisted: false };
   }
 
@@ -337,89 +339,130 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
   }).length;
   const completionPct = Math.min(100, Math.round((answeredCount / Math.max(1, patientWorkflowSections.flatMap((section) => section.questions).length)) * 100));
 
-  const saved = await prisma.$transaction(async (tx) => {
-    const existing = await tx.questionnaireSubmission.findUnique({
-      where: { sessionId: record.sessionId },
-      select: { id: true, appointmentId: true },
+  async function saveOnce() {
+    return database!.$transaction(async (tx) => {
+      const existing = await tx.questionnaireSubmission.findUnique({
+        where: { sessionId: record.sessionId },
+        select: { id: true, appointmentId: true },
+      });
+
+      const appointmentTimestamp = new Date();
+      const appointmentTime = appointmentTimestamp.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+
+      const existingAppointmentRows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM "Appointment"
+        WHERE "consultSessionId" = ${record.sessionId}
+        LIMIT 1
+      `;
+      const existingAppointmentId = existingAppointmentRows[0]?.id;
+
+      const appointment = existing
+        ? await tx.appointment.update({
+            where: { id: existing.appointmentId },
+            data: {
+              patientName: patientUser.displayName,
+              patientPhone: explicitPhone || phone || "",
+              doctorName: doctorUser.displayName,
+              appointmentDate: appointmentTimestamp,
+              appointmentTime,
+              appointmentType: "questionnaire",
+              status: record.submitted ? "submitted" : "draft",
+              createdBy: "patient",
+              notes: `Patient questionnaire session: ${record.sessionId}`,
+              updatedAt: new Date(),
+            } as never,
+          })
+        : existingAppointmentId
+          ? await tx.appointment.update({
+              where: { id: existingAppointmentId },
+              data: {
+                patientId: patientUser.id,
+                patientName: patientUser.displayName,
+                patientPhone: explicitPhone || phone || "",
+                doctorId: doctorUser.id,
+                doctorName: doctorUser.displayName,
+                appointmentDate: appointmentTimestamp,
+                appointmentTime,
+                appointmentType: "questionnaire",
+                status: record.submitted ? "submitted" : "draft",
+                createdBy: "patient",
+                notes: `Patient questionnaire session: ${record.sessionId}`,
+                updatedAt: new Date(),
+              } as never,
+            })
+          : await tx.appointment.create({
+              data: {
+                consultSessionId: record.sessionId,
+                patientId: patientUser.id,
+                patientName: patientUser.displayName,
+                patientPhone: explicitPhone || phone || "",
+                doctorId: doctorUser.id,
+                doctorName: doctorUser.displayName,
+                appointmentDate: appointmentTimestamp,
+                appointmentTime,
+                appointmentType: "questionnaire",
+                status: record.submitted ? "submitted" : "draft",
+                createdBy: "patient",
+                notes: `Patient questionnaire session: ${record.sessionId}`,
+              } as never,
+            });
+
+      const submission = await tx.questionnaireSubmission.upsert({
+        where: { sessionId: record.sessionId },
+        create: {
+          questionnaireId: questionnaire!.id,
+          appointmentId: appointment.id,
+          patientId: patientUser.id,
+          doctorId: doctorUser.id,
+          sessionId: record.sessionId,
+          patientPhone: explicitPhone || phone || null,
+          status,
+          sectionIndex: record.sectionIndex,
+          questionIndex: record.questionIndex,
+          completionPct,
+          durationSeconds: 0,
+          bmi,
+        },
+        update: {
+          patientPhone: explicitPhone || phone || null,
+          status,
+          sectionIndex: record.sectionIndex,
+          questionIndex: record.questionIndex,
+          completionPct,
+          bmi,
+        },
+      });
+
+      await tx.questionnaireAnswer.deleteMany({ where: { submissionId: submission.id } });
+      await tx.questionnaireAnswer.createMany({
+        data: Object.entries(record.answers).map(([key, value]) => ({
+          submissionId: submission.id,
+          key,
+          value: answerValue(value),
+        })),
+      });
+
+      return submission;
     });
+  }
 
-    const appointmentTimestamp = new Date();
-    const appointmentTime = appointmentTimestamp.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  let saved;
+  try {
+    saved = await saveOnce();
+  } catch (error) {
+    const isUniqueConsultSession = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && String(error.meta?.target ?? "").includes("consultSessionId");
 
-    const appointment = existing
-      ? await tx.appointment.update({
-          where: { id: existing.appointmentId },
-          data: {
-            patientName: patientUser.displayName,
-            patientPhone: explicitPhone || phone || "",
-            doctorName: doctorUser.displayName,
-            appointmentDate: appointmentTimestamp,
-            appointmentTime,
-            appointmentType: "questionnaire",
-            status: record.submitted ? "submitted" : "draft",
-            createdBy: "patient",
-            notes: `Patient questionnaire session: ${record.sessionId}`,
-            updatedAt: new Date(),
-          } as never,
-        })
-      : await tx.appointment.create({
-          data: {
-            consultSessionId: record.sessionId,
-            patientId: patientUser.id,
-            patientName: patientUser.displayName,
-            patientPhone: explicitPhone || phone || "",
-            doctorId: doctorUser.id,
-            doctorName: doctorUser.displayName,
-            appointmentDate: new Date(),
-            appointmentTime,
-            appointmentType: "questionnaire",
-            status: record.submitted ? "submitted" : "draft",
-            createdBy: "patient",
-            notes: `Patient questionnaire session: ${record.sessionId}`,
-          } as never,
-        });
+    if (!isUniqueConsultSession) {
+      throw error;
+    }
 
-    const submission = await tx.questionnaireSubmission.upsert({
-      where: { sessionId: record.sessionId },
-      create: {
-        questionnaireId: questionnaire.id,
-        appointmentId: appointment.id,
-        patientId: patientUser.id,
-        doctorId: doctorUser.id,
-        sessionId: record.sessionId,
-        patientPhone: explicitPhone || phone || null,
-        status,
-        sectionIndex: record.sectionIndex,
-        questionIndex: record.questionIndex,
-        completionPct,
-        durationSeconds: 0,
-        bmi,
-      },
-      update: {
-        patientPhone: explicitPhone || phone || null,
-        status,
-        sectionIndex: record.sectionIndex,
-        questionIndex: record.questionIndex,
-        completionPct,
-        bmi,
-      },
-    });
-
-    await tx.questionnaireAnswer.deleteMany({ where: { submissionId: submission.id } });
-    await tx.questionnaireAnswer.createMany({
-      data: Object.entries(record.answers).map(([key, value]) => ({
-        submissionId: submission.id,
-        key,
-        value: answerValue(value),
-      })),
-    });
-
-    return submission;
-  });
+    saved = await saveOnce();
+  }
 
   return { ok: true as const, storage: "database" as const, persisted: true, submissionId: saved.id };
 }
