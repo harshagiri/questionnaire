@@ -123,10 +123,11 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       const resolvedPatientName = latestAppointment?.patientName ?? demoPatient?.name ?? normalizedPhone;
       const resolvedPatientPhone = latestAppointment?.patientPhone ?? demoPatient?.phone ?? normalizedPhone;
 
-      const defaultPatientPath = `/patient/${resolvedSessionId}`;
+      const defaultPatientPath = `/patient/${resolvedSessionId}?phone=${encodeURIComponent(normalizedPhone)}`;
       const sessionPath = nextPath ?? defaultPatientPath;
       const parts = sessionPath.split("/").filter(Boolean);
-      const sessionId = parts.length ? parts[parts.length - 1] : resolvedSessionId;
+      const sessionIdWithQuery = parts.length ? parts[parts.length - 1] : resolvedSessionId;
+      const sessionId = sessionIdWithQuery.split("?")[0] ?? resolvedSessionId;
 
       if (sessionId && typeof window !== "undefined") {
         const demoDefaults = demoPatient
@@ -154,7 +155,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
           name: resolvedPatientName,
           phone: normalizedPhone,
           otp: patientOtp,
-          nextPath: sessionPath,
+          nextPath: sessionPath.includes("?") ? sessionPath : `${sessionPath}${sessionPath.includes("?") ? "&" : "?"}phone=${encodeURIComponent(normalizedPhone)}`,
         },
         setPatientMessage,
       );

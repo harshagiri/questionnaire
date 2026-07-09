@@ -4,13 +4,16 @@ import { getPatientQuestionnaireContent, getSavedPatientQuestionnaire } from "@/
 
 export default async function PatientSessionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ sessionId: string }>;
+  searchParams?: Promise<{ phone?: string }>;
 }) {
   const { sessionId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [questionnaireContent, savedWorkflow] = await Promise.all([
     getPatientQuestionnaireContent(),
-    getSavedPatientQuestionnaire({ sessionId }),
+    getSavedPatientQuestionnaire({ sessionId, phone: resolvedSearchParams?.phone }),
   ]);
 
   return (

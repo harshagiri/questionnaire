@@ -171,18 +171,20 @@ export async function getSavedPatientQuestionnaire(input: { sessionId?: string; 
   const phone = normalizePhone(input.phone);
 
   try {
-    const submission = input.sessionId
+    let submission = input.sessionId
       ? await prisma.questionnaireSubmission.findUnique({
           where: { sessionId: input.sessionId },
           include: { answers: true },
         })
-      : phone
-        ? await prisma.questionnaireSubmission.findFirst({
-            where: { patientPhone: phone },
-            include: { answers: true },
-            orderBy: { updatedAt: "desc" },
-          })
-        : null;
+      : null;
+
+    if (!submission && phone) {
+      submission = await prisma.questionnaireSubmission.findFirst({
+        where: { patientPhone: phone },
+        include: { answers: true },
+        orderBy: { updatedAt: "desc" },
+      });
+    }
 
     if (!submission) {
       return null;
