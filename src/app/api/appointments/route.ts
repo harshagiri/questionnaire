@@ -129,13 +129,14 @@ async function resolveDoctor(tx: AppointmentTx, doctorId: string) {
   return doctor;
 }
 
-async function listDatabaseAppointments(phone?: string | null) {
+async function listDatabaseAppointments(phone?: string | null, date?: string | null) {
   const database = prisma;
   if (!database) {
     return [];
   }
 
   const normalizedPhone = normalizePhone(phone ?? null);
+  const normalizedDate = date?.trim() ?? "";
 
   const appointments = await database.$queryRaw<
     Array<{
@@ -172,9 +173,12 @@ async function listDatabaseAppointments(phone?: string | null) {
     ORDER BY "updatedAt" DESC
   `;
 
-  const filteredAppointments = normalizedPhone
-    ? appointments.filter((appointment) => normalizePhone(appointment.patientPhone) === normalizedPhone)
-    : appointments;
+  const filteredAppointments = appointments.filter((appointment) => {
+    const matchesPhone = normalizedPhone ? normalizePhone(appointment.patientPhone) === normalizedPhone : true;
+    const matchesDate = normalizedDate ? appointment.appointmentDate.toISOString().slice(0, 10) === normalizedDate : true;
+
+    return matchesPhone && matchesDate;
+  });
 
   return filteredAppointments.map((appointment) =>
     toAppointmentPayload({
@@ -198,12 +202,13 @@ async function listDatabaseAppointments(phone?: string | null) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone");
+  const date = searchParams.get("date");
 
   if (!prisma) {
     return NextResponse.json({ ok: true, appointments: demoAppointments, storage: "demo" });
   }
 
-  const appointments = await listDatabaseAppointments(phone);
+  const appointments = await listDatabaseAppointments(phone, date);
   return NextResponse.json({ ok: true, appointments, storage: "database" });
 }
 

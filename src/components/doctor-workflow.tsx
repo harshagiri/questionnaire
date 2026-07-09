@@ -1,47 +1,177 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { calculateBmi, summarizeAnswer } from "@/lib/questionnaire";
 import { doctorWorkflowSections } from "@/lib/workflow-data";
-
-const patients = [
-  {
-    id: "ritika",
-    name: "Ritika Sharma",
-    patientId: "SEI-001",
-    age: 34,
-    sex: "Female",
-    appointmentTime: "10:30 AM",
-    consultationType: "New consult",
-    summary: "Fever, sore throat, and fatigue for 3 days. No red flags.",
-    bmi: 22.0,
-    painScore: 6,
-    mriAvailable: "MRI report only",
-    status: "Ready",
-  },
-  {
-    id: "imran",
-    name: "Imran Khan",
-    patientId: "SEI-002",
-    age: 47,
-    sex: "Male",
-    appointmentTime: "11:00 AM",
-    consultationType: "Follow-up",
-    summary: "Chest discomfort after exertion, pain score 4/10, incomplete MRI review.",
-    bmi: 26.4,
-    painScore: 4,
-    mriAvailable: "No MRI yet",
-    status: "Waiting",
-  },
-] as const;
 
 const sectionStatusChoices = ["Clinically accurate", "Partially accurate", "Needs correction"] as const;
 
+type AppointmentRecord = {
+  id: string;
+  consultSessionId: string;
+  patientName: string;
+  patientPhone: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentType: string;
+  status: string;
+  notes: string;
+};
+
+type QuestionnaireAnswer = string | number | boolean | string[];
+
+type IntakeRecord = {
+  sessionId: string;
+  answers?: Record<string, QuestionnaireAnswer>;
+};
+
+type DoctorPatient = {
+  id: string;
+  consultSessionId: string;
+  name: string;
+  patientId: string;
+  phone: string;
+  age: string;
+  sex: string;
+  appointmentTime: string;
+  consultationType: string;
+  summary: string;
+  bmi: string;
+  painScore: string;
+  mriAvailable: string;
+  status: string;
+};
+
+const genderLabels: Record<string, string> = {
+  female: "Female",
+  male: "Male",
+  "non-binary": "Non-binary",
+  "prefer-not-to-say": "Prefer not to say",
+};
+
+const appointmentTypeLabels: Record<string, string> = {
+  new: "New consult",
+  "follow-up": "Follow-up",
+  teleconsult: "Teleconsult",
+  "walk-in": "Walk-in",
+  questionnaire: "Intake draft",
+};
+
+function titleize(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatChoice(value: unknown, labels?: Record<string, string>) {
+  if (typeof value === "string" && labels?.[value]) {
+    return labels[value];
+  }
+
+  return summarizeAnswer(value as string | number | boolean | string[] | undefined);
+}
+
+function formatMaybeLabel(value: unknown) {
+  if (typeof value === "string" && value.trim()) {
+    return titleize(value);
+  }
+
+  return "Not captured";
+}
+
+function formatMriValue(answers: Record<string, QuestionnaireAnswer>) {
+  const mriAvailability = answers.mriAvailability;
+  if (typeof mriAvailability === "string" && mriAvailability.trim()) {
+    return formatChoice(mriAvailability, {
+      "report-only": "MRI report only",
+      "images-and-report": "MRI images and report",
+      none: "No MRI yet",
+    });
+  }
+
+  const reportsWithPatient = answers.reportsWithPatient;
+  if (Array.isArray(reportsWithPatient) && (reportsWithPatient.includes("mri-images") || reportsWithPatient.includes("mri-report"))) {
+    return "MRI available";
+  }
+
+  return "Not captured";
+}
+
+function getCurrentDateKey() {
+  const now = new Date();
+  const localYear = now.getFullYear();
+  const localMonth = String(now.getMonth() + 1).padStart(2, "0");
+  const localDay = String(now.getDate()).padStart(2, "0");
+
+  return `${localYear}-${localMonth}-${localDay}`;
+}
+
+async function loadIntakeBySession(sessionId: string) {
+  try {
+    const response = await fetch(`/api/patient-intake?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+    const payload = (await response.json()) as { ok?: boolean; record?: IntakeRecord | null };
+
+    if (!response.ok || !payload.ok) {
+      return null;
+    }
+
+    return payload.record ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadTodayPatients() {
+  const response = await fetch(`/api/appointments?date=${encodeURIComponent(getCurrentDateKey())}`, { cache: "no-store" });
+  const payload = (await response.json()) as { ok?: boolean; appointments?: AppointmentRecord[]; message?: string };
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.message ?? "Could not load today's appointments");
+  }
+
+  const patients = await Promise.all(
+    (payload.appointments ?? []).map(async (appointment) => {
+      const intake = await loadIntakeBySession(appointment.consultSessionId || appointment.id);
+      const answers = intake?.answers ?? {};
+      const patientName = String(answers.patientName ?? appointment.patientName ?? "Patient").trim() || "Patient";
+      const phone = String(answers.phone ?? appointment.patientPhone ?? "").replace(/\D/g, "") || appointment.patientPhone;
+      const bmiValue = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
+
+      return {
+        id: appointment.id,
+        consultSessionId: appointment.consultSessionId || appointment.id,
+        name: patientName,
+        patientId: appointment.consultSessionId || appointment.id,
+        phone,
+        age: formatMaybeLabel(answers.age),
+        sex: formatChoice(answers.gender, genderLabels),
+        appointmentTime: appointment.appointmentTime,
+        consultationType: appointmentTypeLabels[appointment.appointmentType] ?? titleize(appointment.appointmentType),
+        summary:
+          String(answers.mainConcern ?? answers.symptomFocus ?? appointment.notes ?? "").trim() ||
+          "Pending intake",
+        bmi: bmiValue === null ? "Not captured" : bmiValue.toFixed(1),
+        painScore: formatMaybeLabel(answers.painScore),
+        mriAvailable: formatMriValue(answers),
+        status: titleize(appointment.status),
+      } satisfies DoctorPatient;
+    }),
+  );
+
+  return patients.sort((left, right) => left.appointmentTime.localeCompare(right.appointmentTime));
+}
+
 export function DoctorWorkflow() {
+  const [todayPatients, setTodayPatients] = useState<DoctorPatient[]>([]);
   const [patientIndex, setPatientIndex] = useState(0);
   const [sectionIndex, setSectionIndex] = useState(0);
   const [isTabletLayout, setIsTabletLayout] = useState(false);
   const [showPatientPicker, setShowPatientPicker] = useState(false);
   const [isDemographicsCompact, setIsDemographicsCompact] = useState(false);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const [patientsError, setPatientsError] = useState("");
   const [validation, setValidation] = useState<(typeof sectionStatusChoices)[number]>("Clinically accurate");
   const [mriInterpretationVisible, setMriInterpretationVisible] = useState(true);
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
@@ -51,24 +181,30 @@ export function DoctorWorkflow() {
     plan: true,
   });
 
-  const activePatient = patients[patientIndex];
+  const activePatient = todayPatients[patientIndex] ?? null;
   const completion = Math.round(((sectionIndex + 1) / doctorWorkflowSections.length) * 100);
+  const painScoreForScore = Number.parseFloat(activePatient?.painScore ?? "0") || 0;
+  const bmiForScore = Number.parseFloat(activePatient?.bmi ?? "22") || 22;
   const overallScore = Math.max(
     0,
-    Math.min(100, Math.round(100 - activePatient.painScore * 5 - Math.abs(activePatient.bmi - 22) * 2 + completion * 0.2)),
+    Math.min(100, Math.round(100 - painScoreForScore * 5 - Math.abs(bmiForScore - 22) * 2 + completion * 0.2)),
   );
 
   const summaryCards = useMemo(
-    () => [
-      { label: "Patient ID", value: activePatient.patientId },
-      { label: "Age", value: `${activePatient.age}` },
-      { label: "Sex", value: activePatient.sex },
-      { label: "Time", value: activePatient.appointmentTime },
-      { label: "Consultation", value: activePatient.consultationType },
-      { label: "BMI", value: activePatient.bmi.toFixed(1) },
-      { label: "Pain score", value: `${activePatient.painScore}/10` },
-      { label: "MRI", value: activePatient.mriAvailable },
-    ],
+    () =>
+      activePatient
+        ? [
+            { label: "Patient ID", value: activePatient.patientId },
+            { label: "Phone", value: activePatient.phone },
+            { label: "Age", value: activePatient.age },
+            { label: "Sex", value: activePatient.sex },
+            { label: "Time", value: activePatient.appointmentTime },
+            { label: "Consultation", value: activePatient.consultationType },
+            { label: "BMI", value: activePatient.bmi },
+            { label: "Pain score", value: `${activePatient.painScore}/10` },
+            { label: "MRI", value: activePatient.mriAvailable },
+          ]
+        : [],
     [activePatient],
   );
 
@@ -145,6 +281,44 @@ export function DoctorWorkflow() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadPatients() {
+      setIsLoadingPatients(true);
+      setPatientsError("");
+
+      try {
+        const patients = await loadTodayPatients();
+
+        if (!active) {
+          return;
+        }
+
+        setTodayPatients(patients);
+        setPatientIndex((current) => Math.min(current, Math.max(patients.length - 1, 0)));
+        setSectionIndex(0);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setTodayPatients([]);
+        setPatientsError(error instanceof Error ? error.message : "Could not load today's patients");
+      } finally {
+        if (active) {
+          setIsLoadingPatients(false);
+        }
+      }
+    }
+
+    loadPatients();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function jumpToSection(sectionId: string) {
     const index = doctorWorkflowSections.findIndex((section) => section.id === sectionId);
     if (index >= 0) {
@@ -169,6 +343,16 @@ export function DoctorWorkflow() {
 
   const consultationPanel = (
     <section className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-5 shadow-[0_24px_80px_rgba(21,32,43,0.12)] lg:p-7">
+      {!activePatient ? (
+        <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-[0_10px_24px_rgba(21,32,43,0.08)]">
+          <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Doctor dashboard</div>
+          <div className="headline mt-1 text-2xl font-semibold">No patients today</div>
+          <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">
+            {isLoadingPatients ? "Loading today's appointments..." : patientsError || "The queue is empty right now."}
+          </p>
+        </div>
+      ) : (
+      <>
       <div className="sticky top-20 z-20 overflow-hidden rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-[0_10px_24px_rgba(21,32,43,0.08)] transition-all">
         <div className={`grid gap-4 ${isDemographicsCompact ? "lg:grid-cols-[1fr_auto]" : "lg:grid-cols-[1fr_auto]"}`}>
         <div>
@@ -205,7 +389,7 @@ export function DoctorWorkflow() {
               {[
                 `Age ${activePatient.age}`,
                 activePatient.sex,
-                `BMI ${activePatient.bmi.toFixed(1)}`,
+                `BMI ${activePatient.bmi}`,
                 `Pain ${activePatient.painScore}/10`,
                 `Score ${overallScore}`,
                 `Progress ${completion}%`,
@@ -399,6 +583,8 @@ export function DoctorWorkflow() {
         <button type="button" className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-3 text-sm font-semibold">Resume later</button>
         <button type="button" className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-3 text-sm font-semibold">Draft save</button>
       </div>
+      </>
+      )}
     </section>
   );
 
@@ -409,10 +595,10 @@ export function DoctorWorkflow() {
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Doctor dashboard</div>
           <div className="headline mt-1 text-2xl font-semibold">Select patient</div>
           <div className="mt-3 rounded-2xl bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
-            Choose a patient to open the consultation details.
+            {isLoadingPatients ? "Loading today\'s patients..." : patientsError || "Choose a patient to open the consultation details."}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {patients.map((patient, index) => (
+            {todayPatients.map((patient, index) => (
               <button
                 key={patient.id}
                 type="button"
@@ -420,7 +606,7 @@ export function DoctorWorkflow() {
                 className="focus-ring rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3 text-left transition hover:bg-[rgba(15,118,110,0.06)]"
               >
                 <div className="text-sm font-semibold">{patient.name}</div>
-                <div className="mt-1 text-xs text-[color:var(--muted)]">{patient.appointmentTime} · {patient.status}</div>
+                <div className="mt-1 text-xs text-[color:var(--muted)]">{patient.appointmentTime} · {patient.status} · {patient.phone}</div>
               </button>
             ))}
           </div>
@@ -440,7 +626,19 @@ export function DoctorWorkflow() {
       <aside className="space-y-4 rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm lg:sticky lg:top-24 lg:h-fit">
         <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Doctor dashboard</div>
         <div className="headline text-2xl font-semibold">Today’s patient queue</div>
-        {patients.map((patient, index) => (
+        {isLoadingPatients ? (
+          <div className="rounded-2xl border border-dashed border-[rgba(21,32,43,0.14)] px-4 py-6 text-sm text-[color:var(--muted)]">
+            Loading today\'s patients...
+          </div>
+        ) : patientsError ? (
+          <div className="rounded-2xl border border-dashed border-[rgba(21,32,43,0.14)] px-4 py-6 text-sm text-[color:#a34722]">
+            {patientsError}
+          </div>
+        ) : todayPatients.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[rgba(21,32,43,0.14)] px-4 py-6 text-sm text-[color:var(--muted)]">
+            No appointments scheduled for today.
+          </div>
+        ) : todayPatients.map((patient, index) => (
           <button
             key={patient.id}
             type="button"
@@ -448,7 +646,7 @@ export function DoctorWorkflow() {
             className={`focus-ring w-full rounded-2xl border px-4 py-3 text-left transition ${index === patientIndex ? "border-[var(--accent)] bg-[rgba(15,118,110,0.08)]" : "border-[rgba(21,32,43,0.12)] bg-white"}`}
           >
             <div className="text-sm font-semibold">{patient.name}</div>
-            <div className="mt-1 text-xs text-[color:var(--muted)]">{patient.appointmentTime} · {patient.status}</div>
+            <div className="mt-1 text-xs text-[color:var(--muted)]">{patient.appointmentTime} · {patient.status} · {patient.phone}</div>
           </button>
         ))}
 
