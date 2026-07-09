@@ -89,6 +89,52 @@ a {
   outline-offset: 2px;
 }
 
+.confetti-piece {
+  position: absolute;
+  left: var(--confetti-left);
+  top: -18px;
+  width: var(--confetti-size);
+  height: calc(var(--confetti-size) * 1.65);
+  border-radius: 999px;
+  background: var(--confetti-color);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(var(--confetti-rotate));
+  animation: confetti-fall 2200ms cubic-bezier(0.22, 0.72, 0.28, 1) var(--confetti-delay) 1 both;
+}
+
+.confetti-piece:nth-child(3n) {
+  border-radius: 2px;
+}
+
+.confetti-piece:nth-child(4n) {
+  height: var(--confetti-size);
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -18px, 0) rotate(var(--confetti-rotate));
+  }
+  12% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 210px, 0) rotate(260deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece {
+    animation: none;
+    opacity: 0.45;
+    top: 14px;
+  }
+}
+
 /* Prevent native selects and inputs from forcing overflow inside flex/grid containers
    Some browsers and layouts cause dropdowns to overflow the viewport when the control
    cannot shrink. Ensure form controls can shrink and never exceed their container. */

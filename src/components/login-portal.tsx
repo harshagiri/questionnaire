@@ -91,7 +91,17 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
 
     setPatientSubmitting(true);
     try {
-      const defaultPatientPath = `/patient/${normalizedPhone}-${Date.now()}`;
+      let savedSessionId: string | undefined;
+
+      try {
+        const savedResponse = await fetch(`/api/patient-intake?phone=${encodeURIComponent(normalizedPhone)}`);
+        const savedPayload = (await savedResponse.json()) as { ok?: boolean; record?: { sessionId?: string } | null };
+        savedSessionId = savedPayload.ok ? savedPayload.record?.sessionId : undefined;
+      } catch {
+        savedSessionId = undefined;
+      }
+
+      const defaultPatientPath = `/patient/${savedSessionId ?? `${normalizedPhone}-${Date.now()}`}`;
       const sessionPath = nextPath ?? defaultPatientPath;
       const parts = sessionPath.split("/").filter(Boolean);
       const sessionId = parts.length ? parts[parts.length - 1] : undefined;
@@ -106,8 +116,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
             gender: selectedPatient.gender,
             preferredLanguage: selectedPatient.preferredLanguage,
             region: selectedPatient.region,
-            doctorName: selectedPatient.doctorName,
-            doctorLicense: selectedPatient.doctorLicense,
           }),
         );
       }
@@ -115,6 +123,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       await createSession(
         {
           role: "patient",
+          name: selectedPatient.name,
           phone: normalizedPhone,
           otp: patientOtp,
           nextPath: sessionPath,
@@ -222,7 +231,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   <option value="">Select registered patient</option>
                   {matchedPatients.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name} · {item.age}y · {item.doctorName}
+                      {item.name} · {item.age}y · {item.region}
                     </option>
                   ))}
                 </select>

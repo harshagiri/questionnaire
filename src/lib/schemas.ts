@@ -17,8 +17,6 @@ export const patientIntakeSchema = z.object({
   region: z.string().min(2),
   phone: z.string().min(8),
   aadhar: z.string().min(12),
-  doctorName: z.string().min(2),
-  doctorLicense: z.string().min(3),
   weightKg: z.coerce.number().positive(),
   heightCm: z.coerce.number().positive(),
   symptomFocus: z.string().min(2),

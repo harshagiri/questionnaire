@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   response.cookies.set("se_role", body.role, cookieOptions);
   const sessionName =
     body.role === "patient"
-      ? body.phone ?? "patient-demo"
+      ? body.name?.trim() || body.phone || "patient-demo"
       : resolvedStaffDisplayName ?? body.email ?? body.name ?? `${body.role}-demo`;
   response.cookies.set("se_name", sessionName, cookieOptions);
   if (body.role === "patient") {

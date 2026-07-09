@@ -109,7 +109,7 @@ export const patientWorkflowSections: WorkflowSection[] = [
       },
       {
         id: "redFlagReason",
-        label: "If yes, what should the clinic know right now?",
+        label: "If yes, what should the clinic know right now? (optional)",
         type: "textarea",
         showIf: (answers) =>
           Boolean(
@@ -125,8 +125,8 @@ export const patientWorkflowSections: WorkflowSection[] = [
   },
   {
     id: "patient-profile",
-    title: "Basic patient details",
-    subtitle: "Patient / guardian details and care context.",
+    title: "Patient profile",
+    subtitle: "Basic patient details and care context.",
     questions: [
       { id: "patientName", label: "Patient / guardian full name", type: "text", required: true },
       { id: "onBehalf", label: "On behalf of patient?", type: "toggle" },
@@ -174,14 +174,12 @@ export const patientWorkflowSections: WorkflowSection[] = [
       },
       { id: "region", label: "Region / city", type: "text", required: true },
       { id: "phone", label: "Phone number", type: "tel", required: true },
-      { id: "doctorName", label: "Treating doctor name", type: "text", required: true },
-      { id: "doctorLicense", label: "Doctor registration / license number", type: "text", required: true },
     ],
   },
   {
-    id: "background",
-    title: "Medical background & BMI",
-    subtitle: "Auto-calculated where possible and used for doctor review.",
+    id: "medical-history",
+    title: "Medical history",
+    subtitle: "Health background that may affect spine care decisions.",
     questions: [
       {
         id: "medicalConditions",
@@ -213,6 +211,14 @@ export const patientWorkflowSections: WorkflowSection[] = [
         type: "textarea",
         showIf: (answers) => Boolean(answers.priorSurgery),
       },
+      { id: "medicalHistory", label: "Relevant medical history", type: "textarea" },
+    ],
+  },
+  {
+    id: "previous-reports",
+    title: "Previous medical reports available",
+    subtitle: "Reports and measurements available for the doctor review.",
+    questions: [
       {
         id: "reportsWithPatient",
         label: "Which reports or documents do you have with you today?",
@@ -228,7 +234,6 @@ export const patientWorkflowSections: WorkflowSection[] = [
       { id: "heightCm", label: "Height (cm)", type: "number", required: true },
       { id: "weightKg", label: "Weight (kg)", type: "number", required: true },
       { id: "bmi", label: "BMI (auto-calculated)", type: "info-link", linkedFrom: "heightCm" },
-      { id: "medicalHistory", label: "Relevant medical history", type: "textarea" },
       { id: "mriAvailability", label: "MRI availability", type: "select", options: [
         { label: "MRI report only", value: "report-only" },
         { label: "MRI images and report", value: "images-and-report" },
@@ -238,7 +243,7 @@ export const patientWorkflowSections: WorkflowSection[] = [
   },
   {
     id: "diagnosis-understanding",
-    title: "Understanding of diagnosis",
+    title: "Understanding of your diagnosis",
     subtitle: "Captures what the patient was previously told and understood.",
     questions: [
       {
@@ -266,9 +271,9 @@ export const patientWorkflowSections: WorkflowSection[] = [
     ],
   },
   {
-    id: "symptoms",
-    title: "Symptoms and pain context",
-    subtitle: "Question types can branch based on age, gender, and symptom pattern.",
+    id: "current-problem",
+    title: "Your current problem",
+    subtitle: "The main concern and consultation reason today.",
     questions: [
       { id: "mainConcern", label: "Main concern today", type: "textarea", required: true },
       {
@@ -283,7 +288,6 @@ export const patientWorkflowSections: WorkflowSection[] = [
           { label: "Pain into leg / foot (sciatica)", value: "leg" },
         ],
       },
-      { id: "painScore", label: "Pain score", type: "range", required: true },
       {
         id: "symptomDuration",
         label: "Duration of symptoms (days)",
@@ -291,6 +295,24 @@ export const patientWorkflowSections: WorkflowSection[] = [
         branchOn: "mainConcern",
         branchValue: "pain",
       },
+      {
+        id: "problemStart",
+        label: "How did this problem start?",
+        type: "select",
+        options: [
+          { label: "Sudden onset", value: "sudden" },
+          { label: "Gradual onset", value: "gradual" },
+          { label: "After injury / event", value: "injury" },
+          { label: "Not sure", value: "unknown" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "pain-behaviour",
+    title: "Pain behaviour and triggers",
+    subtitle: "Where pain is felt, what changes it, and how it behaves.",
+    questions: [
       { id: "painLocation", label: "Pain location", type: "radio", options: [
         { label: "Neck", value: "neck" },
         { label: "Upper / mid back", value: "upper-back" },
@@ -340,24 +362,14 @@ export const patientWorkflowSections: WorkflowSection[] = [
           { label: "Nothing gives clear relief", value: "none" },
         ],
       },
-      {
-        id: "problemStart",
-        label: "How did this problem start?",
-        type: "select",
-        options: [
-          { label: "Sudden onset", value: "sudden" },
-          { label: "Gradual onset", value: "gradual" },
-          { label: "After injury / event", value: "injury" },
-          { label: "Not sure", value: "unknown" },
-        ],
-      },
     ],
   },
   {
-    id: "function-impact",
-    title: "Function, risk and review",
-    subtitle: "Used for the doctor summary and risk categories.",
+    id: "symptom-severity",
+    title: "Symptom severity",
+    subtitle: "Pain intensity, pattern, and trend.",
     questions: [
+      { id: "painScore", label: "Pain score", type: "range", required: true },
       {
         id: "painPattern",
         label: "Which best describes your pain pattern?",
@@ -380,6 +392,14 @@ export const patientWorkflowSections: WorkflowSection[] = [
           { label: "Fluctuating", value: "fluctuating" },
         ],
       },
+      { id: "spineHealthBaseline", label: "Before today, how would you rate your overall spine health (0-10)?", type: "range" },
+    ],
+  },
+  {
+    id: "neurological-symptoms",
+    title: "Neurological symptoms",
+    subtitle: "Numbness, weakness, balance, and nerve symptom timing.",
+    questions: [
       {
         id: "nerveSymptomsStart",
         label: "When did numbness or weakness (nerve symptoms) begin?",
@@ -403,6 +423,13 @@ export const patientWorkflowSections: WorkflowSection[] = [
         ],
       },
       { id: "walkingBalance", label: "Walking or balance problems?", type: "toggle" },
+    ],
+  },
+  {
+    id: "functional-disability",
+    title: "Functional disability",
+    subtitle: "Daily function, walking, sitting, standing, and sleep impact.",
+    questions: [
       { id: "walkingImpact", label: "How far can you walk without stopping due to pain?", type: "select", options: [
         { label: "More than 30 minutes", value: "30-plus" },
         { label: "15-30 minutes", value: "15-30" },
@@ -433,6 +460,13 @@ export const patientWorkflowSections: WorkflowSection[] = [
         { label: "Sometimes", value: "sometimes" },
         { label: "Frequently", value: "frequently" },
       ] },
+    ],
+  },
+  {
+    id: "previous-treatment",
+    title: "Previous treatment journey",
+    subtitle: "Care tried so far and how much it helped.",
+    questions: [
       { id: "previousDoctors", label: "How many doctors or specialists have you seen?", type: "select", options: [
         { label: "None", value: "0" },
         { label: "1 to 2", value: "1-2" },
@@ -450,6 +484,13 @@ export const patientWorkflowSections: WorkflowSection[] = [
           { label: "No relief", value: "none" },
         ],
       },
+    ],
+  },
+  {
+    id: "concerns-goals",
+    title: "Your concerns and goals",
+    subtitle: "Patient worries, expectations, and final consent.",
+    questions: [
       {
         id: "biggestWorry",
         label: "What worries you most about your spine problem?",
@@ -473,7 +514,6 @@ export const patientWorkflowSections: WorkflowSection[] = [
           { label: "Clear diagnosis and plan", value: "clarity" },
         ],
       },
-      { id: "spineHealthBaseline", label: "Before today, how would you rate your overall spine health (0-10)?", type: "range" },
       { id: "reviewConsent", label: "I agree to the confidentiality statement and review my answers before submission", type: "toggle", required: true },
     ],
   },
@@ -626,8 +666,6 @@ export const registeredPatientProfiles = [
     gender: "male",
     preferredLanguage: "english",
     region: "Bengaluru",
-    doctorName: "Dr. Aarav Mehta",
-    doctorLicense: "MH-REG-901122",
   },
   {
     id: "pt-1001",
@@ -637,8 +675,6 @@ export const registeredPatientProfiles = [
     gender: "female",
     preferredLanguage: "hindi",
     region: "Bengaluru",
-    doctorName: "Dr. Aarav Mehta",
-    doctorLicense: "MH-REG-901122",
   },
   {
     id: "pt-1002",
@@ -648,8 +684,6 @@ export const registeredPatientProfiles = [
     gender: "male",
     preferredLanguage: "english",
     region: "Bengaluru",
-    doctorName: "Dr. Neha Iyer",
-    doctorLicense: "TN-REG-440812",
   },
   {
     id: "pt-1003",
@@ -659,8 +693,6 @@ export const registeredPatientProfiles = [
     gender: "female",
     preferredLanguage: "kannada",
     region: "Mysuru",
-    doctorName: "Dr. Aarav Mehta",
-    doctorLicense: "MH-REG-901122",
   },
 ] as const;
 

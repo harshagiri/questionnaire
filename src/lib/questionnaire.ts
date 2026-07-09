@@ -96,19 +96,6 @@ export const questionnaireDefinition: QuestionnaireDefinition = {
       placeholder: "12-digit ID",
     },
     {
-      id: "doctorName",
-      label: "Doctor name",
-      type: "text",
-      required: true,
-      placeholder: "Consulting doctor",
-    },
-    {
-      id: "doctorLicense",
-      label: "Doctor registration / license number",
-      type: "text",
-      required: true,
-    },
-    {
       id: "weightKg",
       label: "Current weight (kg)",
       type: "number",
