@@ -163,24 +163,6 @@ export function ReceptionistWorkflow() {
 
   return (
     <div className="space-y-6">
-      <section className="glass-panel rounded-[2rem] p-6 lg:p-8">
-        <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
-          <div>
-            <span className="rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">Receptionist workspace</span>
-            <h1 className="headline mt-4 text-4xl font-semibold sm:text-5xl">Appointment booking, patient handoff, and questionnaire builder</h1>
-            <p className="mt-3 max-w-3xl text-base leading-8 text-[color:var(--muted)]">
-              Use this screen to book appointments, match patients to doctors, and build questionnaire templates with simple branching and linked question info.
-            </p>
-          </div>
-
-          <div className="rounded-[1.75rem] bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Demo OTP popup</div>
-            <div className="mt-2 text-4xl font-semibold tracking-[0.25em] text-[var(--accent)]">482931</div>
-            <p className="mt-2 text-sm leading-7 text-[color:var(--muted)]">Copy this into the patient login popup when handing off the consultation link.</p>
-          </div>
-        </div>
-      </section>
-
       <div className="flex flex-wrap gap-3">
         {[
           { id: "appointments", label: "Appointments" },
