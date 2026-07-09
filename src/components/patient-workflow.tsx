@@ -163,24 +163,6 @@ function SectionIcon({ sectionId, className = "h-5 w-5" }: SectionIconProps) {
   }
 }
 
-function readSavedWorkflow(sessionId: string) {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const saved = window.localStorage.getItem(`sei-pq:${sessionId}`);
-  if (!saved) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(saved) as { answers?: AnswerMap; sectionIndex?: number; questionIndex?: number; submitted?: boolean };
-  } catch {
-    window.localStorage.removeItem(`sei-pq:${sessionId}`);
-    return null;
-  }
-}
-
 function applyQuestionContentOverrides(questionContent: PatientQuestionContent[] = []): WorkflowSections {
   if (questionContent.length === 0) {
     return patientWorkflowSections;
@@ -376,7 +358,7 @@ export function PatientWorkflow({
   };
 
   useEffect(() => {
-    const saved = readSavedWorkflow(sessionId) ?? initialSavedWorkflow;
+    const saved = initialSavedWorkflow;
     if (!saved) {
       return;
     }
