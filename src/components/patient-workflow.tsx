@@ -419,42 +419,33 @@ export function PatientWorkflow({
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, []);
 
-  const hasRegisteredProfile = useMemo(
-    () =>
-      Boolean(
-        answers.patientName &&
-          answers.phone &&
-          answers.age &&
-          answers.gender &&
-          answers.preferredLanguage &&
-          answers.region,
-      ),
-    [
-      answers.age,
-      answers.gender,
-      answers.patientName,
-      answers.phone,
-      answers.preferredLanguage,
-      answers.region,
-    ],
+  const patientProfileQuestions = useMemo(
+    () => workflowSections.find((item) => item.id === "patient-profile")?.questions ?? [],
+    [workflowSections],
   );
 
-  const registrationQuestionIds = useMemo(
-    () => ["patientName", "age", "gender", "preferredLanguage", "region", "phone"],
-    [],
+  const missingPatientProfileQuestions = useMemo(
+    () => patientProfileQuestions.filter((question) => !isQuestionAnswered(question, answers)),
+    [answers, patientProfileQuestions],
   );
+
+  const hasRegisteredProfile = missingPatientProfileQuestions.length === 0;
 
   const getSectionQuestions = useMemo(
     () =>
       (index: number) => {
         const sectionQuestions = getVisibleQuestions(workflowSections, index, answers);
-        if (!hasRegisteredProfile || workflowSections[index].id !== "patient-profile") {
+        if (workflowSections[index].id !== "patient-profile") {
           return sectionQuestions;
         }
 
-        return sectionQuestions.filter((question) => !registrationQuestionIds.includes(question.id));
+        if (hasRegisteredProfile) {
+          return [];
+        }
+
+        return sectionQuestions.filter((question) => !isQuestionAnswered(question, answers));
       },
-    [answers, hasRegisteredProfile, registrationQuestionIds, workflowSections],
+    [answers, hasRegisteredProfile, workflowSections],
   );
 
   const section = workflowSections[sectionIndex];
@@ -575,6 +566,7 @@ export function PatientWorkflow({
   const currentSectionCard = sectionCards[sectionIndex];
   const currentSectionAnswered = currentSectionCard?.answeredCount ?? 0;
   const currentSectionTotal = currentSectionCard?.visibleCount ?? sectionQuestionCount;
+  const missingPatientProfileLabels = missingPatientProfileQuestions.map((question) => question.label);
   const nextSectionTitle = sectionCards[sectionIndex + 1]?.title;
   const answeredForSummary = sectionProgress.totalAnsweredQuestions;
   const submittedSummaryCards = [
@@ -885,6 +877,14 @@ export function PatientWorkflow({
 
     return (
       <div className="min-w-0 overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] bg-white shadow-sm">
+        {section.id === "patient-profile" && missingPatientProfileLabels.length > 0 ? (
+          <div className="border-b border-[rgba(21,32,43,0.08)] bg-[rgba(15,118,110,0.05)] px-3 py-3 text-sm text-[color:var(--foreground)]">
+            <div className="font-semibold text-[color:var(--accent)]">We still need these details</div>
+            <div className="mt-1 text-xs leading-6 text-[color:var(--muted)]">
+              {missingPatientProfileLabels.join(" · ")}
+            </div>
+          </div>
+        ) : null}
         {visibleQuestions.map((question) => (
           <div key={question.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.78fr)] items-start gap-2 border-b border-[rgba(21,32,43,0.08)] px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(240px,0.72fr)] sm:gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.6fr)]">
             <div className="min-w-0">
