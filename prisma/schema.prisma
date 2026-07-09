@@ -15,7 +15,9 @@ enum RoleName {
 enum AppointmentStatus {
   draft
   booked
+  waiting
   submitted
+  cancelled
   follow_up
 }
 
@@ -90,9 +92,15 @@ model PatientProfile {
 
 model Appointment {
   id              String            @id @default(cuid())
+  consultSessionId String           @unique
   patientId       String
+  patientName     String
+  patientPhone    String
   doctorId        String
+  doctorName      String
   appointmentDate DateTime
+  appointmentTime String
+  appointmentType String            @default("new")
   status          AppointmentStatus @default(booked)
   createdBy       String?
   notes           String?

@@ -29,10 +29,13 @@ export const patientIntakeSchema = z.object({
 export const appointmentSchema = z.object({
   patientName: z.string().min(2),
   patientPhone: z.string().min(8),
-  doctorName: z.string().min(2),
+  doctorId: z.string().min(1),
   appointmentDate: z.string().min(5),
-  appointmentSlot: z.string().min(2),
-  status: z.enum(["draft", "booked", "submitted", "follow-up"]).default("booked"),
+  appointmentTime: z.string().min(2),
+  appointmentType: z.string().min(2),
+  consultSessionId: z.string().min(8),
+  status: z.enum(["draft", "booked", "waiting", "submitted", "cancelled", "follow_up"]).default("booked"),
+  notes: z.string().optional().default(""),
 });
 
 export const questionnaireBuilderSchema = z.object({

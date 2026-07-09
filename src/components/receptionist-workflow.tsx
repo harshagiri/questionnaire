@@ -1,21 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { demoAppointments, receptionistAppointmentFields } from "@/lib/workflow-data";
+import { receptionistAppointmentFields } from "@/lib/workflow-data";
 import type { ReceptionDraftRecord } from "@/lib/portal-storage";
-import { createSessionId, listAppointments, loadReceptionDraft, saveAppointment, saveReceptionDraft, updateAppointment } from "@/lib/portal-storage";
+import { createSessionId, loadReceptionDraft, saveReceptionDraft } from "@/lib/portal-storage";
 
 type BookingDraft = Omit<ReceptionDraftRecord, "sessionId" | "updatedAt"> & Record<string, string>;
+
+type QueueAppointment = {
+  id: string;
+  consultSessionId: string;
+  patientName: string;
+  patientPhone: string;
+  doctorId: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentType: string;
+  status: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 const queueStatusOptions = [
   { label: "Booked", value: "booked" },
   { label: "Waiting", value: "waiting" },
   { label: "Submitted", value: "submitted" },
   { label: "Cancelled", value: "cancelled" },
+  { label: "Follow-up", value: "follow_up" },
 ] as const;
 
 export function ReceptionistWorkflow() {
   const [doctorOptions, setDoctorOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [isLoadingQueue, setIsLoadingQueue] = useState(true);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft>(() => {
     const savedDraft = loadReceptionDraft("booking");
     return {
@@ -31,7 +49,7 @@ export function ReceptionistWorkflow() {
   });
   const [saveMessage, setSaveMessage] = useState("");
   const [issuedLink, setIssuedLink] = useState("");
-  const [savedQueue, setSavedQueue] = useState(() => listAppointments());
+  const [savedQueue, setSavedQueue] = useState<QueueAppointment[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -52,7 +70,7 @@ export function ReceptionistWorkflow() {
           label: doctor.registrationNumber
             ? `${doctor.name} (${doctor.registrationNumber})`
             : doctor.name,
-          value: doctor.name,
+          value: doctor.id,
         }));
         setDoctorOptions(options);
       } catch {
@@ -63,6 +81,39 @@ export function ReceptionistWorkflow() {
     }
 
     loadDoctors();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAppointments() {
+      try {
+        const response = await fetch("/api/appointments", { cache: "no-store" });
+        const payload = (await response.json()) as {
+          ok: boolean;
+          appointments?: QueueAppointment[];
+        };
+
+        if (!active || !response.ok || !payload.ok) {
+          return;
+        }
+
+        setSavedQueue(payload.appointments ?? []);
+      } catch {
+        if (active) {
+          setSavedQueue([]);
+        }
+      } finally {
+        if (active) {
+          setIsLoadingQueue(false);
+        }
+      }
+    }
+
+    loadAppointments();
     return () => {
       active = false;
     };
@@ -88,35 +139,79 @@ export function ReceptionistWorkflow() {
     }
 
     const sessionId = createSessionId(bookingDraft.patientName || bookingDraft.patientPhone);
-    const now = new Date().toISOString();
-    const record = {
-      sessionId,
+    const payload = {
+      consultSessionId: sessionId,
       patientName: bookingDraft.patientName.trim(),
       patientPhone: bookingDraft.patientPhone.trim(),
-      doctorName: bookingDraft.doctorName.trim(),
+      doctorId: bookingDraft.doctorName.trim(),
       appointmentDate: bookingDraft.appointmentDate.trim(),
       appointmentTime: bookingDraft.appointmentTime.trim(),
       appointmentType: bookingDraft.appointmentType.trim() || "new",
       status: bookingDraft.status.trim() || "booked",
       notes: bookingDraft.notes.trim(),
-      createdAt: now,
-      updatedAt: now,
     };
 
-    saveAppointment(record);
-    setSavedQueue(listAppointments());
-    setIssuedLink(`${window.location.origin}/access?role=patient&next=/patient/${sessionId}`);
-    setSaveMessage(issueLink ? "Appointment saved and consult link ready." : "Appointment saved.");
+    try {
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (issueLink && typeof navigator !== "undefined" && navigator.clipboard) {
-      await navigator.clipboard.writeText(`${window.location.origin}/access?role=patient&next=/patient/${sessionId}`);
-      setSaveMessage("Appointment saved and link copied to clipboard.");
+      const responsePayload = (await response.json()) as {
+        ok: boolean;
+        appointment?: QueueAppointment;
+        consultLink?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !responsePayload.ok) {
+        setSaveMessage(responsePayload.message ?? "Could not create appointment.");
+        return;
+      }
+
+      setSavedQueue((current) => {
+        const next = [responsePayload.appointment as QueueAppointment, ...current.filter((item) => item.id !== responsePayload.appointment?.id)];
+        return next;
+      });
+
+      const consultLink = responsePayload.consultLink ?? `${window.location.origin}/access?role=patient&next=/patient/${sessionId}`;
+      setIssuedLink(consultLink);
+      setSaveMessage(issueLink ? "Appointment saved and consult link ready." : "Appointment saved.");
+
+      if (issueLink && typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(consultLink);
+        setSaveMessage("Appointment saved and link copied to clipboard.");
+      }
+    } catch {
+      setSaveMessage("Network error while saving appointment.");
     }
   };
 
-  const updateQueueStatus = (sessionId: string, status: string) => {
-    updateAppointment(sessionId, { status });
-    setSavedQueue(listAppointments());
+  const updateQueueStatus = async (id: string, status: string) => {
+    try {
+      const response = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+
+      const payload = (await response.json()) as {
+        ok: boolean;
+        appointment?: QueueAppointment;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.ok || !payload.appointment) {
+        setSaveMessage(payload.message ?? "Could not update appointment status.");
+        return;
+      }
+
+      setSavedQueue((current) => current.map((item) => (item.id === id ? payload.appointment as QueueAppointment : item)));
+      setSaveMessage("");
+    } catch {
+      setSaveMessage("Network error while updating appointment.");
+    }
   };
 
   return (
@@ -172,20 +267,13 @@ export function ReceptionistWorkflow() {
         <div className="rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-sm">
           <h2 className="headline text-3xl font-semibold">Today’s queue</h2>
           <div className="mt-4 space-y-3">
-            {(savedQueue.length ? savedQueue : demoAppointments.map((item, index) => ({
-              sessionId: `demo-${index}`,
-              patientName: item.name,
-              doctorName: item.doctor,
-              appointmentDate: "today",
-              appointmentTime: item.slot,
-              status: item.status,
-            }))).map((item) => (
-              <div key={item.sessionId} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
+            {savedQueue.length ? savedQueue.map((item) => (
+              <div key={item.id} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <span className="font-semibold">{item.patientName}</span>
                   <select
                     value={item.status}
-                    onChange={(event) => updateQueueStatus(item.sessionId, event.target.value)}
+                    onChange={(event) => updateQueueStatus(item.id, event.target.value)}
                     className="rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-3 py-1 text-xs font-semibold outline-none"
                   >
                     {queueStatusOptions.map((status) => (
@@ -197,7 +285,11 @@ export function ReceptionistWorkflow() {
                 </div>
                 <div className="mt-1 text-sm text-[color:var(--muted)]">{item.doctorName} · {`${item.appointmentDate || "today"} ${item.appointmentTime || ""}`.trim()}</div>
               </div>
-            ))}
+            )) : (
+              <div className="rounded-2xl border border-dashed border-[rgba(21,32,43,0.14)] px-4 py-6 text-sm text-[color:var(--muted)]">
+                {isLoadingQueue ? "Loading appointments..." : "No appointments yet."}
+              </div>
+            )}
           </div>
         </div>
       </section>
