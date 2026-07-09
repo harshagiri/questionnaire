@@ -3,9 +3,9 @@ set -euo pipefail
 
 # One-shot deploy to a droplet using password-based SSH (sshpass).
 # WARNING: Using password-based SSH is less secure than SSH keys. Use this only for quick testing.
-# Usage: ./scripts/deploy-with-sshpass.sh user@ip [password] [branch] [remote_dir] [env_file] [run_doctor_migration]
+# Usage: ./scripts/deploy-with-sshpass.sh user@ip [password] [branch] [remote_dir] [env_file] [run_doctor_migration] [app_image]
 # Example:
-#   ./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'P@ssw0rd' main /home/ubuntu/questionnaire ./.env.production true
+#   ./scripts/deploy-with-sshpass.sh ubuntu@168.144.67.25 'P@ssw0rd' main /home/ubuntu/questionnaire ./.env.production true localhost:5000/questionnaire:latest
 
 REMOTE=${1:?Please specify user@host}
 PASS=${2:-${DEPLOY_SSH_PASSWORD:-}}
@@ -13,6 +13,7 @@ BRANCH=${3:-main}
 TARGET_DIR=${4:-/home/${REMOTE%%@*}/questionnaire}
 ENV_FILE=${5:-}
 RUN_DOCTOR_MIGRATION=${6:-false}
+APP_IMAGE=${7:-}
 
 # Optional local secrets file (never commit secrets):
 #   ./.deploy.secrets containing: DEPLOY_SSH_PASSWORD='your_password'
@@ -29,6 +30,11 @@ fi
 
 if [[ "$RUN_DOCTOR_MIGRATION" != "true" && "$RUN_DOCTOR_MIGRATION" != "false" ]]; then
   echo "run_doctor_migration must be 'true' or 'false'" >&2
+  exit 1
+fi
+
+if [[ -z "$APP_IMAGE" ]]; then
+  echo "app_image is required. Pass the pushed image tag from the local build step." >&2
   exit 1
 fi
 
@@ -49,7 +55,7 @@ if [[ -n "$ENV_FILE" ]]; then
   sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$ENV_FILE" "$REMOTE:/tmp/questionnaire.env"
 fi
 
-sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" "TARGET_DIR='${TARGET_DIR}' BRANCH='${BRANCH}' RUN_DOCTOR_MIGRATION='${RUN_DOCTOR_MIGRATION}' bash -s" <<'EOF'
+sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" "TARGET_DIR='${TARGET_DIR}' BRANCH='${BRANCH}' RUN_DOCTOR_MIGRATION='${RUN_DOCTOR_MIGRATION}' APP_IMAGE='${APP_IMAGE}' bash -s" <<'EOF'
 set -euo pipefail
 
 if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
@@ -90,7 +96,7 @@ if [ ! -d ".git" ]; then
   echo "[remote] Cloning repository"
   git clone https://github.com/harshagiri/questionnaire.git .
 else
-  echo "[remote] Fetching latest"
+  echo "[remote] Fetching latest compose/config"
   git fetch origin
 fi
 
@@ -120,7 +126,7 @@ fi
 echo "[remote] Starting containers with docker compose"
 docker compose down || true
 docker compose pull || true
-docker compose up -d --build
+docker compose up -d --no-build
 
 if [ "${RUN_DOCTOR_MIGRATION}" = "true" ]; then
   echo "[remote] Applying Prisma schema to database"

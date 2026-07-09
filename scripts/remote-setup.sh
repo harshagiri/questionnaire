@@ -20,4 +20,4 @@ systemctl enable --now docker
 
 echo "Docker installed and started. Add your user to the docker group if you plan to use docker without sudo."
 
-echo "Setup complete. Next: clone project, copy .env and run: docker compose up -d --build"
+echo "Setup complete. Next: clone the project, copy .env, then run the local image build-and-push deploy script."
