@@ -59,7 +59,7 @@ export function ReceptionistWorkflow() {
         const response = await fetch("/api/doctors", { cache: "no-store" });
         const payload = (await response.json()) as {
           ok: boolean;
-          doctors?: Array<{ name: string; registrationNumber?: string }>;
+          doctors?: Array<{ id: string; name: string; registrationNumber?: string }>;
         };
 
         if (!active || !response.ok || !payload.ok) {
@@ -133,7 +133,9 @@ export function ReceptionistWorkflow() {
   };
 
   const saveBooking = async (issueLink = false) => {
-    if (!bookingDraft.patientName.trim() || !bookingDraft.patientPhone.trim() || !bookingDraft.doctorName.trim()) {
+    const doctorId = bookingDraft.doctorName.trim() || doctorOptions[0]?.value || "";
+
+    if (!bookingDraft.patientName.trim() || !bookingDraft.patientPhone.trim() || !doctorId) {
       setSaveMessage("Fill patient name, phone, and doctor before saving.");
       return;
     }
@@ -143,7 +145,7 @@ export function ReceptionistWorkflow() {
       consultSessionId: sessionId,
       patientName: bookingDraft.patientName.trim(),
       patientPhone: bookingDraft.patientPhone.trim(),
-      doctorId: bookingDraft.doctorName.trim(),
+      doctorId,
       appointmentDate: bookingDraft.appointmentDate.trim(),
       appointmentTime: bookingDraft.appointmentTime.trim(),
       appointmentType: bookingDraft.appointmentType.trim() || "new",
@@ -225,7 +227,7 @@ export function ReceptionistWorkflow() {
                 <span className="text-sm font-semibold text-[color:var(--foreground)]">{field.label}</span>
                 {field.type === "select" ? (
                   <select
-                    value={bookingDraft[field.id] ?? ""}
+                    value={field.id === "doctorName" ? bookingDraft[field.id] ?? doctorOptions[0]?.value ?? "" : bookingDraft[field.id] ?? ""}
                     onChange={(event) => updateBookingField(field.id, event.target.value)}
                     className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3"
                   >
