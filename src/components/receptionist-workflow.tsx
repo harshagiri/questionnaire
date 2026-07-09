@@ -272,7 +272,7 @@ export function ReceptionistWorkflow() {
             {savedQueue.length ? savedQueue.map((item) => (
               <div key={item.id} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
                 <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="font-semibold">{item.patientName}</span>
+                  <span className="font-semibold">{item.patientName} · {item.patientPhone}</span>
                   <select
                     value={item.status}
                     onChange={(event) => updateQueueStatus(item.id, event.target.value)}

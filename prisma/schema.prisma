@@ -92,14 +92,14 @@ model PatientProfile {
 
 model Appointment {
   id              String            @id @default(cuid())
-  consultSessionId String           @unique
+  consultSessionId String?           @unique
   patientId       String
-  patientName     String
-  patientPhone    String
+  patientName     String            @default("")
+  patientPhone    String            @default("")
   doctorId        String
-  doctorName      String
+  doctorName      String            @default("")
   appointmentDate DateTime
-  appointmentTime String
+  appointmentTime String            @default("09:00")
   appointmentType String            @default("new")
   status          AppointmentStatus @default(booked)
   createdBy       String?
