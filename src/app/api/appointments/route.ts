@@ -137,12 +137,46 @@ async function listDatabaseAppointments(phone?: string | null) {
 
   const normalizedPhone = normalizePhone(phone ?? null);
 
-  const appointments = await database.appointment.findMany({
-    where: normalizedPhone ? { patientPhone: normalizedPhone } : undefined,
-    orderBy: { updatedAt: "desc" },
-  });
+  const appointments = await database.$queryRaw<
+    Array<{
+      id: string;
+      consultSessionId: string | null;
+      patientName: string;
+      patientPhone: string;
+      doctorId: string;
+      doctorName: string;
+      appointmentDate: Date;
+      appointmentTime: string;
+      appointmentType: string;
+      status: string;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>
+  >`
+    SELECT
+      id,
+      "consultSessionId",
+      "patientName",
+      "patientPhone",
+      "doctorId",
+      "doctorName",
+      "appointmentDate",
+      "appointmentTime",
+      "appointmentType",
+      status,
+      notes,
+      "createdAt",
+      "updatedAt"
+    FROM "Appointment"
+    ORDER BY "updatedAt" DESC
+  `;
 
-  return appointments.map((appointment) =>
+  const filteredAppointments = normalizedPhone
+    ? appointments.filter((appointment) => normalizePhone(appointment.patientPhone) === normalizedPhone)
+    : appointments;
+
+  return filteredAppointments.map((appointment) =>
     toAppointmentPayload({
       id: appointment.id,
       consultSessionId: appointment.consultSessionId,
@@ -166,12 +200,7 @@ export async function GET(request: Request) {
   const phone = searchParams.get("phone");
 
   if (!prisma) {
-    const normalizedPhone = normalizePhone(phone);
-    const appointments = normalizedPhone
-      ? demoAppointments.filter((appointment) => normalizePhone(appointment.patientPhone) === normalizedPhone)
-      : demoAppointments;
-
-    return NextResponse.json({ ok: true, appointments, storage: "demo" });
+    return NextResponse.json({ ok: true, appointments: demoAppointments, storage: "demo" });
   }
 
   const appointments = await listDatabaseAppointments(phone);
@@ -202,42 +231,58 @@ export async function POST(request: Request) {
       const patient = await createOrUpdatePatientUser(tx, input.patientName, input.patientPhone);
       const doctor = await resolveDoctor(tx, input.doctorId);
 
-      return tx.appointment.create({
-        data: {
-          consultSessionId: input.consultSessionId,
-          patientId: patient.id,
-          patientName: input.patientName,
-          patientPhone: input.patientPhone,
-          doctorId: doctor.user.id,
-          doctorName: doctor.name,
-          appointmentDate: appointmentDateTime,
-          appointmentTime: input.appointmentTime.trim(),
-          appointmentType: input.appointmentType.trim(),
-          status: input.status,
-          notes: input.notes?.trim() || null,
-        },
-      });
+      const appointmentData = {
+        consultSessionId: input.consultSessionId,
+        patientId: patient.id,
+        patientName: input.patientName,
+        patientPhone: input.patientPhone,
+        doctorId: doctor.user.id,
+        doctorName: doctor.name,
+        appointmentDate: appointmentDateTime,
+        appointmentTime: input.appointmentTime.trim(),
+        appointmentType: input.appointmentType.trim(),
+        status: input.status as never,
+        notes: input.notes?.trim() || null,
+      } as const;
+
+      return tx.appointment.create({ data: appointmentData as never });
     });
+
+    const createdAppointment = created as unknown as {
+      id: string;
+      consultSessionId: string | null;
+      patientName: string;
+      patientPhone: string;
+      doctorId: string;
+      doctorName: string;
+      appointmentDate: Date;
+      appointmentTime: string;
+      appointmentType: string;
+      status: string;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
 
     return NextResponse.json(
       {
         ok: true,
         appointment: toAppointmentPayload({
-          id: created.id,
-          consultSessionId: created.consultSessionId,
-          patientName: created.patientName,
-          patientPhone: created.patientPhone,
-          doctorId: created.doctorId,
-          doctorName: created.doctorName,
-          appointmentDate: created.appointmentDate,
-          appointmentTime: created.appointmentTime,
-          appointmentType: created.appointmentType,
-          status: created.status,
-          notes: created.notes,
-          createdAt: created.createdAt,
-          updatedAt: created.updatedAt,
+          id: createdAppointment.id,
+          consultSessionId: createdAppointment.consultSessionId,
+          patientName: createdAppointment.patientName,
+          patientPhone: createdAppointment.patientPhone,
+          doctorId: createdAppointment.doctorId,
+          doctorName: createdAppointment.doctorName,
+          appointmentDate: createdAppointment.appointmentDate,
+          appointmentTime: createdAppointment.appointmentTime,
+          appointmentType: createdAppointment.appointmentType,
+          status: createdAppointment.status,
+          notes: createdAppointment.notes,
+          createdAt: createdAppointment.createdAt,
+          updatedAt: createdAppointment.updatedAt,
         }),
-        consultLink: toConsultLink(created.consultSessionId, created.id),
+        consultLink: toConsultLink(createdAppointment.consultSessionId, createdAppointment.id),
         storage: "database",
       },
       { status: 201 },
@@ -263,25 +308,41 @@ export async function PATCH(request: Request) {
   try {
     const updated = await prisma.appointment.update({
       where: { id: parsed.data.id },
-      data: { status: parsed.data.status },
+      data: { status: parsed.data.status as never },
     });
+
+    const updatedAppointment = updated as unknown as {
+      id: string;
+      consultSessionId: string | null;
+      patientName: string;
+      patientPhone: string;
+      doctorId: string;
+      doctorName: string;
+      appointmentDate: Date;
+      appointmentTime: string;
+      appointmentType: string;
+      status: string;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
 
     return NextResponse.json({
       ok: true,
       appointment: toAppointmentPayload({
-        id: updated.id,
-        consultSessionId: updated.consultSessionId,
-        patientName: updated.patientName,
-        patientPhone: updated.patientPhone,
-        doctorId: updated.doctorId,
-        doctorName: updated.doctorName,
-        appointmentDate: updated.appointmentDate,
-        appointmentTime: updated.appointmentTime,
-        appointmentType: updated.appointmentType,
-        status: updated.status,
-        notes: updated.notes,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
+        id: updatedAppointment.id,
+        consultSessionId: updatedAppointment.consultSessionId,
+        patientName: updatedAppointment.patientName,
+        patientPhone: updatedAppointment.patientPhone,
+        doctorId: updatedAppointment.doctorId,
+        doctorName: updatedAppointment.doctorName,
+        appointmentDate: updatedAppointment.appointmentDate,
+        appointmentTime: updatedAppointment.appointmentTime,
+        appointmentType: updatedAppointment.appointmentType,
+        status: updatedAppointment.status,
+        notes: updatedAppointment.notes,
+        createdAt: updatedAppointment.createdAt,
+        updatedAt: updatedAppointment.updatedAt,
       }),
       storage: "database",
     });

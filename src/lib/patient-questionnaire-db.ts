@@ -341,20 +341,44 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
       select: { id: true, appointmentId: true },
     });
 
+    const appointmentTimestamp = new Date();
+    const appointmentTime = appointmentTimestamp.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
     const appointment = existing
       ? await tx.appointment.update({
           where: { id: existing.appointmentId },
-          data: { status: record.submitted ? "submitted" : "draft", updatedAt: new Date() },
-        })
-      : await tx.appointment.create({
           data: {
-            patientId: patientUser.id,
-            doctorId: doctorUser.id,
-            appointmentDate: new Date(),
+            patientName: patientUser.displayName,
+            patientPhone: explicitPhone || phone || "",
+            doctorName: doctorUser.displayName,
+            appointmentDate: appointmentTimestamp,
+            appointmentTime,
+            appointmentType: "questionnaire",
             status: record.submitted ? "submitted" : "draft",
             createdBy: "patient",
             notes: `Patient questionnaire session: ${record.sessionId}`,
-          },
+            updatedAt: new Date(),
+          } as never,
+        })
+      : await tx.appointment.create({
+          data: {
+            consultSessionId: record.sessionId,
+            patientId: patientUser.id,
+            patientName: patientUser.displayName,
+            patientPhone: explicitPhone || phone || "",
+            doctorId: doctorUser.id,
+            doctorName: doctorUser.displayName,
+            appointmentDate: new Date(),
+            appointmentTime,
+            appointmentType: "questionnaire",
+            status: record.submitted ? "submitted" : "draft",
+            createdBy: "patient",
+            notes: `Patient questionnaire session: ${record.sessionId}`,
+          } as never,
         });
 
     const submission = await tx.questionnaireSubmission.upsert({
