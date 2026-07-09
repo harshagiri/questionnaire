@@ -7,6 +7,13 @@ import type { AppRole } from "@/lib/rbac";
 
 type StaffRole = Exclude<AppRole, "patient">;
 
+type PatientAppointmentLookup = {
+  id: string;
+  consultSessionId: string;
+  patientName: string;
+  patientPhone: string;
+};
+
 const staffRoles: Array<{ role: StaffRole; label: string }> = [
   { role: "doctor", label: "Doctor" },
   { role: "receptionist", label: "Receptionist" },
@@ -37,22 +44,36 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   );
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
-  const matchedPatients = useMemo(
+  const demoPatientsForPhone = useMemo(
     () => registeredPatientProfiles.filter((item) => item.phone === normalizedPhone),
     [normalizedPhone],
   );
 
-  const selectedPatient = useMemo(() => {
-    const explicitSelection = matchedPatients.find((item) => item.id === selectedPatientId);
+  const selectedDemoPatient = useMemo(() => {
+    const explicitSelection = demoPatientsForPhone.find((item) => item.id === selectedPatientId);
     if (explicitSelection) return explicitSelection;
-    if (matchedPatients.length === 1) return matchedPatients[0];
+    if (demoPatientsForPhone.length === 1) return demoPatientsForPhone[0];
     return undefined;
-  }, [matchedPatients, selectedPatientId]);
+  }, [demoPatientsForPhone, selectedPatientId]);
 
   const demoPatientPhones = useMemo(() => {
     const unique = new Set(registeredPatientProfiles.map((item) => item.phone));
     return Array.from(unique);
   }, []);
+
+  async function loadAppointmentsByPhone(phoneNumber: string) {
+    const response = await fetch(`/api/appointments?phone=${encodeURIComponent(phoneNumber)}`, { cache: "no-store" });
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      appointments?: PatientAppointmentLookup[];
+    };
+
+    if (!response.ok || !payload.ok) {
+      return [];
+    }
+
+    return payload.appointments ?? [];
+  }
 
   async function createSession(body: Record<string, unknown>, messageSetter: (message: string) => void) {
     const response = await fetch("/api/session", {
@@ -80,42 +101,49 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       setPatientMessage("Enter OTP");
       return;
     }
-    if (matchedPatients.length === 0) {
-      setPatientMessage("No registered patient found for this phone. Please contact reception.");
-      return;
-    }
-    if (!selectedPatient) {
-      setPatientMessage("Select the patient profile to continue");
-      return;
-    }
 
     setPatientSubmitting(true);
     try {
-      let savedSessionId: string | undefined;
+      const [savedResponse, appointmentMatches] = await Promise.all([
+        fetch(`/api/patient-intake?phone=${encodeURIComponent(normalizedPhone)}`),
+        loadAppointmentsByPhone(normalizedPhone),
+      ]);
 
-      try {
-        const savedResponse = await fetch(`/api/patient-intake?phone=${encodeURIComponent(normalizedPhone)}`);
-        const savedPayload = (await savedResponse.json()) as { ok?: boolean; record?: { sessionId?: string } | null };
-        savedSessionId = savedPayload.ok ? savedPayload.record?.sessionId : undefined;
-      } catch {
-        savedSessionId = undefined;
+      const savedPayload = (await savedResponse.json()) as { ok?: boolean; record?: { sessionId?: string } | null };
+      const savedSessionId = savedPayload.ok ? savedPayload.record?.sessionId : undefined;
+      const latestAppointment = appointmentMatches[0];
+      const demoPatient = selectedDemoPatient;
+
+      if (!savedSessionId && !latestAppointment && !demoPatient) {
+        setPatientMessage("No patient or appointment found for this phone. Please contact reception.");
+        return;
       }
 
-      const defaultPatientPath = `/patient/${savedSessionId ?? `${normalizedPhone}-${Date.now()}`}`;
+      const resolvedSessionId = savedSessionId ?? latestAppointment?.consultSessionId ?? latestAppointment?.id ?? `${normalizedPhone}-${Date.now()}`;
+      const resolvedPatientName = latestAppointment?.patientName ?? demoPatient?.name ?? normalizedPhone;
+      const resolvedPatientPhone = latestAppointment?.patientPhone ?? demoPatient?.phone ?? normalizedPhone;
+
+      const defaultPatientPath = `/patient/${resolvedSessionId}`;
       const sessionPath = nextPath ?? defaultPatientPath;
       const parts = sessionPath.split("/").filter(Boolean);
-      const sessionId = parts.length ? parts[parts.length - 1] : undefined;
+      const sessionId = parts.length ? parts[parts.length - 1] : resolvedSessionId;
 
       if (sessionId && typeof window !== "undefined") {
+        const demoDefaults = demoPatient
+          ? {
+              age: demoPatient.age,
+              gender: demoPatient.gender,
+              preferredLanguage: demoPatient.preferredLanguage,
+              region: demoPatient.region,
+            }
+          : {};
+
         window.localStorage.setItem(
           `sei-patient-profile:${sessionId}`,
           JSON.stringify({
-            patientName: selectedPatient.name,
-            phone: selectedPatient.phone,
-            age: selectedPatient.age,
-            gender: selectedPatient.gender,
-            preferredLanguage: selectedPatient.preferredLanguage,
-            region: selectedPatient.region,
+            patientName: resolvedPatientName,
+            phone: resolvedPatientPhone,
+            ...demoDefaults,
           }),
         );
       }
@@ -123,7 +151,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       await createSession(
         {
           role: "patient",
-          name: selectedPatient.name,
+          name: resolvedPatientName,
           phone: normalizedPhone,
           otp: patientOtp,
           nextPath: sessionPath,
@@ -228,8 +256,8 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   onChange={(event) => setSelectedPatientId(event.target.value)}
                   className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                 >
-                  <option value="">Select registered patient</option>
-                  {matchedPatients.map((item) => (
+                  <option value="">Select demo patient fallback</option>
+                  {demoPatientsForPhone.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name} · {item.age}y · {item.region}
                     </option>

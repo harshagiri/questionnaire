@@ -38,9 +38,13 @@ type AppointmentPayload = {
   updatedAt: string;
 };
 
+type AppointmentTx = Parameters<NonNullable<typeof prisma>['$transaction']>[0] extends (transaction: infer Transaction, ...args: never[]) => unknown
+  ? Transaction
+  : never;
+
 function toAppointmentPayload(appointment: {
   id: string;
-  consultSessionId: string;
+  consultSessionId: string | null;
   patientName: string;
   patientPhone: string;
   doctorId: string;
@@ -55,7 +59,7 @@ function toAppointmentPayload(appointment: {
 }): AppointmentPayload {
   return {
     id: appointment.id,
-    consultSessionId: appointment.consultSessionId,
+    consultSessionId: appointment.consultSessionId ?? appointment.id,
     patientName: appointment.patientName,
     patientPhone: appointment.patientPhone,
     doctorId: appointment.doctorId,
@@ -70,8 +74,8 @@ function toAppointmentPayload(appointment: {
   };
 }
 
-function toConsultLink(consultSessionId: string) {
-  return `/access?role=patient&next=/patient/${consultSessionId}`;
+function toConsultLink(consultSessionId: string | null, appointmentId: string) {
+  return `/access?role=patient&next=/patient/${consultSessionId ?? appointmentId}`;
 }
 
 function normalizeDateTime(dateValue: string, timeValue: string) {
@@ -86,8 +90,12 @@ function normalizeDateTime(dateValue: string, timeValue: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function normalizePhone(value: string | null) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 async function createOrUpdatePatientUser(
-  tx: NonNullable<typeof prisma>,
+  tx: AppointmentTx,
   patientName: string,
   patientPhone: string,
 ) {
@@ -108,7 +116,7 @@ async function createOrUpdatePatientUser(
   });
 }
 
-async function resolveDoctor(tx: NonNullable<typeof prisma>, doctorId: string) {
+async function resolveDoctor(tx: AppointmentTx, doctorId: string) {
   const doctor = await tx.doctorProfile.findUnique({
     where: { id: doctorId },
     include: { user: true },
@@ -121,8 +129,16 @@ async function resolveDoctor(tx: NonNullable<typeof prisma>, doctorId: string) {
   return doctor;
 }
 
-async function listDatabaseAppointments() {
-  const appointments = await prisma.appointment.findMany({
+async function listDatabaseAppointments(phone?: string | null) {
+  const database = prisma;
+  if (!database) {
+    return [];
+  }
+
+  const normalizedPhone = normalizePhone(phone ?? null);
+
+  const appointments = await database.appointment.findMany({
+    where: normalizedPhone ? { patientPhone: normalizedPhone } : undefined,
     orderBy: { updatedAt: "desc" },
   });
 
@@ -145,12 +161,20 @@ async function listDatabaseAppointments() {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const phone = searchParams.get("phone");
+
   if (!prisma) {
-    return NextResponse.json({ ok: true, appointments: demoAppointments, storage: "demo" });
+    const normalizedPhone = normalizePhone(phone);
+    const appointments = normalizedPhone
+      ? demoAppointments.filter((appointment) => normalizePhone(appointment.patientPhone) === normalizedPhone)
+      : demoAppointments;
+
+    return NextResponse.json({ ok: true, appointments, storage: "demo" });
   }
 
-  const appointments = await listDatabaseAppointments();
+  const appointments = await listDatabaseAppointments(phone);
   return NextResponse.json({ ok: true, appointments, storage: "database" });
 }
 
@@ -213,7 +237,7 @@ export async function POST(request: Request) {
           createdAt: created.createdAt,
           updatedAt: created.updatedAt,
         }),
-        consultLink: toConsultLink(created.consultSessionId),
+        consultLink: toConsultLink(created.consultSessionId, created.id),
         storage: "database",
       },
       { status: 201 },
