@@ -312,7 +312,15 @@ export function PatientWorkflow({
     }
   }, [sessionId]);
 
-  const [answers, setAnswers] = useState<AnswerMap>(initialAnswers);
+  const initialAnswersState = useMemo(
+    () => ({
+      ...initialAnswers,
+      ...registeredProfileDefaults,
+      ...(initialSavedWorkflow?.answers ?? {}),
+    } as AnswerMap),
+    [initialSavedWorkflow, registeredProfileDefaults],
+  );
+  const [answers, setAnswers] = useState<AnswerMap>(initialAnswersState);
   const [sectionIndex, setSectionIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
