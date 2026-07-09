@@ -615,42 +615,6 @@ export const receptionistAppointmentFields: AppointmentField[] = [
   { id: "notes", label: "Reception notes", type: "textarea", placeholder: "Any special instructions" },
 ];
 
-export const builderQuestionTypeCatalog: { value: BuilderQuestionType; label: string; description: string }[] = [
-  { value: "text", label: "Text", description: "Single line answer" },
-  { value: "textarea", label: "Long text", description: "Narrative answer" },
-  { value: "number", label: "Number", description: "Numeric input" },
-  { value: "date", label: "Date", description: "Appointment or symptom date" },
-  { value: "time", label: "Time", description: "Consultation time" },
-  { value: "select", label: "Select", description: "Single-choice options" },
-  { value: "radio", label: "Radio", description: "Touch-friendly single choice" },
-  { value: "multi-select", label: "Multi-select", description: "Choose several answers" },
-  { value: "toggle", label: "Toggle", description: "Yes / No branch" },
-  { value: "range", label: "Range", description: "Score or severity slider" },
-  { value: "info-link", label: "Linked info", description: "Auto-fill from another question" },
-];
-
-export const builderStarterQuestions: WorkflowQuestion[] = [
-  {
-    id: "patientName",
-    label: "Patient name",
-    type: "text",
-    required: true,
-  },
-  {
-    id: "age",
-    label: "Age",
-    type: "number",
-    required: true,
-  },
-  {
-    id: "redFlags",
-    label: "Any urgent red flags?",
-    type: "toggle",
-    branchOn: "redFlags",
-    branchValue: "yes",
-  },
-];
-
 export const demoAppointments = [
   { name: "Ritika Sharma", doctor: "Dr. Aarav Mehta", slot: "10:30 AM", status: "booked" },
   { name: "Imran Khan", doctor: "Dr. Neha Iyer", slot: "11:00 AM", status: "waiting" },
@@ -699,6 +663,6 @@ export const registeredPatientProfiles = [
 export const roleLandingCopy: Record<AppRole, string> = {
   patient: "Patient screening with calm, mobile-first intake.",
   doctor: "Doctor consult review with sectioned validation and MRI-aware decisioning.",
-  receptionist: "Front-desk appointment booking and questionnaire builder.",
+  receptionist: "Front-desk appointment booking only.",
   admin: "Operational metrics and backend-driven RBAC controls.",
 };

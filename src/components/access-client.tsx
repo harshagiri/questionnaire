@@ -9,7 +9,7 @@ import type { AppRole } from "@/lib/rbac";
 const roleCards: Array<{ role: AppRole; label: string; note: string }> = [
   { role: "patient", label: "Patient", note: "Intake, OTP copy, and questionnaire start" },
   { role: "doctor", label: "Doctor", note: "Consult review and sectioned validation" },
-  { role: "receptionist", label: "Receptionist", note: "Appointment booking and builder" },
+  { role: "receptionist", label: "Receptionist", note: "Appointment booking only" },
   { role: "admin", label: "Admin", note: "Usage metrics and RBAC controls" },
 ];
 

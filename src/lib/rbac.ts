@@ -7,7 +7,6 @@ export type Permission =
   | "appointment:create"
   | "appointment:assign"
   | "appointment:view"
-  | "builder:manage"
   | "access:issue"
   | "metrics:view"
   | "patient:view"
@@ -29,7 +28,6 @@ export const permissionCatalog: Record<Permission, string> = {
   "appointment:create": "Create or update consult bookings",
   "appointment:assign": "Associate patients with doctors",
   "appointment:view": "View appointment queue and timings",
-  "builder:manage": "Create and update questionnaire templates",
   "access:issue": "Issue and display demo access codes",
   "metrics:view": "Monitor completion and operational metrics",
   "patient:view": "Open patient journey and current state",
@@ -65,14 +63,14 @@ export const roleCapabilities: RoleCapability[] = [
   {
     role: "receptionist",
     badge: "Front desk",
-    summary:
-      "A mobile-friendly front-desk workspace for appointment booking, doctor matching, patient handoff, and questionnaire builder setup.",
+      summary:
+        "A mobile-friendly front-desk workspace for appointment booking only.",
     highlights: [
       "Book the appointment and issue the consultation session",
       "Build questionnaires with question types, branches, and linked question info",
       "Copy the demo OTP into the patient login flow during onboarding",
     ],
-    permissions: ["appointment:create", "appointment:view", "builder:manage", "access:issue", "patient:view"],
+      permissions: ["appointment:create", "appointment:view", "access:issue", "patient:view"],
   },
   {
     role: "admin",
@@ -84,7 +82,7 @@ export const roleCapabilities: RoleCapability[] = [
       "Doctor and appointment-level usage summaries",
       "Backend-driven RBAC and settings management",
     ],
-    permissions: ["metrics:view", "questionnaire:create", "appointment:create", "builder:manage"],
+      permissions: ["metrics:view", "questionnaire:create", "appointment:create"],
   },
 ];
 
