@@ -337,6 +337,39 @@ export function PatientWorkflow({
   const [validationMessage, setValidationMessage] = useState("");
   const questionAreaRef = useRef<HTMLDivElement | null>(null);
   const skippedInitialAutosaveRef = useRef(false);
+  const latestDraftRef = useRef<{
+    sessionId: string;
+    answers: AnswerMap;
+    sectionIndex: number;
+    questionIndex: number;
+    submitted: boolean;
+  } | null>(null);
+
+  const persistDraft = (record: {
+    sessionId: string;
+    answers: AnswerMap;
+    sectionIndex: number;
+    questionIndex: number;
+    submitted: boolean;
+    updatedAt: string;
+  }) => {
+    savePatientQuestionnaire(record);
+
+    const payload = JSON.stringify(record);
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const beaconBody = new Blob([payload], { type: "application/json" });
+      if (navigator.sendBeacon("/api/patient-intake", beaconBody)) {
+        return;
+      }
+    }
+
+    void fetch("/api/patient-intake", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => undefined);
+  };
 
   useEffect(() => {
     const saved = readSavedWorkflow(sessionId) ?? initialSavedWorkflow;
@@ -370,13 +403,26 @@ export function PatientWorkflow({
       updatedAt: new Date().toISOString(),
     };
 
-    savePatientQuestionnaire(record);
-    void fetch("/api/patient-intake", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
-    }).catch(() => undefined);
+    latestDraftRef.current = { sessionId, answers, sectionIndex, questionIndex, submitted };
+    persistDraft(record);
   }, [answers, questionIndex, sectionIndex, sessionId, submitted]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      const draft = latestDraftRef.current;
+      if (!draft) {
+        return;
+      }
+
+      persistDraft({
+        ...draft,
+        updatedAt: new Date().toISOString(),
+      });
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, []);
 
   const hasRegisteredProfile = useMemo(
     () =>
@@ -602,12 +648,8 @@ export function PatientWorkflow({
       updatedAt: new Date().toISOString(),
     };
 
-    savePatientQuestionnaire(record);
-    void fetch("/api/patient-intake", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
-    }).catch(() => undefined);
+    latestDraftRef.current = { sessionId, answers, sectionIndex, questionIndex, submitted: nextSubmitted };
+    persistDraft(record);
   };
 
   const submitQuestionnaire = () => {
