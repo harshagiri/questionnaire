@@ -6,11 +6,28 @@ import {
   getVisibleQuestions,
   questionnaireDefinition,
   summarizeAnswer,
+  type QuestionnaireDefinition,
   type QuestionnaireQuestion,
 } from "@/lib/questionnaire";
 
-type AnswerValue = string | number | boolean;
+type AnswerValue = string | number | boolean | string[];
 type AnswerMap = Record<string, AnswerValue>;
+type FlowStage = "intro" | "form" | "review" | "submitted";
+
+type QuestionSectionGroup = {
+  id: string;
+  title: string;
+  questions: QuestionnaireQuestion[];
+};
+
+type RemoteDraftResponse = {
+  ok?: boolean;
+  record?: {
+    answers?: AnswerMap;
+    stepIndex?: number;
+    submitted?: boolean;
+  } | null;
+};
 
 function toNumber(value: string) {
   if (value.trim() === "") {
@@ -31,6 +48,44 @@ function fieldValue(question: QuestionnaireQuestion, answer: AnswerValue | undef
   }
 
   return answer ?? "";
+}
+
+function isAnswerFilled(value: AnswerValue | undefined) {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  return value !== undefined;
+}
+
+function summarizeQuestionAnswer(question: QuestionnaireQuestion, value: AnswerValue | undefined) {
+  if (value === undefined || value === null) {
+    return "Not filled";
+  }
+
+  const optionLabelByValue = new Map((question.options ?? []).map((option) => [option.value, option.label]));
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "Not filled";
+    }
+
+    return value.map((entry) => optionLabelByValue.get(entry) ?? entry).join(", ");
+  }
+
+  if (typeof value === "string") {
+    if (value.trim() === "") {
+      return "Not filled";
+    }
+
+    return optionLabelByValue.get(value) ?? value;
+  }
+
+  return summarizeAnswer(value);
 }
 
 function Field({
@@ -132,13 +187,147 @@ function Field({
   );
 }
 
-export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
+function InlineField({
+  question,
+  value,
+  onChange,
+}: {
+  question: QuestionnaireQuestion;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
+}) {
+  const inputClass =
+    "focus-ring w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm outline-none transition placeholder:text-[color:var(--muted)]";
+
+  if (question.type === "textarea") {
+    return (
+      <textarea
+        className={inputClass}
+        rows={2}
+        value={typeof value === "string" ? value : ""}
+        placeholder={question.placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
+  }
+
+  if (question.type === "toggle") {
+    return (
+      <select
+        className={inputClass}
+        value={typeof value === "boolean" ? (value ? "yes" : "no") : ""}
+        onChange={(event) => onChange(event.target.value === "yes")}
+      >
+        <option value="">Select</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    );
+  }
+
+  if (question.type === "radio" || question.type === "select") {
+    if (question.multiSelect) {
+      const selectedValues = Array.isArray(value) ? value : [];
+
+      return (
+        <select
+          multiple
+          className={`${inputClass} min-h-[92px]`}
+          value={selectedValues}
+          onChange={(event) => {
+            const nextValues = Array.from(event.currentTarget.selectedOptions).map((option) => option.value);
+            onChange(nextValues);
+          }}
+        >
+          {(question.options ?? []).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <select
+        className={inputClass}
+        value={typeof value === "string" ? value : ""}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Select</option>
+        {(question.options ?? []).map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (question.type === "range") {
+    const min = question.min ?? 0;
+    const max = question.max ?? 10;
+    const numericValue = typeof value === "number" ? value : min;
+
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          className="w-full accent-[var(--accent)]"
+          type="range"
+          min={min}
+          max={max}
+          step={question.step ?? 1}
+          value={numericValue}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        <span className="w-10 text-right text-sm font-semibold">{numericValue}</span>
+      </div>
+    );
+  }
+
+  return (
+    <input
+      className={inputClass}
+      type={question.type}
+      value={typeof value === "number" ? String(value) : typeof value === "string" ? value : ""}
+      placeholder={question.placeholder}
+      min={question.min}
+      max={question.max}
+      step={question.step}
+      onChange={(event) => onChange(question.type === "number" ? toNumber(event.target.value) : event.target.value)}
+    />
+  );
+}
+
+export function QuestionnaireFlow({
+  sessionId,
+  definition = questionnaireDefinition,
+  layout = "wizard",
+  showSessionDetails = true,
+  showAutosaveSection = true,
+  showSidePanel = true,
+  skipIntro = false,
+  loadApiPath,
+  saveApiPath,
+  saveApiContext,
+}: {
+  sessionId: string;
+  definition?: QuestionnaireDefinition;
+  layout?: "wizard" | "sectioned";
+  showSessionDetails?: boolean;
+  showAutosaveSection?: boolean;
+  showSidePanel?: boolean;
+  skipIntro?: boolean;
+  loadApiPath?: string;
+  saveApiPath?: string;
+  saveApiContext?: Record<string, string | number | boolean | null | undefined>;
+}) {
   const [answers, setAnswers] = useState<AnswerMap>(() => {
     if (typeof window === "undefined") {
       return {};
     }
 
-    const saved = window.localStorage.getItem(`screening:${sessionId}`);
+    const saved = window.localStorage.getItem(`screening:${definition.id}:${sessionId}`);
     if (!saved) {
       return {};
     }
@@ -155,7 +344,7 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
       return 0;
     }
 
-    const saved = window.localStorage.getItem(`screening:${sessionId}`);
+    const saved = window.localStorage.getItem(`screening:${definition.id}:${sessionId}`);
     if (!saved) {
       return 0;
     }
@@ -167,37 +356,143 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
       return 0;
     }
   });
-  const [stage, setStage] = useState<"intro" | "form" | "review" | "submitted">(() => {
+  const [stage, setStage] = useState<FlowStage>(() => {
+    const defaultStage: FlowStage = skipIntro || layout === "sectioned" ? "form" : "intro";
+
     if (typeof window === "undefined") {
-      return "intro";
+      return defaultStage;
     }
 
-    const saved = window.localStorage.getItem(`screening:${sessionId}`);
+    const saved = window.localStorage.getItem(`screening:${definition.id}:${sessionId}`);
     if (!saved) {
-      return "intro";
+      return defaultStage;
     }
 
     try {
-      const parsed = JSON.parse(saved) as { stage?: "intro" | "form" | "review" | "submitted" };
-      return parsed.stage ?? "intro";
+      const parsed = JSON.parse(saved) as { stage?: FlowStage };
+      return parsed.stage ?? defaultStage;
     } catch {
-      return "intro";
+      return defaultStage;
     }
   });
 
-  const visibleQuestions = useMemo(() => getVisibleQuestions(answers), [answers]);
+  const visibleQuestions = useMemo(() => getVisibleQuestions(answers, definition), [answers, definition]);
+  const groupedVisibleQuestions = useMemo<QuestionSectionGroup[]>(() => {
+    return visibleQuestions.reduce<QuestionSectionGroup[]>((groups, question) => {
+      const sectionId = question.sectionId ?? "general";
+      const sectionTitle = question.sectionTitle ?? "General";
+      const lastGroup = groups[groups.length - 1];
+
+      if (lastGroup && lastGroup.id === sectionId) {
+        lastGroup.questions.push(question);
+        return groups;
+      }
+
+      groups.push({
+        id: sectionId,
+        title: sectionTitle,
+        questions: [question],
+      });
+
+      return groups;
+    }, []);
+  }, [visibleQuestions]);
   const safeStepIndex = Math.min(stepIndex, Math.max(visibleQuestions.length - 1, 0));
   const currentQuestion = visibleQuestions[safeStepIndex];
+  const currentSection = groupedVisibleQuestions.find((group) =>
+    group.questions.some((question) => question.id === currentQuestion?.id),
+  );
+  const currentSectionStep = currentSection
+    ? currentSection.questions.findIndex((question) => question.id === currentQuestion?.id) + 1
+    : 0;
+  const currentSectionTotal = currentSection?.questions.length ?? 0;
+  const totalSections = groupedVisibleQuestions.length;
+  const safeSectionIndex = Math.min(stepIndex, Math.max(totalSections - 1, 0));
+  const activeSection = groupedVisibleQuestions[safeSectionIndex];
   const totalQuestions = visibleQuestions.length;
-  const completion = Math.round((Math.min(safeStepIndex, totalQuestions) / Math.max(totalQuestions, 1)) * 100);
+  const answeredCount = visibleQuestions.filter((question) => isAnswerFilled(answers[question.id])).length;
+  const completion =
+    layout === "sectioned"
+      ? Math.round((answeredCount / Math.max(totalQuestions, 1)) * 100)
+      : Math.round((Math.min(safeStepIndex, totalQuestions) / Math.max(totalQuestions, 1)) * 100);
   const bmi = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
+
+  const [remoteLoaded, setRemoteLoaded] = useState(() => !loadApiPath);
+
+  useEffect(() => {
+    if (!loadApiPath) {
+      return;
+    }
+
+    const endpoint = loadApiPath;
+
+    let active = true;
+
+    async function loadRemoteDraft() {
+      try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        const payload = (await response.json()) as RemoteDraftResponse;
+
+        if (!active || !response.ok || !payload.ok || !payload.record) {
+          return;
+        }
+
+        if (payload.record.answers && Object.keys(payload.record.answers).length > 0) {
+          setAnswers(payload.record.answers);
+        }
+
+        if (typeof payload.record.stepIndex === "number") {
+          setStepIndex(payload.record.stepIndex);
+        }
+
+        if (payload.record.submitted) {
+          setStage("submitted");
+        } else if (skipIntro) {
+          setStage("form");
+        }
+      } catch {
+        // Keep local state when remote load fails.
+      } finally {
+        if (active) {
+          setRemoteLoaded(true);
+        }
+      }
+    }
+
+    loadRemoteDraft();
+
+    return () => {
+      active = false;
+    };
+  }, [loadApiPath, skipIntro]);
 
   useEffect(() => {
     window.localStorage.setItem(
-      `screening:${sessionId}`,
+      `screening:${definition.id}:${sessionId}`,
       JSON.stringify({ answers, stepIndex, stage }),
     );
-  }, [answers, sessionId, stage, stepIndex]);
+  }, [answers, definition.id, sessionId, stage, stepIndex]);
+
+  useEffect(() => {
+    if (!saveApiPath || !remoteLoaded) {
+      return;
+    }
+
+    const payload = {
+      answers,
+      stepIndex,
+      submitted: stage === "submitted",
+      updatedAt: new Date().toISOString(),
+      ...(saveApiContext ?? {}),
+    };
+
+    void fetch(saveApiPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [answers, remoteLoaded, saveApiContext, saveApiPath, stage, stepIndex]);
 
   const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
 
@@ -233,23 +528,25 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
       return;
     }
 
-    if (stage === "form" && stepIndex === 0) {
+    if (stage === "form" && stepIndex === 0 && !skipIntro) {
       setStage("intro");
     }
   };
 
-  if (stage === "intro") {
+  if (stage === "intro" && !skipIntro) {
+    const previewItems = definition.questions.slice(0, 4);
+
     return (
       <div className="grid gap-6 rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.8)] p-6 shadow-[0_24px_80px_rgba(21,32,43,0.12)] lg:grid-cols-[1.2fr_0.8fr] lg:p-10">
         <div className="space-y-5">
           <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">
-            Confidential screening
+            {definition.title}
           </span>
           <h1 className="headline text-4xl font-semibold leading-tight sm:text-5xl">
-            Welcome to your health screening journey
+            {definition.subtitle}
           </h1>
           <p className="max-w-2xl text-base leading-8 text-[color:var(--muted)] sm:text-lg">
-            This flow adapts to age, gender, symptoms, and consult details. Your answers can be autosaved, reviewed before submission, and shared with your doctor after consent.
+            This flow adapts to the selected role and keeps the same questionnaire UI across patient and doctor paths.
           </p>
           <div className="rounded-3xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
             Confidentiality statement: your information is only used for care coordination, screening review, and operational tracking by authorized roles.
@@ -269,17 +566,12 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
             <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
               Flow preview
             </div>
-            {[
-              "Welcome and consent",
-              "Basic details and doctor association",
-              "Symptoms, BMI, and pain screening",
-              "Review, submit, and thank you",
-            ].map((item, index) => (
-              <div key={item} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+            {previewItems.map((item, index) => (
+              <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent)]">
                   {index + 1}
                 </div>
-                <div className="text-sm font-medium">{item}</div>
+                <div className="text-sm font-medium">{item.label}</div>
               </div>
             ))}
           </div>
@@ -301,15 +593,24 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-2">
-          {visibleQuestions.map((question) => (
-            <div key={question.id} className="rounded-3xl border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
-              <div className="text-sm font-semibold text-[color:var(--muted)]">{question.label}</div>
-              <div className="mt-2 text-base font-medium text-[color:var(--foreground)]">{summarizeAnswer(answers[question.id])}</div>
-            </div>
+        <div className="mt-8 space-y-6">
+          {groupedVisibleQuestions.map((group) => (
+            <section key={group.id} className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                {group.title}
+              </h3>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {group.questions.map((question) => (
+                  <div key={question.id} className="rounded-3xl border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-[color:var(--muted)]">{question.label}</div>
+                    <div className="mt-2 text-base font-medium text-[color:var(--foreground)]">{summarizeAnswer(answers[question.id])}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
           {bmi ? (
-            <div className="rounded-3xl border border-[rgba(15,118,110,0.18)] bg-[rgba(15,118,110,0.06)] p-4 shadow-sm lg:col-span-2">
+            <div className="rounded-3xl border border-[rgba(15,118,110,0.18)] bg-[rgba(15,118,110,0.06)] p-4 shadow-sm">
               <div className="text-sm font-semibold text-[var(--accent)]">Auto calculation</div>
               <div className="mt-2 text-2xl font-semibold">BMI {bmi}</div>
               <div className="mt-1 text-sm text-[color:var(--muted)]">Shown to both patient and doctor for quick clinical context.</div>
@@ -330,6 +631,41 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
   }
 
   if (stage === "submitted") {
+    if (layout === "sectioned") {
+      return (
+        <div className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.85)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
+          <div className="mb-4">
+            <h2 className="headline text-2xl font-semibold sm:text-3xl">Doctor submitted details</h2>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">Read-only summary of answers submitted by doctor.</p>
+          </div>
+
+          <div className="space-y-4">
+            {groupedVisibleQuestions.map((group) => (
+              <section key={group.id} className="overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] bg-white">
+                <header className="border-b border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.65)] px-4 py-2.5">
+                  <h3 className="text-sm font-semibold text-[color:var(--foreground)]">{group.title}</h3>
+                </header>
+
+                {group.questions.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-[color:var(--muted)]">No answers in this section.</div>
+                ) : (
+                  group.questions.map((question) => (
+                    <div
+                      key={question.id}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-[rgba(21,32,43,0.08)] px-4 py-2.5 text-sm last:border-b-0"
+                    >
+                      <div className="font-medium text-[color:var(--foreground)]">{question.label}</div>
+                      <div className="text-[color:var(--muted)]">{summarizeQuestionAnswer(question, answers[question.id])}</div>
+                    </div>
+                  ))
+                )}
+              </section>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="grid gap-6 rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.85)] p-6 shadow-[0_24px_80px_rgba(21,32,43,0.12)] lg:grid-cols-[1.1fr_0.9fr] lg:p-10">
         <div className="space-y-4">
@@ -340,10 +676,12 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
           <p className="max-w-2xl text-base leading-8 text-[color:var(--muted)] sm:text-lg">
             The doctor can now review the response summary and the detailed answers. Your data stays associated with the appointment and the doctor profile you selected.
           </p>
-          <div className="rounded-3xl border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
-            <div className="text-sm text-[color:var(--muted)]">Session reference</div>
-            <div className="mt-1 text-lg font-semibold">{sessionId}</div>
-          </div>
+          {showSessionDetails ? (
+            <div className="rounded-3xl border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
+              <div className="text-sm text-[color:var(--muted)]">Session reference</div>
+              <div className="mt-1 text-lg font-semibold">{sessionId}</div>
+            </div>
+          ) : null}
         </div>
         <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(15,118,110,0.12),rgba(255,255,255,0.8))] p-5">
           <div className="space-y-3">
@@ -363,15 +701,89 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
     );
   }
 
+  if (layout === "sectioned") {
+    return (
+      <div className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.86)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="headline text-2xl font-semibold sm:text-3xl">{definition.title}</h2>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">{definition.subtitle}</p>
+          </div>
+          <div className="rounded-lg bg-[rgba(15,118,110,0.08)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">
+            {completion}% complete
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {activeSection ? (
+            <section key={activeSection.id} className="overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] bg-white">
+              <header className="border-b border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.65)] px-4 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-[color:var(--foreground)]">{activeSection.title}</h3>
+                  <span className="text-xs font-medium text-[color:var(--muted)]">
+                    {safeSectionIndex + 1} / {Math.max(totalSections, 1)}
+                  </span>
+                </div>
+              </header>
+
+              <div className="divide-y divide-[rgba(21,32,43,0.08)]">
+                {activeSection.questions.map((question) => (
+                  <div key={question.id} className="grid items-start gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-[color:var(--foreground)]">{question.label}</div>
+                      {question.helpText ? <div className="mt-1 text-xs text-[color:var(--muted)]">{question.helpText}</div> : null}
+                    </div>
+                    <InlineField question={question} value={answers[question.id]} onChange={(value) => updateAnswer(question.id, value)} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+            onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+            disabled={safeSectionIndex === 0}
+          >
+            {"<"}
+          </button>
+
+          {safeSectionIndex >= totalSections - 1 ? (
+            <button
+              type="button"
+              className="focus-ring rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white"
+              onClick={() => setStage("submitted")}
+            >
+              Submit
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="focus-ring rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white"
+              onClick={() => setStepIndex((current) => Math.min(current + 1, Math.max(totalSections - 1, 0)))}
+            >
+              {">"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.86)] p-6 shadow-[0_24px_80px_rgba(21,32,43,0.12)] lg:p-10">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <span className="rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">
-            Session {sessionId}
-          </span>
-          <h2 className="headline mt-4 text-3xl font-semibold sm:text-4xl">{questionnaireDefinition.title}</h2>
-          <p className="mt-2 max-w-3xl text-base text-[color:var(--muted)]">{questionnaireDefinition.subtitle}</p>
+          {showSessionDetails ? (
+            <span className="rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">
+              Session {sessionId}
+            </span>
+          ) : null}
+            <h2 className="headline mt-4 text-3xl font-semibold sm:text-4xl">{definition.title}</h2>
+          <p className="mt-2 max-w-3xl text-base text-[color:var(--muted)]">{definition.subtitle}</p>
         </div>
                 <div className="hidden rounded-2xl bg-[rgba(15,118,110,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)] sm:block">
           {completion}% complete
@@ -382,13 +794,18 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
         <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${completion}%` }} />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.34fr]">
+      <div className={`mt-6 grid gap-4 ${showSidePanel ? "lg:grid-cols-[1fr_0.34fr]" : "grid-cols-1"}`}>
         <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
           {currentQuestion ? (
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
                 Step {safeStepIndex + 1} of {totalQuestions}
               </div>
+              {currentSection ? (
+                <div className="mt-2 text-sm font-semibold text-[var(--accent)]">
+                  {currentSection.title} • {currentSectionStep} of {currentSectionTotal}
+                </div>
+              ) : null}
               <h3 className="headline mt-3 text-2xl font-semibold">{currentQuestion.label}</h3>
               {currentQuestion.helpText ? <p className="mt-2 text-sm text-[color:var(--muted)]">{currentQuestion.helpText}</p> : null}
               <Field question={currentQuestion} value={currentAnswer} onChange={(value) => updateAnswer(currentQuestion.id, value)} />
@@ -405,26 +822,30 @@ export function QuestionnaireFlow({ sessionId }: { sessionId: string }) {
           </div>
         </div>
 
-        <aside className="space-y-4 rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,245,240,0.9))] p-5 shadow-sm">
-          <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Autosave</div>
-            <p className="mt-2 text-sm leading-7 text-[color:var(--muted)]">Your answers stay in this browser until submission. You can resume later from the same session.</p>
-          </div>
+        {showSidePanel ? (
+          <aside className="space-y-4 rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,245,240,0.9))] p-5 shadow-sm">
+            {showAutosaveSection ? (
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Autosave</div>
+                <p className="mt-2 text-sm leading-7 text-[color:var(--muted)]">Your answers stay in this browser until submission. You can resume later from the same session.</p>
+              </div>
+            ) : null}
 
-          <div className="rounded-2xl bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold text-[color:var(--muted)]">Live summary</div>
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between"><span>Patient</span><span className="font-semibold">{summarizeAnswer(answers.fullName)}</span></div>
-              <div className="flex justify-between"><span>BMI</span><span className="font-semibold">{bmi ?? "Pending"}</span></div>
-              <div className="flex justify-between"><span>Pain score</span><span className="font-semibold">{summarizeAnswer(answers.painScore)}</span></div>
-              <div className="flex justify-between"><span>Consent</span><span className="font-semibold">{answers.reviewConsent ? "Accepted" : "Pending"}</span></div>
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="text-sm font-semibold text-[color:var(--muted)]">Live summary</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between"><span>Patient</span><span className="font-semibold">{summarizeAnswer(answers.fullName)}</span></div>
+                <div className="flex justify-between"><span>BMI</span><span className="font-semibold">{bmi ?? "Pending"}</span></div>
+                <div className="flex justify-between"><span>Pain score</span><span className="font-semibold">{summarizeAnswer(answers.painScore)}</span></div>
+                <div className="flex justify-between"><span>Consent</span><span className="font-semibold">{answers.reviewConsent ? "Accepted" : "Pending"}</span></div>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
-            Navigation hint: if you need to pause, come back to the same session link and continue where you left off.
-          </div>
-        </aside>
+            <div className="rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
+              Navigation hint: if you need to pause, come back to the same session link and continue where you left off.
+            </div>
+          </aside>
+        ) : null}
       </div>
     </div>
   );

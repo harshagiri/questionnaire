@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   }
 
   let resolvedStaffDisplayName: string | undefined;
+  let resolvedStaffPhotoUrl: string | undefined;
 
   if (body.role === "patient") {
     if (!hasValidPatientPhone(body.phone)) {
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
     }
 
     resolvedStaffDisplayName = authResult.displayName;
+    resolvedStaffPhotoUrl = authResult.photoUrl;
   }
 
   const response = NextResponse.json({ ok: true, role: body.role, nextPath: body.nextPath ?? roleHomePath[body.role] });
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
   if (body.role === "patient") {
     response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
   } else {
-    response.cookies.set("se_avatar", toGravatarUrl(body.email ?? sessionName), cookieOptions);
+    response.cookies.set("se_avatar", resolvedStaffPhotoUrl?.trim() || toGravatarUrl(body.email ?? sessionName), cookieOptions);
   }
   if (body.role === "patient") {
     response.cookies.set("se_demo_otp", demoOtpCode, {

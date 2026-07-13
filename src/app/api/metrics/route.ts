@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
-import { getAdminSummary } from "@/lib/metrics";
+import { getAdminSummary, getUsageMetrics } from "@/lib/metrics";
 
 export async function GET() {
-  return NextResponse.json({ ok: true, metrics: getAdminSummary() });
+  const [summary, usage] = await Promise.all([getAdminSummary(), getUsageMetrics()]);
+
+  return NextResponse.json({
+    ok: true,
+    metrics: {
+      summary,
+      usage,
+    },
+  });
 }

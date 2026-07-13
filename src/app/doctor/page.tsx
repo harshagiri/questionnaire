@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { DoctorWorkflow } from "@/components/doctor-workflow";
+import { DoctorWorkflow } from "@/components/doctor-workflow-clean";
 
 export default function DoctorPage() {
   return (

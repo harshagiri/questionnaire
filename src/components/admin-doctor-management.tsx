@@ -19,6 +19,7 @@ const initialForm = {
   phone: "",
   registrationNumber: "",
   licenseNumber: "",
+  password: "",
   bio: "",
   photoUrl: "",
 };
@@ -57,27 +58,61 @@ export function AdminDoctorManagement() {
   }, [form.photoUrl]);
 
   async function handleCreateDoctor() {
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.registrationNumber.trim() || !form.licenseNumber.trim() || !form.password.trim()) {
+      setMessage("Name, email, phone, registration, license, and password are required.");
+      return;
+    }
+
+    if (form.password.trim().length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+
     setSubmitting(true);
     setMessage("");
 
     try {
-      const response = await fetch("/api/doctors", {
+      const doctorResponse = await fetch("/api/doctors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const payload = (await response.json()) as { ok: boolean; message?: string };
+      const doctorPayload = (await doctorResponse.json()) as { ok: boolean; message?: string };
 
-      if (!response.ok || !payload.ok) {
-        setMessage(payload.message ?? "Could not create doctor.");
+      if (!doctorResponse.ok || !doctorPayload.ok) {
+        setMessage(doctorPayload.message ?? "Could not create doctor profile.");
         return;
       }
 
-      setMessage("Doctor added successfully.");
+      const staffResponse = await fetch("/api/staff-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "doctor",
+          email: form.email,
+          password: form.password,
+          displayName: form.name,
+        }),
+      });
+      const staffPayload = (await staffResponse.json()) as { ok: boolean; message?: string };
+
+      if (!staffResponse.ok || !staffPayload.ok) {
+        const staffError = (staffPayload.message ?? "Could not create doctor login.").toLowerCase();
+        if (staffError.includes("already exists")) {
+          setMessage("Doctor profile added. Login already existed, so existing doctor credentials were kept.");
+        } else {
+          setMessage(staffPayload.message ?? "Doctor profile added, but login creation failed.");
+        }
+        setForm(initialForm);
+        await loadDoctors();
+        return;
+      }
+
+      setMessage("Doctor profile and login created successfully.");
       setForm(initialForm);
       await loadDoctors();
     } catch {
-      setMessage("Could not create doctor.");
+      setMessage("Could not create doctor profile and login.");
     } finally {
       setSubmitting(false);
     }
@@ -120,6 +155,13 @@ export function AdminDoctorManagement() {
             value={form.licenseNumber}
             onChange={(event) => setForm((current) => ({ ...current, licenseNumber: event.target.value }))}
             placeholder="License number"
+            className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
+          />
+          <input
+            type="password"
+            value={form.password}
+            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+            placeholder="Doctor login password (min 8)"
             className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
           />
           <input

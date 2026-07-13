@@ -9,6 +9,7 @@ datasource db {
 enum RoleName {
   patient
   doctor
+  receptionist
   admin
 }
 
@@ -27,6 +28,7 @@ model User {
   passwordHash        String
   role                RoleName
   displayName         String
+  photoUrl            String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

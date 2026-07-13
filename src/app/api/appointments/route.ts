@@ -5,6 +5,12 @@ import { demoAppointments } from "@/lib/workflow-data";
 
 const appointmentStatuses = ["draft", "booked", "waiting", "submitted", "cancelled", "follow_up"] as const;
 
+const demoPatientPhoneByName: Record<string, string> = {
+  "Ritika Sharma": "9811022334",
+  "Imran Khan": "9811022445",
+  "Sahana Rao": "9811022556",
+};
+
 const appointmentCreateSchema = z.object({
   patientName: z.string().min(2),
   patientPhone: z.string().min(8),
@@ -92,6 +98,26 @@ function normalizeDateTime(dateValue: string, timeValue: string) {
 
 function normalizePhone(value: string | null) {
   return (value ?? "").replace(/\D/g, "");
+}
+
+function getDemoAppointments() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return demoAppointments.map((appointment, index) => ({
+    id: `demo-appointment-${index + 1}`,
+    consultSessionId: `demo-consult-${index + 1}`,
+    patientName: appointment.name,
+    patientPhone: demoPatientPhoneByName[appointment.name] ?? "9876500000",
+    doctorId: `demo-doctor-${index + 1}`,
+    doctorName: appointment.doctor,
+    appointmentDate: today,
+    appointmentTime: appointment.slot,
+    appointmentType: "new",
+    status: appointment.status,
+    notes: "Demo appointment",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }));
 }
 
 async function createOrUpdatePatientUser(
@@ -205,11 +231,20 @@ export async function GET(request: Request) {
   const date = searchParams.get("date");
 
   if (!prisma) {
-    return NextResponse.json({ ok: true, appointments: demoAppointments, storage: "demo" });
+    return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo" });
   }
 
-  const appointments = await listDatabaseAppointments(phone, date);
-  return NextResponse.json({ ok: true, appointments, storage: "database" });
+  try {
+    const appointments = await listDatabaseAppointments(phone, date);
+
+    if (appointments.length === 0 && process.env.NODE_ENV !== "production") {
+      return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo-empty" });
+    }
+
+    return NextResponse.json({ ok: true, appointments, storage: "database" });
+  } catch {
+    return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo-fallback" });
+  }
 }
 
 export async function POST(request: Request) {

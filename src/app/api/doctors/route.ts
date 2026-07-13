@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 type DbDoctorRecord = {
@@ -22,11 +23,12 @@ type DbDoctorRecord = {
 const doctorCreateSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
+  password: z.string().min(8),
   phone: z.string().min(8),
   registrationNumber: z.string().min(2),
   licenseNumber: z.string().min(2),
-  bio: z.string().optional(),
-  photoUrl: z.string().url().optional().or(z.literal("")),
+  bio: z.string().min(2),
+  photoUrl: z.string().min(1).optional().or(z.literal("")),
 });
 
 function toGravatarUrl(email: string) {
@@ -138,14 +140,43 @@ export async function POST(request: Request) {
   if (shouldUseDb() && prisma) {
     try {
       const created = await prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email,
-            passwordHash: `doctor:${input.registrationNumber}`,
-            role: "doctor",
-            displayName: input.name,
-          },
+        const existingUser = await tx.user.findUnique({
+          where: { email },
+          select: { id: true, role: true },
         });
+
+        if (existingUser && existingUser.role !== "doctor") {
+          throw new Error("Email already exists under a different role");
+        }
+
+        const passwordHash = await hash(input.password, 10);
+        const user = existingUser
+          ? await tx.user.update({
+              where: { email },
+              data: {
+                displayName: input.name,
+                passwordHash,
+                photoUrl,
+              },
+            })
+          : await tx.user.create({
+              data: {
+                email,
+                passwordHash,
+                role: "doctor",
+                displayName: input.name,
+                photoUrl,
+              },
+            });
+
+        const existingProfile = await tx.doctorProfile.findUnique({
+          where: { userId: user.id },
+          select: { id: true },
+        });
+
+        if (existingProfile) {
+          throw new Error("Doctor profile already exists");
+        }
 
         return tx.doctorProfile.create({
           include: { user: true },
@@ -155,7 +186,7 @@ export async function POST(request: Request) {
             phone: input.phone,
             registrationNumber: input.registrationNumber,
             licenseNumber: input.licenseNumber,
-            bio: input.bio ?? "",
+            bio: input.bio,
             photoUrl,
           },
         });

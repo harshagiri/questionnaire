@@ -28,7 +28,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
 
   const [phone, setPhone] = useState("");
   const [patientOtp, setPatientOtp] = useState("");
-  const [selectedPatientId, setSelectedPatientId] = useState("");
   const [patientMessage, setPatientMessage] = useState("");
   const [patientSubmitting, setPatientSubmitting] = useState(false);
 
@@ -44,17 +43,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   );
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
-  const demoPatientsForPhone = useMemo(
-    () => registeredPatientProfiles.filter((item) => item.phone === normalizedPhone),
-    [normalizedPhone],
-  );
-
-  const selectedDemoPatient = useMemo(() => {
-    const explicitSelection = demoPatientsForPhone.find((item) => item.id === selectedPatientId);
-    if (explicitSelection) return explicitSelection;
-    if (demoPatientsForPhone.length === 1) return demoPatientsForPhone[0];
-    return undefined;
-  }, [demoPatientsForPhone, selectedPatientId]);
 
   const demoPatientPhones = useMemo(() => {
     const unique = new Set(registeredPatientProfiles.map((item) => item.phone));
@@ -112,16 +100,15 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       const savedPayload = (await savedResponse.json()) as { ok?: boolean; record?: { sessionId?: string } | null };
       const savedSessionId = savedPayload.ok ? savedPayload.record?.sessionId : undefined;
       const latestAppointment = appointmentMatches[0];
-      const demoPatient = selectedDemoPatient;
 
-      if (!savedSessionId && !latestAppointment && !demoPatient) {
+      if (!savedSessionId && !latestAppointment) {
         setPatientMessage("No patient or appointment found for this phone. Please contact reception.");
         return;
       }
 
       const resolvedSessionId = savedSessionId ?? latestAppointment?.consultSessionId ?? latestAppointment?.id ?? `${normalizedPhone}-${Date.now()}`;
-      const resolvedPatientName = latestAppointment?.patientName ?? demoPatient?.name ?? normalizedPhone;
-      const resolvedPatientPhone = latestAppointment?.patientPhone ?? demoPatient?.phone ?? normalizedPhone;
+      const resolvedPatientName = latestAppointment?.patientName ?? normalizedPhone;
+      const resolvedPatientPhone = latestAppointment?.patientPhone ?? normalizedPhone;
 
       const defaultPatientPath = `/patient/${resolvedSessionId}?phone=${encodeURIComponent(normalizedPhone)}`;
       const sessionPath = nextPath ?? defaultPatientPath;
@@ -130,21 +117,11 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       const sessionId = sessionIdWithQuery.split("?")[0] ?? resolvedSessionId;
 
       if (sessionId && typeof window !== "undefined") {
-        const demoDefaults = demoPatient
-          ? {
-              age: demoPatient.age,
-              gender: demoPatient.gender,
-              preferredLanguage: demoPatient.preferredLanguage,
-              region: demoPatient.region,
-            }
-          : {};
-
         window.localStorage.setItem(
           `sei-patient-profile:${sessionId}`,
           JSON.stringify({
             patientName: resolvedPatientName,
             phone: resolvedPatientPhone,
-            ...demoDefaults,
           }),
         );
       }
@@ -239,10 +216,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
               <div className="mt-4 space-y-3">
                 <input
                   value={phone}
-                  onChange={(event) => {
-                    setPhone(event.target.value);
-                    setSelectedPatientId("");
-                  }}
+                  onChange={(event) => setPhone(event.target.value)}
                   placeholder="Phone number"
                   className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
                 />
@@ -252,18 +226,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   placeholder="OTP"
                   className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
                 />
-                <select
-                  value={selectedPatientId}
-                  onChange={(event) => setSelectedPatientId(event.target.value)}
-                  className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
-                >
-                  <option value="">Select demo patient fallback</option>
-                  {demoPatientsForPhone.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} · {item.age}y · {item.region}
-                    </option>
-                  ))}
-                </select>
                 <p className="text-xs text-[color:var(--muted)]">Registered demo phones: {demoPatientPhones.join(", ")}</p>
                 <div className="rounded-xl bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
                   Demo OTP: <span className="font-semibold tracking-[0.15em] text-[var(--accent)]">{demoOtpCode}</span>
