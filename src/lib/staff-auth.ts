@@ -17,7 +17,7 @@ function isStaffRole(role: string): role is Exclude<AppRole, "patient"> {
   return role === "doctor" || role === "receptionist" || role === "admin";
 }
 
-const defaultStaffAccounts: StaffAccount[] = [
+export const defaultStaffAccounts: StaffAccount[] = [
   {
     role: "doctor",
     email: "doctor@spinexpert.local",
@@ -98,11 +98,13 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
         createdAt: item.createdAt.toISOString(),
       }));
 
+    // Roles that have at least one real DB account — hide demo defaults for those
+    const rolesWithDbAccounts = new Set(dbAccounts.map((a) => a.role));
+    // For roles with NO DB accounts, keep showing the demo defaults
+    const defaultsForEmptyRoles = defaultStaffAccounts.filter((d) => !rolesWithDbAccounts.has(d.role));
+
     const dedupedByRoleEmail = new Map<string, StaffAccount>();
-    for (const item of defaultStaffAccounts) {
-      dedupedByRoleEmail.set(`${item.role}:${item.email.toLowerCase()}`, item);
-    }
-    for (const item of dbAccounts) {
+    for (const item of [...defaultsForEmptyRoles, ...dbAccounts]) {
       dedupedByRoleEmail.set(`${item.role}:${item.email.toLowerCase()}`, item);
     }
 
@@ -301,6 +303,7 @@ export async function verifyStaffCredentials(
         passwordHash: true,
         displayName: true,
         photoUrl: true,
+        doctorProfile: { select: { photoUrl: true } },
       },
     });
 
@@ -323,7 +326,9 @@ export async function verifyStaffCredentials(
       return { ok: false };
     }
 
-    return { ok: true, displayName: account.displayName, photoUrl: account.photoUrl ?? "" };
+    // Prefer User.photoUrl; fall back to DoctorProfile.photoUrl if available
+    const resolvedPhotoUrl = account.photoUrl?.trim() || account.doctorProfile?.photoUrl?.trim() || "";
+    return { ok: true, displayName: account.displayName, photoUrl: resolvedPhotoUrl };
   }
 
   const accounts = await listStaffAccounts();

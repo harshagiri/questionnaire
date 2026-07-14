@@ -5,18 +5,60 @@ const storageKeys = {
 	patientQuestionnairePrefix: "sei-pq:",
 	doctorReviewPrefix: "sei-doctor-review:",
 	receptionDraftPrefix: "sei-reception-draft:",
+	patientRecordPrefix: "sei-patient-record:",
+	patientRecordByPhone: "sei-patient-record-phone:",
+	labReportsPrefix: "sei-lab-reports:",
 } as const;
+
+export type PatientRecord = {
+	id: string;
+	patientId: string;           // PT-2026-00001
+	phone: string;
+	email?: string;
+	fullName: string;
+	age?: number;
+	gender?: string;
+	heightCm?: number;
+	weightKg?: number;
+	bmi?: number;
+	region?: string;
+	preferredLanguage?: string;
+	dailyActivity?: string;
+	comorbidities?: string[];
+	currentMeds?: string[];
+	priorSurgery?: boolean;
+	surgeryDetails?: string;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type LabReportRecord = {
+	id: string;
+	appointmentId: string;
+	patientRecordId?: string;
+	fileName: string;
+	fileType: string;   // mri-images | mri-report | xray | labs | other
+	fileSizeBytes?: number;
+	uploadedAt: string;
+};
 
 export type AppointmentRecord = {
 	sessionId: string;
+	consultId?: string;          // CSL-YYYYMMDD-XXXX
+	patientRecordId?: string;    // PT-YYYY-NNNNN
 	patientName: string;
 	patientPhone: string;
 	doctorName: string;
+	doctorId?: string;
 	appointmentDate: string;
 	appointmentTime: string;
 	appointmentType: string;
 	status: string;
 	notes: string;
+	videoConsultLink?: string;
+	preConsultLink?: string;
+	preConsultSentAt?: string;
+	confirmationSentAt?: string;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -164,4 +206,89 @@ export function saveReceptionDraft(record: ReceptionDraftRecord) {
 
 export function clearReceptionDraft(sessionId: string) {
 	removeKey(`${storageKeys.receptionDraftPrefix}${sessionId}`);
+}
+
+// ── Patient Record helpers ────────────────────────────────────────────────────
+
+function generatePatientId(): string {
+	const year = new Date().getFullYear();
+	const existing = listAllPatientRecords();
+	const seq = String(existing.length + 1).padStart(5, "0");
+	return `PT-${year}-${seq}`;
+}
+
+function listAllPatientRecords(): PatientRecord[] {
+	return readJson<PatientRecord[]>("sei-all-patient-records", []);
+}
+
+function persistAllPatientRecords(records: PatientRecord[]) {
+	writeJson("sei-all-patient-records", records);
+}
+
+export function savePatientRecord(data: Omit<PatientRecord, "id" | "patientId" | "createdAt" | "updatedAt">): PatientRecord {
+	const existing = findPatientRecordByPhone(data.phone);
+	if (existing) {
+		const updated: PatientRecord = {
+			...existing,
+			...data,
+			updatedAt: new Date().toISOString(),
+		};
+		const all = listAllPatientRecords().map((r) => (r.id === existing.id ? updated : r));
+		persistAllPatientRecords(all);
+		writeJson(`${storageKeys.patientRecordByPhone}${data.phone}`, updated);
+		return updated;
+	}
+
+	const record: PatientRecord = {
+		id: `pr-${Date.now()}`,
+		patientId: generatePatientId(),
+		...data,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	};
+	const all = listAllPatientRecords();
+	persistAllPatientRecords([record, ...all]);
+	writeJson(`${storageKeys.patientRecordByPhone}${data.phone}`, record);
+	return record;
+}
+
+export function findPatientRecordByPhone(phone: string): PatientRecord | null {
+	const normalized = phone.replace(/\D/g, "");
+	return readJson<PatientRecord | null>(`${storageKeys.patientRecordByPhone}${normalized}`, null);
+}
+
+export function findPatientRecordById(patientId: string): PatientRecord | null {
+	const all = listAllPatientRecords();
+	return all.find((r) => r.patientId === patientId) ?? null;
+}
+
+// ── Consult ID generation ─────────────────────────────────────────────────────
+
+export function generateConsultId(): string {
+	const d = new Date();
+	const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+	const seq = String(Math.floor(Math.random() * 9000) + 1000);
+	return `CSL-${date}-${seq}`;
+}
+
+// ── Lab Report helpers ────────────────────────────────────────────────────────
+
+export function loadLabReports(appointmentId: string): LabReportRecord[] {
+	return readJson<LabReportRecord[]>(`${storageKeys.labReportsPrefix}${appointmentId}`, []);
+}
+
+export function saveLabReport(report: Omit<LabReportRecord, "id" | "uploadedAt">): LabReportRecord {
+	const record: LabReportRecord = {
+		id: `lr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+		...report,
+		uploadedAt: new Date().toISOString(),
+	};
+	const current = loadLabReports(report.appointmentId);
+	writeJson(`${storageKeys.labReportsPrefix}${report.appointmentId}`, [record, ...current]);
+	return record;
+}
+
+export function removeLabReport(appointmentId: string, reportId: string) {
+	const current = loadLabReports(appointmentId).filter((r) => r.id !== reportId);
+	writeJson(`${storageKeys.labReportsPrefix}${appointmentId}`, current);
 }

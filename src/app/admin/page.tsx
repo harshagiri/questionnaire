@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminStaffManagement } from "@/components/admin-staff-management";
+import { AdminDoctorManagement } from "@/components/admin-doctor-management";
 import { getAdminSummary, getUsageMetrics } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ export default async function AdminPage() {
             </div>
           </div>
         </section>
+        <AdminDoctorManagement />
         <AdminStaffManagement />
       </div>
     </AppShell>

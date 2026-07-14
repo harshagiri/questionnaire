@@ -58,6 +58,7 @@ async function main() {
             passwordHash: `doctor:${registrationNumber}`,
             role: "doctor",
             displayName: name,
+            photoUrl: String(doctor?.photoUrl ?? ""),
           },
         }));
 

@@ -30,6 +30,27 @@ function toGravatarUrl(input: string) {
   return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=256`;
 }
 
+function normalizeDoctorEmailAlias(email: string) {
+  const normalized = email.trim().toLowerCase();
+  if (normalized.endsWith("@spinerxpert.local")) {
+    return normalized.replace("@spinerxpert.local", "@spinexpert.local");
+  }
+  return normalized;
+}
+
+function normalizeDisplayName(name: string | undefined, role: string) {
+  const value = (name ?? "").trim();
+  if (!value) {
+    return value;
+  }
+
+  if (role === "doctor" && /^demo\s*d+c+o+t+r+o+$/i.test(value.replace(/[^a-z]/gi, ""))) {
+    return "Demo Doctor";
+  }
+
+  return value;
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as SessionBody;
   const protoHeader = request.headers.get("x-forwarded-proto")?.toLowerCase();
@@ -54,9 +75,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Invalid staff credentials" }, { status: 401 });
     }
 
+    const normalizedEmail = normalizeDoctorEmailAlias(body.email ?? "");
     const authResult = await verifyStaffCredentials(
       body.role as "doctor" | "receptionist" | "admin",
-      body.email ?? "",
+      normalizedEmail,
       body.password ?? "",
     );
 
@@ -64,8 +86,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Invalid staff credentials" }, { status: 401 });
     }
 
-    resolvedStaffDisplayName = authResult.displayName;
+    resolvedStaffDisplayName = normalizeDisplayName(authResult.displayName, body.role);
     resolvedStaffPhotoUrl = authResult.photoUrl;
+    body.email = normalizedEmail;
   }
 
   const response = NextResponse.json({ ok: true, role: body.role, nextPath: body.nextPath ?? roleHomePath[body.role] });
@@ -83,6 +106,10 @@ export async function POST(request: Request) {
       ? body.name?.trim() || body.phone || "patient-demo"
       : resolvedStaffDisplayName ?? body.email ?? body.name ?? `${body.role}-demo`;
   response.cookies.set("se_name", sessionName, cookieOptions);
+  // Store email for staff so doctor/receptionist pages can look up their profile
+  if (body.role !== "patient" && body.email) {
+    response.cookies.set("se_email", body.email.trim().toLowerCase(), cookieOptions);
+  }
   if (body.role === "patient") {
     response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
   } else {

@@ -7,8 +7,10 @@ import {
   summarizeAnswer,
   type QuestionnaireDefinition,
 } from "@/lib/questionnaire";
+import { toPlainQuestionText } from "@/lib/question-text";
 import { QuestionnaireFlow } from "@/components/questionnaire-flow";
 import { patientWorkflowSections } from "@/lib/workflow-data";
+import { findPatientRecordByPhone, listAppointments, loadPatientQuestionnaire, type PatientRecord } from "@/lib/portal-storage";
 
 type AppointmentRecord = {
   id: string;
@@ -23,8 +25,16 @@ type AppointmentRecord = {
   notes: string;
 };
 
+type ApiAppointmentsPayload = {
+  ok?: boolean;
+  appointments?: AppointmentRecord[];
+  message?: string;
+  storage?: string;
+};
+
 type QuestionnaireAnswer = string | number | boolean | string[];
 type IntakeRecord = { sessionId: string; answers?: Record<string, QuestionnaireAnswer> };
+type PatientProfileSnapshot = Pick<PatientRecord, "age" | "gender" | "region" | "preferredLanguage">;
 
 type DoctorPatient = {
   id: string;
@@ -41,6 +51,8 @@ type DoctorPatient = {
   summary: string;
   bmi: string;
   painScore: string;
+  language: string;
+  region: string;
   mriAvailable: string;
   status: string;
 };
@@ -62,6 +74,8 @@ const genderLabels: Record<string, string> = {
 
 function titleize(value: string) {
   return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^q\d+\s*/i, "")
     .replace(/[_-]+/g, " ")
     .trim()
     .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -105,19 +119,55 @@ function formatPainScore(value: unknown) {
   return "Not captured";
 }
 
-function calculatePatientScore(value: unknown) {
-  const numericValue =
-    typeof value === "number" && Number.isFinite(value)
-      ? value
-      : typeof value === "string" && value.trim() !== ""
-        ? Number.parseFloat(value)
-        : Number.NaN;
+function genderSymbol(value: string) {
+  const normalized = value.trim().toLowerCase();
 
-  if (Number.isNaN(numericValue)) {
-    return "Not captured";
+  if (normalized === "female") {
+    return "♀";
   }
 
-  return String(Math.max(0, Math.min(100, Math.round(100 - numericValue * 5))));
+  if (normalized === "male") {
+    return "♂";
+  }
+
+  if (normalized === "non-binary") {
+    return "⚧";
+  }
+
+  return "•";
+}
+
+function calculateAgeFromDob(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  const dob = new Date(value);
+  if (Number.isNaN(dob.getTime())) {
+    return null;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDelta = today.getMonth() - dob.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+}
+
+function getRiskTag(answers: Record<string, QuestionnaireAnswer>) {
+  const hasRedFlag = [
+    "redFlagBladderBowel",
+    "redFlagRapidWeakness",
+    "redFlagFever",
+    "redFlagTrauma",
+    "redFlagCancer",
+    "redFlagWeightLoss",
+  ].some((key) => answers[key] === true);
+
+  return hasRedFlag ? "Red flag" : "Routine";
 }
 
 function formatChoice(value: unknown, labels?: Record<string, string>) {
@@ -146,21 +196,121 @@ function formatMriValue(answers: Record<string, QuestionnaireAnswer>) {
   return "Not captured";
 }
 
+function firstNonEmptyAnswer(answers: Record<string, QuestionnaireAnswer>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = answers[key];
+
+    if (Array.isArray(value) && value.length > 0) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function getCurrentDateKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-async function loadAppointments(date?: string) {
-  const url = date ? `/api/appointments?date=${encodeURIComponent(date)}` : "/api/appointments";
+async function loadPatientProfileByPhone(phone: string): Promise<PatientProfileSnapshot | null> {
+  const normalizedPhone = String(phone ?? "").replace(/\D/g, "");
+  if (!normalizedPhone) {
+    return null;
+  }
+
+  const local = findPatientRecordByPhone(normalizedPhone);
+  if (local) {
+    return {
+      age: local.age,
+      gender: local.gender,
+      region: local.region,
+      preferredLanguage: local.preferredLanguage,
+    };
+  }
+
+  try {
+    const response = await fetch(`/api/patient-register?phone=${encodeURIComponent(normalizedPhone)}`, {
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          ok?: boolean;
+          record?: {
+            age?: number | null;
+            gender?: string | null;
+            region?: string | null;
+            preferredLanguage?: string | null;
+          } | null;
+        }
+      | null;
+
+    if (!response.ok || !payload?.ok || !payload.record) {
+      return null;
+    }
+
+    return {
+      age: typeof payload.record.age === "number" ? payload.record.age : undefined,
+      gender: payload.record.gender ?? undefined,
+      region: payload.record.region ?? undefined,
+      preferredLanguage: payload.record.preferredLanguage ?? undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadAppointments(date?: string, doctorEmail?: string) {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  if (doctorEmail) params.set("doctorEmail", doctorEmail);
+  const url = `/api/appointments${params.toString() ? `?${params.toString()}` : ""}`;
   const response = await fetch(url, { cache: "no-store" });
-  const payload = (await response.json()) as { ok?: boolean; appointments?: AppointmentRecord[]; message?: string };
+  const payload = (await response.json()) as ApiAppointmentsPayload;
 
   if (!response.ok || !payload.ok) {
     throw new Error(payload.message ?? "Could not load appointments");
   }
 
-  return payload.appointments ?? [];
+  const apiAppointments = payload.appointments ?? [];
+  const localAppointments = listAppointments().map((item) => ({
+    id: item.consultId ?? item.sessionId,
+    consultSessionId: item.sessionId,
+    patientName: item.patientName,
+    patientPhone: item.patientPhone,
+    doctorName: item.doctorName,
+    appointmentDate: item.appointmentDate,
+    appointmentTime: item.appointmentTime,
+    appointmentType: item.appointmentType,
+    status: item.status,
+    notes: item.notes,
+  }));
+
+  if (doctorEmail && localAppointments.length > 0) {
+    // local fallback does not have doctor email mapping; include only when API is empty or unavailable
+    if (apiAppointments.length === 0) {
+      return localAppointments;
+    }
+  }
+
+  const dedupedBySession = new Map<string, AppointmentRecord>();
+  for (const item of [...localAppointments, ...apiAppointments]) {
+    dedupedBySession.set(item.consultSessionId || item.id, item);
+  }
+
+  return Array.from(dedupedBySession.values());
 }
 
 async function loadIntakeBySession(sessionId: string) {
@@ -168,19 +318,52 @@ async function loadIntakeBySession(sessionId: string) {
     const response = await fetch(`/api/patient-intake?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
     const payload = (await response.json()) as { ok?: boolean; record?: IntakeRecord | null };
 
-    if (!response.ok || !payload.ok) {
+    if (response.ok && payload.ok) {
+      if (payload.record) {
+        return payload.record;
+      }
+
+      const localRecord = loadPatientQuestionnaire(sessionId);
+      if (localRecord) {
+        return {
+          sessionId: localRecord.sessionId,
+          answers: localRecord.answers as Record<string, QuestionnaireAnswer>,
+        };
+      }
+
       return null;
     }
 
-    return payload.record ?? null;
+    const localRecord = loadPatientQuestionnaire(sessionId);
+    if (localRecord) {
+      return {
+        sessionId: localRecord.sessionId,
+        answers: localRecord.answers as Record<string, QuestionnaireAnswer>,
+      };
+    }
+
+    return null;
   } catch {
+    const localRecord = loadPatientQuestionnaire(sessionId);
+    if (localRecord) {
+      return {
+        sessionId: localRecord.sessionId,
+        answers: localRecord.answers as Record<string, QuestionnaireAnswer>,
+      };
+    }
+
     return null;
   }
 }
 
-async function loadDoctorQueue() {
-  const todayAppointments = await loadAppointments(getCurrentDateKey());
-  const appointments = todayAppointments;
+async function loadDoctorQueue(doctorEmail?: string) {
+  let appointments = await loadAppointments(undefined, doctorEmail);
+  if (doctorEmail && appointments.length === 0) {
+    // Fallback for demo/stale account mapping: show queue instead of empty screen.
+    appointments = await loadAppointments(undefined, undefined);
+  }
+
+  const patientProfileByPhone = new Map<string, Promise<PatientProfileSnapshot | null>>();
 
   return Promise.all(
     appointments.map(async (appointment) => {
@@ -189,7 +372,33 @@ async function loadDoctorQueue() {
       const answers = intake?.answers && Object.keys(intake.answers).length > 0 ? intake.answers : {};
       const patientName = String(answers.patientName ?? appointment.patientName ?? "Patient").trim() || "Patient";
       const phone = String(answers.phone ?? appointment.patientPhone ?? "").replace(/\D/g, "") || appointment.patientPhone;
+      if (!patientProfileByPhone.has(phone)) {
+        patientProfileByPhone.set(phone, loadPatientProfileByPhone(phone));
+      }
+      const patientProfile = (await patientProfileByPhone.get(phone)) ?? null;
       const bmiValue = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
+      const resolvedGender = firstNonEmptyAnswer(answers, "gender", "sex") ?? patientProfile?.gender;
+      const resolvedLanguage =
+        firstNonEmptyAnswer(answers, "preferredLanguage", "language", "consultLanguage") ??
+        patientProfile?.preferredLanguage;
+      const resolvedRegion = firstNonEmptyAnswer(answers, "region", "city", "location") ?? patientProfile?.region;
+      const resolvedPainScore = firstNonEmptyAnswer(answers, "painScore", "q6VasPain", "vasPain", "pain_scale");
+      const ageFromDob = calculateAgeFromDob(answers.dateOfBirth);
+      const ageFromProfile = typeof patientProfile?.age === "number" && Number.isFinite(patientProfile.age) ? patientProfile.age : Number.NaN;
+      const ageFromField =
+        typeof answers.age === "number" && Number.isFinite(answers.age)
+          ? answers.age
+          : typeof answers.age === "string" && answers.age.trim()
+            ? Number.parseInt(answers.age, 10)
+            : Number.NaN;
+      const resolvedAge = Number.isFinite(ageFromField)
+        ? String(ageFromField)
+        : Number.isFinite(ageFromProfile)
+          ? String(ageFromProfile)
+          : ageFromDob === null
+            ? "Not captured"
+            : String(ageFromDob);
+      const queueStatus = statusLabel(appointment.status);
 
       return {
         id: appointment.id,
@@ -197,17 +406,19 @@ async function loadDoctorQueue() {
         name: patientName,
         patientId: sessionId,
         phone,
-        age: formatMaybeLabel(answers.age),
-        sex: formatChoice(answers.gender, genderLabels),
+        age: resolvedAge,
+        sex: formatChoice(resolvedGender, genderLabels),
         answers,
         appointmentDate: appointment.appointmentDate,
         appointmentTime: appointment.appointmentTime,
         consultationType: appointmentTypeLabels[appointment.appointmentType] ?? titleize(appointment.appointmentType),
         summary: String(answers.mainConcern ?? answers.symptomFocus ?? appointment.notes ?? "").trim() || "Pending intake",
         bmi: bmiValue === null ? "Not captured" : bmiValue.toFixed(1),
-        painScore: formatPainScore(answers.painScore),
+        painScore: formatPainScore(resolvedPainScore),
+        language: formatMaybeLabel(resolvedLanguage),
+        region: formatMaybeLabel(resolvedRegion),
         mriAvailable: formatMriValue(answers),
-        status: titleize(appointment.status),
+        status: queueStatus,
       } satisfies DoctorPatient;
     }),
   );
@@ -227,7 +438,7 @@ async function loadDoctorQuestionnaireDefinition() {
   return payload.questionnaire.definition;
 }
 
-export function DoctorWorkflow() {
+export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [todayPatients, setTodayPatients] = useState<DoctorPatient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<"patient-details" | "doctor">("patient-details");
@@ -265,8 +476,10 @@ export function DoctorWorkflow() {
     for (const section of patientWorkflowSections) {
       for (const question of section.questions) {
         map.set(question.id, {
-          label: question.label,
-          optionLabelByValue: new Map((question.options ?? []).map((option) => [option.value, option.label])),
+          label: toPlainQuestionText(question.label),
+          optionLabelByValue: new Map(
+            (question.options ?? []).map((option) => [option.value, toPlainQuestionText(option.label)]),
+          ),
         });
       }
     }
@@ -306,7 +519,7 @@ export function DoctorWorkflow() {
         }
 
         const questionMeta = patientQuestionMap.get(key);
-        const label = questionMeta?.label ?? titleize(key);
+        const label = questionMeta?.label ?? toPlainQuestionText(titleize(key));
 
         if (Array.isArray(value)) {
           const mapped = value.map((entry) => questionMeta?.optionLabelByValue.get(entry) ?? entry);
@@ -330,7 +543,7 @@ export function DoctorWorkflow() {
       setPatientsError("");
 
       try {
-        const patients = await loadDoctorQueue();
+        const patients = await loadDoctorQueue(doctorEmail);
 
         if (!active) {
           return;
@@ -364,7 +577,7 @@ export function DoctorWorkflow() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [doctorEmail]);
 
   useEffect(() => {
     let active = true;
@@ -411,19 +624,16 @@ export function DoctorWorkflow() {
   const doctorLoadApiPath = selectedPatient
     ? `/api/doctor-intake?consultSessionId=${encodeURIComponent(selectedPatient.consultSessionId)}`
     : undefined;
+  const canEditDoctorForm = selectedPatient ? selectedPatient.appointmentDate === getCurrentDateKey() : false;
 
   const demographicPairs = selectedPatient
     ? [
-        { key: "Age", value: selectedPatient.age },
-        { key: "Sex", value: selectedPatient.sex },
-        { key: "Phone", value: selectedPatient.phone },
-        { key: "Language", value: formatMaybeLabel(selectedPatient.answers.preferredLanguage) },
-        { key: "Region", value: formatMaybeLabel(selectedPatient.answers.region) },
+        { key: "Patient ID", value: selectedPatient.patientId },
+        { key: "Language", value: selectedPatient.language },
+        { key: "Region", value: selectedPatient.region },
         { key: "BMI", value: selectedPatient.bmi },
-        { key: "Pain", value: selectedPatient.painScore },
-        { key: "Score", value: calculatePatientScore(selectedPatient.answers.painScore) },
-        { key: "Type", value: selectedPatient.consultationType },
-        { key: "State", value: statusLabel(selectedPatient.status) },
+        { key: "Pain score", value: selectedPatient.painScore },
+        { key: "Visit type", value: selectedPatient.consultationType },
       ]
     : [];
 
@@ -503,16 +713,18 @@ export function DoctorWorkflow() {
             <span className="text-xs font-medium">Queue</span>
           </button>
           <h2 className="headline text-2xl font-semibold sm:text-3xl">{selectedPatient.name}</h2>
+          <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white/85 px-2.5 py-1 text-xs font-semibold text-[color:var(--foreground)]">
+            <span aria-label={`Gender ${selectedPatient.sex}`}>{genderSymbol(selectedPatient.sex)}</span> {selectedPatient.age}
+          </span>
           <span className="text-sm text-[color:var(--muted)]">{selectedPatient.appointmentTime}</span>
         </div>
 
         <div className="mt-2">
-          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[color:var(--foreground)]">
-            {demographicPairs.map((item, index) => (
-              <div key={item.key} className="inline-flex flex-none items-baseline gap-1.5 whitespace-nowrap">
-                <dt className="shrink-0 text-[color:var(--muted)]">{item.key}</dt>
-                <dd className="shrink-0 font-medium whitespace-nowrap">{item.value}</dd>
-                {index < demographicPairs.length - 1 ? <span className="flex-none text-[color:var(--muted)]">|</span> : null}
+          <dl className="grid grid-cols-1 gap-2 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white/90 p-3 sm:grid-cols-2">
+            {demographicPairs.map((item) => (
+              <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.55)] px-2.5 py-2">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{item.key}</dt>
+                <dd className="text-sm font-semibold text-[color:var(--foreground)]">{item.value}</dd>
               </div>
             ))}
           </dl>
@@ -578,6 +790,7 @@ export function DoctorWorkflow() {
             loadApiPath={doctorLoadApiPath}
             saveApiPath="/api/doctor-intake"
             saveApiContext={doctorSaveContext}
+            allowSubmittedEdit={canEditDoctorForm}
           />
         </div>
       )}

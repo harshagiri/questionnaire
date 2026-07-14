@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { routeRoleMap, roleHomePath } from "@/lib/auth";
 
-const publicPaths = ["/", "/access", "/api/health", "/api/session"];
+const publicPaths = ["/", "/access", "/register", "/api/health", "/api/session", "/api/patient-register", "/patient/consult", "/patient/upload"];
 
 function getRequiredRole(pathname: string) {
   return routeRoleMap.find((item) => pathname.startsWith(item.prefix))?.role;

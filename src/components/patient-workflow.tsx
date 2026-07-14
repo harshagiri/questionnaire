@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { patientWorkflowSections } from "@/lib/workflow-data";
+import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import type { PatientQuestionContent, PatientQuestionnaireRecord } from "@/lib/patient-questionnaire-db";
 import { calculateBmi, summarizeAnswer } from "@/lib/questionnaire";
-import { savePatientQuestionnaire } from "@/lib/portal-storage";
+import { toPlainQuestionText } from "@/lib/question-text";
+import { findPatientRecordByPhone, savePatientQuestionnaire } from "@/lib/portal-storage";
 
 type AnswerValue = string | number | boolean | string[];
 type AnswerMap = Record<string, AnswerValue>;
@@ -181,11 +182,14 @@ function applyQuestionContentOverrides(questionContent: PatientQuestionContent[]
 
       return {
         ...question,
-        label: override.label,
+        label: toPlainQuestionText(override.label),
         type: override.type as typeof question.type,
         helpText: override.helpText ?? question.helpText,
         required: override.required ?? question.required,
-        options: override.options ?? question.options,
+        options: (override.options ?? question.options)?.map((option) => ({
+          ...option,
+          label: toPlainQuestionText(option.label),
+        })),
       };
     }),
   }));
@@ -284,28 +288,45 @@ function summarizeQuestionAnswer(sections: WorkflowSections, questionId: string,
   return summarizeAnswer(value);
 }
 
+function normalizePhone(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
 export function PatientWorkflow({
   sessionId,
   initialQuestionContent = [],
   initialSavedWorkflow = null,
+  mode = "full",
+  dashboardHref,
 }: {
   sessionId: string;
   initialQuestionContent?: PatientQuestionContent[];
   initialSavedWorkflow?: PatientQuestionnaireRecord | null;
+  mode?: "full" | "pre-consult";
+  dashboardHref?: string;
 }) {
-  const workflowSections = useMemo(() => applyQuestionContentOverrides(initialQuestionContent), [initialQuestionContent]);
+  const workflowSections = useMemo(() => {
+    if (mode === "pre-consult") return preConsultSections;
+    return applyQuestionContentOverrides(initialQuestionContent);
+  }, [initialQuestionContent, mode]);
   const registeredProfileDefaults = useMemo(() => {
     if (typeof window === "undefined") {
       return {} as Partial<AnswerMap>;
     }
 
-    const profileRaw = window.localStorage.getItem(`sei-patient-profile:${sessionId}`);
+    const profileRaw = window.localStorage.getItem(`sei-patient-profile:${sessionId}`) ?? window.localStorage.getItem("sei-patient-profile-latest");
     if (!profileRaw) {
       return {} as Partial<AnswerMap>;
     }
 
     try {
-      return JSON.parse(profileRaw) as Partial<AnswerMap>;
+      const parsed = JSON.parse(profileRaw) as Partial<AnswerMap>;
+      const resolvedPatientName = String(parsed.patientName ?? parsed.fullName ?? "").trim();
+
+      return {
+        ...parsed,
+        ...(resolvedPatientName ? { patientName: resolvedPatientName } : {}),
+      } as Partial<AnswerMap>;
     } catch {
       window.localStorage.removeItem(`sei-patient-profile:${sessionId}`);
       return {} as Partial<AnswerMap>;
@@ -325,6 +346,7 @@ export function PatientWorkflow({
   const [questionIndex, setQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
+  const [profileBmi, setProfileBmi] = useState<number | null>(null);
   const questionAreaRef = useRef<HTMLDivElement | null>(null);
   const skippedInitialAutosaveRef = useRef(false);
   const latestDraftRef = useRef<{
@@ -383,6 +405,138 @@ export function PatientWorkflow({
   }, [initialSavedWorkflow, registeredProfileDefaults, sessionId]);
 
   useEffect(() => {
+    const currentName = String(answers.patientName ?? "").trim();
+    if (currentName) {
+      return;
+    }
+
+    const phone = normalizePhone(answers.phone ?? registeredProfileDefaults.phone);
+    if (phone.length < 10) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function resolvePatientName() {
+      try {
+        const [patientResponse, appointmentResponse] = await Promise.all([
+          fetch(`/api/patient-register?phone=${encodeURIComponent(phone)}`, { cache: "no-store" }),
+          fetch(`/api/appointments?phone=${encodeURIComponent(phone)}`, { cache: "no-store" }),
+        ]);
+
+        const patientPayload = (await patientResponse.json().catch(() => null)) as
+          | { ok?: boolean; record?: { fullName?: string } | null }
+          | null;
+        const appointmentPayload = (await appointmentResponse.json().catch(() => null)) as
+          | { ok?: boolean; appointments?: Array<{ patientName?: string }> }
+          | null;
+
+        const resolvedName =
+          (patientResponse.ok && patientPayload?.ok && String(patientPayload.record?.fullName ?? "").trim()) ||
+          (appointmentResponse.ok && appointmentPayload?.ok && String(appointmentPayload.appointments?.[0]?.patientName ?? "").trim()) ||
+          "";
+
+        if (cancelled || !resolvedName) {
+          return;
+        }
+
+        setAnswers((current) => (current.patientName ? current : { ...current, patientName: resolvedName }));
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            `sei-patient-profile:${sessionId}`,
+            JSON.stringify({
+              ...registeredProfileDefaults,
+              patientName: resolvedName,
+              fullName: resolvedName,
+              phone,
+            }),
+          );
+        }
+      } catch {
+        // Ignore lookup errors and keep the form editable.
+      }
+    }
+
+    void resolvePatientName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [answers.patientName, answers.phone, registeredProfileDefaults, sessionId]);
+
+  useEffect(() => {
+    const phone = normalizePhone(answers.phone ?? registeredProfileDefaults.phone);
+    if (phone.length < 10) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const applyMetrics = (record: { heightCm?: number | null; weightKg?: number | null; bmi?: number | null } | null | undefined) => {
+      if (!record || cancelled) {
+        return;
+      }
+
+      const profileHeight = typeof record.heightCm === "number" && record.heightCm > 0 ? record.heightCm : null;
+      const profileWeight = typeof record.weightKg === "number" && record.weightKg > 0 ? record.weightKg : null;
+      const profileCalculatedBmi =
+        typeof record.bmi === "number" && record.bmi > 0
+          ? record.bmi
+          : profileHeight && profileWeight
+            ? calculateBmi(profileWeight, profileHeight)
+            : null;
+
+      if (profileCalculatedBmi !== null) {
+        setProfileBmi(profileCalculatedBmi);
+      }
+
+      setAnswers((current) => {
+        const currentHeight = Number(current.heightCm);
+        const currentWeight = Number(current.weightKg);
+        const next: AnswerMap = { ...current };
+        let changed = false;
+
+        if ((!currentHeight || currentHeight <= 0) && profileHeight) {
+          next.heightCm = profileHeight;
+          changed = true;
+        }
+        if ((!currentWeight || currentWeight <= 0) && profileWeight) {
+          next.weightKg = profileWeight;
+          changed = true;
+        }
+
+        return changed ? next : current;
+      });
+    };
+
+    applyMetrics(findPatientRecordByPhone(phone));
+
+    async function resolveProfileMetrics() {
+      try {
+        const response = await fetch(`/api/patient-register?phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; record?: { heightCm?: number | null; weightKg?: number | null; bmi?: number | null } | null }
+          | null;
+
+        if (!response.ok || !payload?.ok) {
+          return;
+        }
+
+        applyMetrics(payload.record);
+      } catch {
+        // Ignore profile metric lookup errors; questionnaire remains usable.
+      }
+    }
+
+    void resolveProfileMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [answers.phone, registeredProfileDefaults.phone]);
+
+  useEffect(() => {
     if (!skippedInitialAutosaveRef.current) {
       skippedInitialAutosaveRef.current = true;
       return;
@@ -431,6 +585,7 @@ export function PatientWorkflow({
   const section = workflowSections[sectionIndex];
   const visibleQuestions = getSectionQuestions(sectionIndex);
   const bmi = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
+  const resolvedBmi = bmi ?? profileBmi;
   const redFlagTriggered = Boolean(
     answers.redFlagBladderBowel ||
       answers.redFlagRapidWeakness ||
@@ -548,20 +703,44 @@ export function PatientWorkflow({
   const currentSectionTotal = currentSectionCard?.visibleCount ?? sectionQuestionCount;
   const nextSectionTitle = sectionCards[sectionIndex + 1]?.title;
   const answeredForSummary = sectionProgress.totalAnsweredQuestions;
+
+  const questionIdSet = useMemo(
+    () => new Set(workflowSections.flatMap((sectionItem) => sectionItem.questions.map((question) => question.id))),
+    [workflowSections],
+  );
+
+  const summaryKey = (...candidates: string[]) => {
+    for (const key of candidates) {
+      if (questionIdSet.has(key)) {
+        return key;
+      }
+    }
+
+    return candidates[0];
+  };
+
+  const visitReasonKey = summaryKey("q1PrimaryReason", "consultReason");
+  const concernKey = summaryKey("q2PainRegion", "mainConcern");
+  const painScoreKey = summaryKey("q6VasPain", "painScore");
+  const painLocationKey = summaryKey("q2PainRegion", "painLocation");
+  const durationKey = summaryKey("q4Duration", "symptomDuration");
+  const goalKey = summaryKey("spineHealthAnchor", "q15TreatmentHelped", "careGoal");
+  const reportsKey = summaryKey("q14TreatmentTried", "reportsWithPatient");
+
   const submittedSummaryCards = [
-    { label: "Visit reason", value: summarizeQuestionAnswer(workflowSections, "consultReason", answers.consultReason) },
-    { label: "Main concern", value: summarizeQuestionAnswer(workflowSections, "mainConcern", answers.mainConcern) },
-    { label: "Pain score", value: summarizeQuestionAnswer(workflowSections, "painScore", answers.painScore) },
-    { label: "Pain location", value: summarizeQuestionAnswer(workflowSections, "painLocation", answers.painLocation) },
-    { label: "Duration", value: answers.symptomDuration ? `${summarizeAnswer(answers.symptomDuration)} days` : "Not filled" },
-    { label: "Treatment goal", value: summarizeQuestionAnswer(workflowSections, "careGoal", answers.careGoal) },
+    { label: "Visit reason", value: summarizeQuestionAnswer(workflowSections, visitReasonKey, answers[visitReasonKey]) },
+    { label: "Main concern", value: summarizeQuestionAnswer(workflowSections, concernKey, answers[concernKey]) },
+    { label: "Pain score", value: summarizeQuestionAnswer(workflowSections, painScoreKey, answers[painScoreKey]) },
+    { label: "Pain location", value: summarizeQuestionAnswer(workflowSections, painLocationKey, answers[painLocationKey]) },
+    { label: "Duration", value: summarizeQuestionAnswer(workflowSections, durationKey, answers[durationKey]) },
+    { label: "Treatment goal", value: summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey]) },
   ];
   const doctorReadyItems = [
-    `Reason for visit: ${summarizeQuestionAnswer(workflowSections, "consultReason", answers.consultReason)}`,
-    `Current concern: ${summarizeQuestionAnswer(workflowSections, "mainConcern", answers.mainConcern)}`,
+    `Reason for visit: ${summarizeQuestionAnswer(workflowSections, visitReasonKey, answers[visitReasonKey])}`,
+    `Current concern: ${summarizeQuestionAnswer(workflowSections, concernKey, answers[concernKey])}`,
     `Red flag screen: ${redFlagTriggered ? "Clinic attention needed" : "No urgent red flags reported"}`,
-    `Reports available: ${summarizeQuestionAnswer(workflowSections, "reportsWithPatient", answers.reportsWithPatient)}`,
-    `Patient goal: ${summarizeQuestionAnswer(workflowSections, "careGoal", answers.careGoal)}`,
+    `Reports available: ${summarizeQuestionAnswer(workflowSections, reportsKey, answers[reportsKey])}`,
+    `Patient goal: ${summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey])}`,
   ];
 
   const setValue = (key: string, value: AnswerValue) =>
@@ -617,6 +796,21 @@ export function PatientWorkflow({
 
     latestDraftRef.current = { sessionId, patientPhone, answers, sectionIndex, questionIndex, submitted: nextSubmitted };
     persistDraft(record);
+  };
+
+  const handleBackToDashboard = () => {
+    if (!dashboardHref) {
+      return;
+    }
+
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.location.href = dashboardHref;
+    }
   };
 
   const submitQuestionnaire = () => {
@@ -878,7 +1072,19 @@ export function PatientWorkflow({
 
   if (submitted) {
     return (
-      <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] shadow-[0_24px_80px_rgba(21,32,43,0.12)]">
+      <div className="space-y-3">
+        {dashboardHref ? (
+          <button
+            type="button"
+            onClick={handleBackToDashboard}
+            className="inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] hover:bg-[rgba(21,32,43,0.04)]"
+          >
+            <span aria-hidden="true">&lt;</span>
+            Back to dashboard
+          </button>
+        ) : null}
+
+        <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] shadow-[0_24px_80px_rgba(21,32,43,0.12)]">
         <div className="relative overflow-hidden bg-[linear-gradient(135deg,rgba(15,118,110,0.16),rgba(255,138,91,0.14)_55%,rgba(255,255,255,0.65))] p-6 sm:p-8 lg:p-10">
           <div className="absolute left-0 top-0 h-full w-full opacity-60 [background-image:linear-gradient(120deg,rgba(15,118,110,0.16)_0_12px,transparent_12px_32px),linear-gradient(60deg,rgba(255,138,91,0.16)_0_10px,transparent_10px_30px)]" />
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -966,7 +1172,7 @@ export function PatientWorkflow({
               </div>
               <div className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 text-sm">
                 <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">BMI</div>
-                <div className="mt-1 font-semibold text-[color:var(--foreground)]">{bmi ?? "Pending"}</div>
+                <div className="mt-1 font-semibold text-[color:var(--foreground)]">{resolvedBmi ?? "Pending"}</div>
               </div>
               {submittedSummaryCards.map((item) => (
                 <div key={item.label} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 text-sm sm:col-span-2">
@@ -993,12 +1199,24 @@ export function PatientWorkflow({
             </div>
           </section>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {dashboardHref ? (
+        <button
+          type="button"
+          onClick={handleBackToDashboard}
+          className="inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] hover:bg-[rgba(21,32,43,0.04)]"
+        >
+          <span aria-hidden="true">&lt;</span>
+          Back to dashboard
+        </button>
+      ) : null}
+
       <div className="sticky top-16 z-20 rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(255,255,255,0.96)] px-3 py-3 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <div>

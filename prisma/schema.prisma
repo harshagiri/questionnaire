@@ -36,6 +36,7 @@ model User {
   patientProfile      PatientProfile?
   appointmentsAsDoctor Appointment[] @relation("DoctorAppointments")
   appointmentsAsPatient Appointment[] @relation("PatientAppointments")
+  receptionistAssignments ReceptionistDoctorAssignment[] @relation("ReceptionistAssignments")
 }
 
 model Role {
@@ -76,6 +77,36 @@ model DoctorProfile {
   links              Json     @default("[]")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  availabilitySlots       DoctorAvailabilitySlot[]
+  receptionistAssignments ReceptionistDoctorAssignment[]
+}
+
+// Weekly recurring availability slots — up to 5 per doctor
+model DoctorAvailabilitySlot {
+  id                  String        @id @default(cuid())
+  doctorProfileId     String
+  dayOfWeek           Int           // 0=Sun, 1=Mon, ..., 6=Sat
+  startTime           String        // "HH:MM"
+  slotDurationMinutes Int           @default(30)
+  createdAt           DateTime      @default(now())
+
+  doctorProfile       DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorProfileId, dayOfWeek, startTime])
+}
+
+// Admin-managed: which receptionists handle which doctors
+model ReceptionistDoctorAssignment {
+  id              String        @id @default(cuid())
+  receptionistId  String        // User.id of receptionist staff
+  doctorProfileId String
+  createdAt       DateTime      @default(now())
+
+  receptionist    User          @relation("ReceptionistAssignments", fields: [receptionistId], references: [id], onDelete: Cascade)
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([receptionistId, doctorProfileId])
 }
 
 model PatientProfile {
@@ -92,26 +123,75 @@ model PatientProfile {
   updatedAt    DateTime @updatedAt
 }
 
+// Permanent patient identity record — created once at registration, reused across all consultations.
+model PatientRecord {
+  id                String   @id @default(cuid())
+  patientId         String   @unique  // Human-readable: PT-2026-00001
+  phone             String   @unique
+  email             String?
+  fullName          String
+  age               Int?
+  gender            String?
+  heightCm          Float?
+  weightKg          Float?
+  bmi               Float?
+  region            String?
+  preferredLanguage String?
+  dailyActivity     String?
+  comorbidities     Json     @default("[]")
+  currentMeds       Json     @default("[]")
+  priorSurgery      Boolean  @default(false)
+  surgeryDetails    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  appointments   Appointment[]
+  submissions    QuestionnaireSubmission[]
+  labReports     LabReport[]
+}
+
 model Appointment {
-  id              String            @id @default(cuid())
-  consultSessionId String?           @unique
-  patientId       String
-  patientName     String            @default("")
-  patientPhone    String            @default("")
-  doctorId        String
-  doctorName      String            @default("")
-  appointmentDate DateTime
-  appointmentTime String            @default("09:00")
-  appointmentType String            @default("new")
-  status          AppointmentStatus @default(booked)
-  createdBy       String?
-  notes           String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                 String            @id @default(cuid())
+  consultSessionId   String?           @unique
+  consultId          String?           @unique  // Human-readable: CSL-20260713-0001
+  patientId          String
+  patientRecordId    String?           // FK to PatientRecord (set when patient self-registers)
+  patientName        String            @default("")
+  patientPhone       String            @default("")
+  doctorId           String
+  doctorName         String            @default("")
+  appointmentDate    DateTime
+  appointmentTime    String            @default("09:00")
+  appointmentType    String            @default("new")
+  status             AppointmentStatus @default(booked)
+  createdBy          String?
+  notes              String?
+  videoConsultLink   String?
+  preConsultLink     String?
+  preConsultSentAt   DateTime?
+  confirmationSentAt DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   patient         User              @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
   doctor          User              @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patientRecord   PatientRecord?    @relation(fields: [patientRecordId], references: [id], onDelete: SetNull)
   submissions     QuestionnaireSubmission[]
+  labReports      LabReport[]
+}
+
+model LabReport {
+  id              String        @id @default(cuid())
+  appointmentId   String
+  patientRecordId String?
+  fileName        String
+  fileType        String        // mri-images | mri-report | xray | labs | other
+  storedPath      String?
+  fileSizeBytes   Int?
+  uploadedAt      DateTime      @default(now())
+
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientRecord   PatientRecord? @relation(fields: [patientRecordId], references: [id], onDelete: SetNull)
 }
 
 model Questionnaire {
@@ -145,6 +225,7 @@ model QuestionnaireSubmission {
   questionnaireId String
   appointmentId   String
   patientId       String
+  patientRecordId String?
   doctorId        String
   sessionId       String                    @unique
   patientPhone    String?
@@ -159,6 +240,7 @@ model QuestionnaireSubmission {
 
   questionnaire   Questionnaire             @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   appointment     Appointment               @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientRecord   PatientRecord?            @relation(fields: [patientRecordId], references: [id], onDelete: SetNull)
   answers         QuestionnaireAnswer[]
 
   @@index([patientPhone, updatedAt])

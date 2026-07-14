@@ -112,16 +112,39 @@ async function ensurePatientQuestionnaire() {
   });
 
   const expectedKeys = patientWorkflowSections.flatMap((section) => section.questions.map((question) => question.id));
+  const expectedQuestions = getQuestionnaireQuestionData(questionnaire.id);
+  const expectedByKey = new Map(expectedQuestions.map((question) => [question.key, question]));
   const existingQuestions = await prisma.questionnaireQuestion.findMany({
     where: { questionnaireId: questionnaire.id },
-    select: { key: true },
+    select: { key: true, label: true, type: true, helpText: true, sortOrder: true, config: true },
   });
   const existingKeys = new Set(existingQuestions.map((question) => question.key));
   const hasCurrentShape = expectedKeys.length === existingKeys.size && expectedKeys.every((key) => existingKeys.has(key));
 
-  if (!hasCurrentShape) {
+  const hasCurrentDefinition =
+    hasCurrentShape &&
+    existingQuestions.every((question) => {
+      const expected = expectedByKey.get(question.key);
+      if (!expected) {
+        return false;
+      }
+
+      const existingConfig = question.config as { required?: boolean; options?: Array<{ label: string; value: string }> };
+      const expectedConfig = expected.config as { required?: boolean; options?: Array<{ label: string; value: string }> };
+
+      return (
+        question.label === expected.label &&
+        question.type === expected.type &&
+        (question.helpText ?? null) === expected.helpText &&
+        question.sortOrder === expected.sortOrder &&
+        Boolean(existingConfig?.required) === Boolean(expectedConfig?.required) &&
+        JSON.stringify(existingConfig?.options ?? []) === JSON.stringify(expectedConfig?.options ?? [])
+      );
+    });
+
+  if (!hasCurrentDefinition) {
     await prisma.questionnaireQuestion.deleteMany({ where: { questionnaireId: questionnaire.id } });
-    await prisma.questionnaireQuestion.createMany({ data: getQuestionnaireQuestionData(questionnaire.id) });
+    await prisma.questionnaireQuestion.createMany({ data: expectedQuestions });
   }
 
   return questionnaire;

@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { demoAppointments } from "@/lib/workflow-data";
 
 const appointmentStatuses = ["draft", "booked", "waiting", "submitted", "cancelled", "follow_up"] as const;
-
-const demoPatientPhoneByName: Record<string, string> = {
-  "Ritika Sharma": "9811022334",
-  "Imran Khan": "9811022445",
-  "Sahana Rao": "9811022556",
-};
 
 const appointmentCreateSchema = z.object({
   patientName: z.string().min(2),
@@ -19,6 +12,9 @@ const appointmentCreateSchema = z.object({
   appointmentTime: z.string().min(2),
   appointmentType: z.string().min(2),
   consultSessionId: z.string().min(8),
+  consultId: z.string().optional(),
+  videoConsultLink: z.string().optional(),
+  preConsultLink: z.string().optional(),
   status: z.enum(appointmentStatuses).default("booked"),
   notes: z.string().optional().default(""),
 });
@@ -31,6 +27,7 @@ const appointmentStatusUpdateSchema = z.object({
 type AppointmentPayload = {
   id: string;
   consultSessionId: string;
+  consultId: string;
   patientName: string;
   patientPhone: string;
   doctorId: string;
@@ -40,6 +37,8 @@ type AppointmentPayload = {
   appointmentType: string;
   status: (typeof appointmentStatuses)[number];
   notes: string;
+  videoConsultLink?: string;
+  preConsultLink?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -51,6 +50,7 @@ type AppointmentTx = Parameters<NonNullable<typeof prisma>['$transaction']>[0] e
 function toAppointmentPayload(appointment: {
   id: string;
   consultSessionId: string | null;
+  consultId?: string | null;
   patientName: string;
   patientPhone: string;
   doctorId: string;
@@ -60,12 +60,16 @@ function toAppointmentPayload(appointment: {
   appointmentType: string;
   status: string;
   notes: string | null;
+  videoConsultLink?: string | null;
+  preConsultLink?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): AppointmentPayload {
+  const sessionId = appointment.consultSessionId ?? appointment.id;
   return {
     id: appointment.id,
-    consultSessionId: appointment.consultSessionId ?? appointment.id,
+    consultSessionId: sessionId,
+    consultId: appointment.consultId ?? sessionId,
     patientName: appointment.patientName,
     patientPhone: appointment.patientPhone,
     doctorId: appointment.doctorId,
@@ -75,6 +79,8 @@ function toAppointmentPayload(appointment: {
     appointmentType: appointment.appointmentType,
     status: appointment.status as AppointmentPayload["status"],
     notes: appointment.notes ?? "",
+    videoConsultLink: appointment.videoConsultLink ?? undefined,
+    preConsultLink: appointment.preConsultLink ?? undefined,
     createdAt: appointment.createdAt.toISOString(),
     updatedAt: appointment.updatedAt.toISOString(),
   };
@@ -98,26 +104,6 @@ function normalizeDateTime(dateValue: string, timeValue: string) {
 
 function normalizePhone(value: string | null) {
   return (value ?? "").replace(/\D/g, "");
-}
-
-function getDemoAppointments() {
-  const today = new Date().toISOString().slice(0, 10);
-
-  return demoAppointments.map((appointment, index) => ({
-    id: `demo-appointment-${index + 1}`,
-    consultSessionId: `demo-consult-${index + 1}`,
-    patientName: appointment.name,
-    patientPhone: demoPatientPhoneByName[appointment.name] ?? "9876500000",
-    doctorId: `demo-doctor-${index + 1}`,
-    doctorName: appointment.doctor,
-    appointmentDate: today,
-    appointmentTime: appointment.slot,
-    appointmentType: "new",
-    status: appointment.status,
-    notes: "Demo appointment",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
 }
 
 async function createOrUpdatePatientUser(
@@ -229,34 +215,90 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone");
   const date = searchParams.get("date");
+  const doctorEmail = searchParams.get("doctorEmail");
+  const doctorProfileId = searchParams.get("doctorProfileId");
 
   if (!prisma) {
-    return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo" });
+    return NextResponse.json({ ok: true, appointments: [], storage: "no-db" });
   }
 
   try {
-    const appointments = await listDatabaseAppointments(phone, date);
+    let appointments;
 
-    if (appointments.length === 0 && process.env.NODE_ENV !== "production") {
-      return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo-empty" });
+    if (doctorEmail || doctorProfileId) {
+      // Doctor-filtered view: resolve doctorId from email if needed
+      let resolvedDoctorUserId: string | undefined;
+
+      if (doctorEmail) {
+        const doctorUser = await prisma.user.findUnique({
+          where: { email: doctorEmail.toLowerCase() },
+          select: { id: true },
+        });
+        resolvedDoctorUserId = doctorUser?.id;
+      } else if (doctorProfileId) {
+        const profile = await prisma.doctorProfile.findUnique({
+          where: { id: doctorProfileId },
+          select: { userId: true },
+        });
+        resolvedDoctorUserId = profile?.userId;
+      }
+
+      if (!resolvedDoctorUserId) {
+        return NextResponse.json({ ok: true, appointments: [], storage: "database" });
+      }
+
+      const raw = await prisma.appointment.findMany({
+        where: { doctorId: resolvedDoctorUserId },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      appointments = raw.map((a) =>
+        toAppointmentPayload({
+          ...a,
+          appointmentDate: a.appointmentDate,
+        }),
+      );
+    } else {
+      appointments = await listDatabaseAppointments(phone, date);
     }
 
     return NextResponse.json({ ok: true, appointments, storage: "database" });
   } catch {
-    return NextResponse.json({ ok: true, appointments: getDemoAppointments(), storage: "demo-fallback" });
+    return NextResponse.json({ ok: true, appointments: [], storage: "error" });
   }
 }
 
 export async function POST(request: Request) {
-  if (!prisma) {
-    return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
-  }
-
   const body = await request.json();
   const parsed = appointmentCreateSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ ok: false, errors: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (!prisma) {
+    // No DB: return a local-only success so client can save to localStorage
+    return NextResponse.json({
+      ok: true,
+      appointment: {
+        id: parsed.data.consultSessionId,
+        consultSessionId: parsed.data.consultSessionId,
+        consultId: parsed.data.consultId ?? parsed.data.consultSessionId,
+        patientName: parsed.data.patientName,
+        patientPhone: parsed.data.patientPhone,
+        doctorId: parsed.data.doctorId,
+        doctorName: "",
+        appointmentDate: parsed.data.appointmentDate,
+        appointmentTime: parsed.data.appointmentTime,
+        appointmentType: parsed.data.appointmentType,
+        status: parsed.data.status,
+        notes: parsed.data.notes ?? "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      consultLink: toConsultLink(parsed.data.consultSessionId, parsed.data.consultSessionId),
+      storage: "local",
+    }, { status: 201 });
   }
 
   const input = parsed.data;
@@ -273,6 +315,7 @@ export async function POST(request: Request) {
 
       const appointmentData = {
         consultSessionId: input.consultSessionId,
+        consultId: input.consultId ?? input.consultSessionId,
         patientId: patient.id,
         patientName: input.patientName,
         patientPhone: input.patientPhone,
@@ -283,6 +326,8 @@ export async function POST(request: Request) {
         appointmentType: input.appointmentType.trim(),
         status: input.status as never,
         notes: input.notes?.trim() || null,
+        videoConsultLink: input.videoConsultLink ?? null,
+        preConsultLink: input.preConsultLink ?? null,
       } as const;
 
       return tx.appointment.create({ data: appointmentData as never });

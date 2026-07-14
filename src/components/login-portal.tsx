@@ -101,38 +101,35 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       const savedSessionId = savedPayload.ok ? savedPayload.record?.sessionId : undefined;
       const latestAppointment = appointmentMatches[0];
 
-      if (!savedSessionId && !latestAppointment) {
-        setPatientMessage("No patient or appointment found for this phone. Please contact reception.");
-        return;
-      }
-
-      const resolvedSessionId = savedSessionId ?? latestAppointment?.consultSessionId ?? latestAppointment?.id ?? `${normalizedPhone}-${Date.now()}`;
       const resolvedPatientName = latestAppointment?.patientName ?? normalizedPhone;
       const resolvedPatientPhone = latestAppointment?.patientPhone ?? normalizedPhone;
 
-      const defaultPatientPath = `/patient/${resolvedSessionId}?phone=${encodeURIComponent(normalizedPhone)}`;
-      const sessionPath = nextPath ?? defaultPatientPath;
-      const parts = sessionPath.split("/").filter(Boolean);
-      const sessionIdWithQuery = parts.length ? parts[parts.length - 1] : resolvedSessionId;
-      const sessionId = sessionIdWithQuery.split("?")[0] ?? resolvedSessionId;
+      // Prefer the explicit nextPath (e.g., direct pre-consult link), otherwise go to dashboard
+      const sessionPath = nextPath ?? "/patient";
+      const resolvedSessionId = savedSessionId ?? latestAppointment?.consultSessionId ?? latestAppointment?.id ?? `${normalizedPhone}-${Date.now()}`;
 
-      if (sessionId && typeof window !== "undefined") {
+      if (resolvedSessionId && typeof window !== "undefined") {
+        const profilePayload = {
+          fullName: resolvedPatientName,
+          patientName: resolvedPatientName,
+          phone: resolvedPatientPhone,
+        };
+
         window.localStorage.setItem(
-          `sei-patient-profile:${sessionId}`,
-          JSON.stringify({
-            patientName: resolvedPatientName,
-            phone: resolvedPatientPhone,
-          }),
+          `sei-patient-profile:${resolvedSessionId}`,
+          JSON.stringify(profilePayload),
         );
+
+        window.localStorage.setItem("sei-patient-profile-latest", JSON.stringify(profilePayload));
       }
 
       await createSession(
         {
           role: "patient",
-          name: resolvedPatientName,
+          name: normalizedPhone,  // store phone as name so dashboard can load records
           phone: normalizedPhone,
           otp: patientOtp,
-          nextPath: sessionPath.includes("?") ? sessionPath : `${sessionPath}${sessionPath.includes("?") ? "&" : "?"}phone=${encodeURIComponent(normalizedPhone)}`,
+          nextPath: sessionPath,
         },
         setPatientMessage,
       );
@@ -248,8 +245,14 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   disabled={patientSubmitting}
                   className="focus-ring w-full rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  {patientSubmitting ? "Logging in..." : "Continue to questionnaire"}
+                  {patientSubmitting ? "Logging in..." : "Login"}
                 </button>
+                <p className="text-center text-xs text-[color:var(--muted)]">
+                  New patient?{" "}
+                  <a href="/register" className="font-semibold text-[var(--accent)] underline">
+                    Register to get your patient ID
+                  </a>
+                </p>
               </div>
             </section>
 
@@ -287,7 +290,8 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none"
                 />
                 <p className="rounded-xl bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                  Demo staff credentials: doctor@spinexpert.local / Doctor@123, reception@spinexpert.local / Reception@123, admin@spinexpert.local / Admin@123. Admin can create additional users from Admin panel.
+                  Use the email and password configured for your account by the admin.
+                  {staffRole === "admin" && " First-time fallback: admin@spinexpert.local / Admin@123."}
                 </p>
                 {staffMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{staffMessage}</p> : null}
                 <button

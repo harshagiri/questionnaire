@@ -855,3 +855,105 @@ export function summarizeAnswer(value: string | number | boolean | string[] | un
 
   return String(value);
 }
+
+// ── SEI-Intake v4.0 Scoring ────────────────────────────────────────────────────
+
+export type SeiTriagePathway = "GREEN" | "YELLOW" | "ORANGE" | "RED";
+
+export type SeiScoreResult = {
+  seiScore: number;
+  pathway: SeiTriagePathway;
+  vas: number;
+  hasRedFlag: boolean;
+  instrumentUsed: "ODI" | "NDI" | "none";
+};
+
+const scoreMap = {
+  // Q6 VAS (0-10) → weighted contribution
+  vas: (v: number) => Math.round(v * 3),
+  // Q7 pain pattern
+  q7: { intermittent: 0, activity: 3, constant: 7, night: 12 } as Record<string, number>,
+  // Q8 trend
+  q8: { improving: 0, stable: 3, "slowly-worse": 8, "rapidly-worse": 15 } as Record<string, number>,
+  // Q9 radiating
+  q9: { no: 0, occasional: 3, frequent: 8, constant: 15 } as Record<string, number>,
+  // Q10 numbness
+  q10: { none: 0, occasional: 3, frequent: 8, constant: 12 } as Record<string, number>,
+  // Q11 weakness
+  q11: { none: 0, mild: 3, moderate: 8, progressive: 20 } as Record<string, number>,
+} as const;
+
+function get<T extends Record<string, number>>(map: T, key: unknown, def = 0): number {
+  return typeof key === "string" && key in map ? map[key] : def;
+}
+
+export function computeSeiScore(
+  answers: Record<string, unknown>,
+): SeiScoreResult {
+  const redFlagKeys = [
+    "redFlagBladderBowel", "redFlagRapidWeakness", "redFlagFever",
+    "redFlagTrauma", "redFlagCancer", "redFlagWeightLoss",
+  ];
+  const hasRedFlag = redFlagKeys.some((k) => Boolean(answers[k]));
+
+  if (hasRedFlag) {
+    return { seiScore: 100, pathway: "RED", vas: Number(answers.q6VasPain ?? 0), hasRedFlag: true, instrumentUsed: "none" };
+  }
+
+  const vas = Math.min(10, Math.max(0, Number(answers.q6VasPain ?? 0)));
+  const score =
+    scoreMap.vas(vas) +
+    get(scoreMap.q7, answers.q7PainPattern) +
+    get(scoreMap.q8, answers.q8Trend) +
+    get(scoreMap.q9, answers.q9RadiatingPain) +
+    get(scoreMap.q10, answers.q10Numbness) +
+    get(scoreMap.q11, answers.q11Weakness);
+
+  const pathway: SeiTriagePathway =
+    score > 80 ? "RED" :
+    score > 55 ? "ORANGE" :
+    score > 25 ? "YELLOW" :
+    "GREEN";
+
+  const q1 = answers.q1PrimaryReason as string | undefined;
+  const isNeck = q1 === "neck-pain" || q1 === "arm-pain" || q1 === "numbness" || q1 === "weakness" || q1 === "walking-difficulty";
+
+  return {
+    seiScore: score,
+    pathway,
+    vas,
+    hasRedFlag: false,
+    instrumentUsed: isNeck ? "NDI" : "ODI",
+  };
+}
+
+export const triageConfig: Record<SeiTriagePathway, { label: string; color: string; bg: string; border: string; action: string }> = {
+  GREEN: {
+    label: "GREEN",
+    color: "text-green-700",
+    bg: "bg-green-50",
+    border: "border-green-300",
+    action: "Education + Rehabilitation",
+  },
+  YELLOW: {
+    label: "YELLOW",
+    color: "text-yellow-700",
+    bg: "bg-yellow-50",
+    border: "border-yellow-300",
+    action: "Routine specialist consultation",
+  },
+  ORANGE: {
+    label: "ORANGE",
+    color: "text-orange-700",
+    bg: "bg-orange-50",
+    border: "border-orange-300",
+    action: "Priority specialist assessment",
+  },
+  RED: {
+    label: "RED",
+    color: "text-red-700",
+    bg: "bg-red-50",
+    border: "border-red-400",
+    action: "Urgent / same-day review",
+  },
+};

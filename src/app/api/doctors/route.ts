@@ -76,31 +76,74 @@ async function saveDoctors(doctors: StoredDoctor[]) {
   await writeFile(doctorStorePath, JSON.stringify(doctors, null, 2), "utf8");
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const receptionistEmail = searchParams.get("receptionistEmail");
+  const withSlots = searchParams.get("withSlots") === "true";
+
   if (storageMode === "database" && !prisma) {
     return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
   }
 
   if (shouldUseDb() && prisma) {
     try {
-      const doctors = await prisma.doctorProfile.findMany({
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
+      let doctorProfiles;
+
+      if (receptionistEmail) {
+        // Only return doctors assigned to this receptionist
+        const receptionistUser = await prisma.user.findUnique({
+          where: { email: receptionistEmail.toLowerCase() },
+          select: { id: true },
+        });
+
+        if (!receptionistUser) {
+          return NextResponse.json({ ok: true, doctors: [], storage: "database" });
+        }
+
+        const assignments = await prisma.receptionistDoctorAssignment.findMany({
+          where: { receptionistId: receptionistUser.id },
+          select: { doctorProfileId: true },
+        });
+
+        const assignedIds = assignments.map((a) => a.doctorProfileId);
+
+        doctorProfiles = await prisma.doctorProfile.findMany({
+          where: { id: { in: assignedIds } },
+          include: {
+            user: true,
+            availabilitySlots: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      } else {
+        doctorProfiles = await prisma.doctorProfile.findMany({
+          include: {
+            user: true,
+            ...(withSlots ? { availabilitySlots: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } } : {}),
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      }
 
       return NextResponse.json({
         ok: true,
-        doctors: doctors.map((doctor: DbDoctorRecord) => ({
-          id: doctor.id,
-          name: doctor.name,
-          email: doctor.user.email,
-          phone: doctor.phone,
-          registrationNumber: doctor.registrationNumber,
-          licenseNumber: doctor.licenseNumber,
-          bio: doctor.bio ?? "",
-          photoUrl: doctor.photoUrl ?? toGravatarUrl(doctor.user.email),
-          createdAt: doctor.createdAt.toISOString(),
-        })),
+        doctors: doctorProfiles.map((doctor) => {
+          const d = doctor as typeof doctor & { user: { email: string; photoUrl?: string | null }; availabilitySlots?: unknown[] };
+          // Prefer User.photoUrl (where uploaded photos are stored), fall back to DoctorProfile.photoUrl, then Gravatar
+          const resolvedPhoto = d.user.photoUrl?.trim() || doctor.photoUrl?.trim() || toGravatarUrl(d.user.email);
+          return {
+            id: doctor.id,
+            name: doctor.name,
+            email: d.user.email,
+            phone: doctor.phone,
+            registrationNumber: doctor.registrationNumber,
+            licenseNumber: doctor.licenseNumber,
+            bio: doctor.bio ?? "",
+            photoUrl: resolvedPhoto,
+            createdAt: doctor.createdAt.toISOString(),
+            slots: d.availabilitySlots ?? [],
+          };
+        }),
         storage: "database",
       });
     } catch {

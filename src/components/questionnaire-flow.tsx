@@ -310,6 +310,7 @@ export function QuestionnaireFlow({
   loadApiPath,
   saveApiPath,
   saveApiContext,
+  allowSubmittedEdit = false,
 }: {
   sessionId: string;
   definition?: QuestionnaireDefinition;
@@ -321,6 +322,7 @@ export function QuestionnaireFlow({
   loadApiPath?: string;
   saveApiPath?: string;
   saveApiContext?: Record<string, string | number | boolean | null | undefined>;
+  allowSubmittedEdit?: boolean;
 }) {
   const [answers, setAnswers] = useState<AnswerMap>(() => {
     if (typeof window === "undefined") {
@@ -446,7 +448,11 @@ export function QuestionnaireFlow({
         }
 
         if (payload.record.submitted) {
-          setStage("submitted");
+          if (allowSubmittedEdit) {
+            setStage("form");
+          } else {
+            setStage("submitted");
+          }
         } else if (skipIntro) {
           setStage("form");
         }
@@ -464,7 +470,7 @@ export function QuestionnaireFlow({
     return () => {
       active = false;
     };
-  }, [loadApiPath, skipIntro]);
+  }, [allowSubmittedEdit, loadApiPath, skipIntro]);
 
   useEffect(() => {
     window.localStorage.setItem(

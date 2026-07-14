@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 
 type HeaderProfileProps = {
@@ -19,6 +18,7 @@ type PatientProfile = {
 
 export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessionAvatar }: HeaderProfileProps) {
   const pathname = usePathname();
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const patientProfileRaw = useSyncExternalStore(
     () => () => undefined,
     () => {
@@ -60,14 +60,12 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
     <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
       <div className="flex min-w-0 items-center gap-2 rounded-[1.2rem] border border-[rgba(15,118,110,0.18)] bg-[rgba(15,118,110,0.08)] px-2 py-1.5 sm:px-2.5">
         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(15,118,110,0.24),rgba(21,32,43,0.12))] shadow-sm sm:h-9 sm:w-9">
-          {sessionAvatar ? (
-            <Image
+          {sessionAvatar && !avatarLoadError ? (
+            <img
               src={sessionAvatar}
               alt={primaryLabel}
-              fill
-              sizes="36px"
-              unoptimized
               className="h-full w-full object-cover"
+              onError={() => setAvatarLoadError(true)}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs font-bold text-[var(--foreground)]">

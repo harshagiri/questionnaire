@@ -186,9 +186,9 @@ export async function getUsageMetrics(): Promise<UsageMetric[]> {
   return [
     {
       label: "Average completion time",
-      value: formatDuration(averageDurationSeconds),
+      value: averageDurationSeconds > 0 ? formatDuration(averageDurationSeconds) : "—",
       note: "Average across submitted patient flows",
-      progress: Math.min(100, Math.max(0, 100 - Math.round(averageDurationSeconds / 6))),
+      progress: averageDurationSeconds > 0 ? Math.min(100, Math.max(0, 100 - Math.round(averageDurationSeconds / 6))) : 0,
     },
     {
       label: "Weekly submissions",
@@ -204,9 +204,9 @@ export async function getUsageMetrics(): Promise<UsageMetric[]> {
     },
     {
       label: "Doctor review latency",
-      value: `${doctorReviewLatencyMinutes}m`,
+      value: doctorReviewLatencyMinutes > 0 ? `${doctorReviewLatencyMinutes}m` : "—",
       note: "Patient submit to doctor submit (average)",
-      progress: Math.min(100, Math.max(0, 100 - doctorReviewLatencyMinutes * 4)),
+      progress: doctorReviewLatencyMinutes > 0 ? Math.min(100, Math.max(0, 100 - doctorReviewLatencyMinutes * 4)) : 0,
     },
   ];
 }

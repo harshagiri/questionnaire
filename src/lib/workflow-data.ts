@@ -67,43 +67,43 @@ export const patientWorkflowSections: WorkflowSection[] = [
     questions: [
       {
         id: "redFlagBladderBowel",
-        label: "A. Loss of bladder or bowel control (unable to hold urine or stools)",
+        label: "Loss of bladder or bowel control (unable to hold urine or stools)",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagRapidWeakness",
-        label: "B. Rapidly increasing weakness in arm or leg (worsening over hours to days)",
+        label: "Rapidly increasing weakness in arm or leg (worsening over hours to days)",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagFever",
-        label: "C. Fever with spine pain",
+        label: "Fever with spine pain",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagTrauma",
-        label: "D. New or severe spine pain after a fall, accident, or major trauma",
+        label: "New or severe spine pain after a fall, accident, or major trauma",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagCancer",
-        label: "E. Known cancer with new or worsening spine pain",
+        label: "Known cancer with new or worsening spine pain",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagWeightLoss",
-        label: "F. Significant unexplained weight loss in the past 3 months",
+        label: "Significant unexplained weight loss in the past 3 months",
         type: "toggle",
         required: true,
       },
       {
         id: "redFlagNone",
-        label: "G. None of the above",
+        label: "None of the above",
         type: "toggle",
         required: true,
       },
@@ -666,3 +666,731 @@ export const roleLandingCopy: Record<AppRole, string> = {
   receptionist: "Front-desk appointment booking only.",
   admin: "Operational metrics and backend-driven RBAC controls.",
 };
+
+// ── Registration sections — Module 1 (one-time, generates Unique Patient ID) ─
+
+export const registrationSections: WorkflowSection[] = [
+  {
+    id: "reg-basics",
+    title: "Basic details",
+    subtitle: "These details create your permanent patient record and are never asked again.",
+    questions: [
+      { id: "fullName", label: "Full name", type: "text", required: true },
+      { id: "dateOfBirth", label: "Date of birth", type: "date", required: true },
+      {
+        id: "gender",
+        label: "Gender",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Female", value: "female" },
+          { label: "Male", value: "male" },
+          { label: "Non-binary / other", value: "non-binary" },
+          { label: "Prefer not to say", value: "prefer-not-to-say" },
+        ],
+      },
+      { id: "phone", label: "Mobile number (used for login & notifications)", type: "tel", required: true },
+      { id: "email", label: "Email address", type: "text" },
+      { id: "city", label: "City", type: "text", required: true },
+      { id: "country", label: "Country", type: "text" },
+      {
+        id: "preferredLanguage",
+        label: "Preferred language for consultation",
+        type: "select",
+        required: true,
+        options: [
+          { label: "English", value: "english" },
+          { label: "Hindi", value: "hindi" },
+          { label: "Kannada", value: "kannada" },
+          { label: "Tamil", value: "tamil" },
+          { label: "Telugu", value: "telugu" },
+          { label: "Malayalam", value: "malayalam" },
+          { label: "Marathi", value: "marathi" },
+          { label: "Bengali", value: "bengali" },
+          { label: "Other", value: "other" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "reg-emergency",
+    title: "Emergency contact",
+    subtitle: "Who should we contact in an emergency?",
+    questions: [
+      { id: "emergencyName", label: "Emergency contact name", type: "text", required: true },
+      { id: "emergencyPhone", label: "Emergency contact mobile number", type: "tel", required: true },
+      {
+        id: "emergencyRelation",
+        label: "Relationship to you",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Spouse / Partner", value: "spouse" },
+          { label: "Parent", value: "parent" },
+          { label: "Child", value: "child" },
+          { label: "Sibling", value: "sibling" },
+          { label: "Friend", value: "friend" },
+          { label: "Other", value: "other" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "reg-body",
+    title: "Body profile & lifestyle",
+    subtitle: "Used to calculate BMI and understand your daily routine.",
+    questions: [
+      { id: "heightCm", label: "Height (cm)", type: "number", required: true },
+      { id: "weightKg", label: "Weight (kg)", type: "number", required: true },
+      { id: "bmi", label: "BMI (auto-calculated)", type: "info-link", linkedFrom: "heightCm" },
+      {
+        id: "occupation",
+        label: "Usual work or daily activity",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Desk / computer work", value: "desk" },
+          { label: "Standing or walking work", value: "standing" },
+          { label: "Manual / heavy labour", value: "manual" },
+          { label: "Homemaker", value: "home" },
+          { label: "Student", value: "student" },
+          { label: "Retired", value: "retired" },
+        ],
+      },
+      {
+        id: "activityLevel",
+        label: "Physical activity level",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Sedentary (little or no exercise)", value: "sedentary" },
+          { label: "Moderate (light exercise 1–3 days/week)", value: "moderate" },
+          { label: "Heavy (vigorous exercise 4+ days/week)", value: "heavy" },
+        ],
+      },
+      {
+        id: "smoking",
+        label: "Smoking",
+        type: "select",
+        options: [
+          { label: "Current smoker", value: "current" },
+          { label: "Past smoker (quit)", value: "past" },
+          { label: "Never smoked", value: "never" },
+        ],
+      },
+      {
+        id: "alcohol",
+        label: "Alcohol use",
+        type: "select",
+        options: [
+          { label: "Yes", value: "yes" },
+          { label: "No", value: "no" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "reg-medical",
+    title: "Medical history",
+    subtitle: "Helps every doctor understand your background from the first visit.",
+    questions: [
+      {
+        id: "medicalHistory",
+        label: "Do you have any of the following conditions? (select all that apply)",
+        type: "multi-select",
+        options: [
+          { label: "Diabetes", value: "diabetes" },
+          { label: "Hypertension", value: "hypertension" },
+          { label: "Heart disease", value: "heart" },
+          { label: "Kidney disease", value: "kidney" },
+          { label: "Thyroid disease", value: "thyroid" },
+          { label: "Rheumatoid / autoimmune disease", value: "rheumatoid" },
+          { label: "Osteoporosis", value: "osteoporosis" },
+          { label: "Cancer", value: "cancer" },
+          { label: "Parkinsonism", value: "parkinsonism" },
+          { label: "Tuberculosis", value: "tuberculosis" },
+          { label: "Other", value: "other" },
+          { label: "None of the above", value: "none" },
+        ],
+      },
+      {
+        id: "currentMedicines",
+        label: "Current medicines (list names or tap 'None')",
+        type: "textarea",
+        helpText: "You can update this before each visit",
+      },
+      {
+        id: "drugAllergies",
+        label: "Drug allergies (list names or tap 'None')",
+        type: "textarea",
+      },
+      { id: "priorSpineSurgery", label: "Previous spine surgery?", type: "toggle" },
+      {
+        id: "spineSurgeryDetails",
+        label: "Spine surgery details (year, hospital, level, procedure)",
+        type: "textarea",
+        showIf: (a) => Boolean(a.priorSpineSurgery),
+      },
+      {
+        id: "otherSurgeries",
+        label: "Other previous surgeries (select all that apply)",
+        type: "multi-select",
+        options: [
+          { label: "Joint replacement", value: "joint" },
+          { label: "Cardiac surgery", value: "cardiac" },
+          { label: "Brain surgery", value: "brain" },
+          { label: "Abdominal surgery", value: "abdominal" },
+          { label: "Other", value: "other" },
+          { label: "None", value: "none" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "reg-consent",
+    title: "Consents",
+    subtitle: "Please read and confirm each statement below.",
+    questions: [
+      {
+        id: "consentClinicalCare",
+        label: "Clinical Care Consent (required): I consent to Spine Expert India collecting and using my information for clinical consultation and treatment.",
+        type: "toggle",
+        required: true,
+      },
+      {
+        id: "consentPrivacy",
+        label: "Privacy & Data Protection (required): I understand my information will remain confidential and stored securely as per applicable healthcare regulations.",
+        type: "toggle",
+        required: true,
+      },
+      {
+        id: "consentRegistry",
+        label: "Research Registry (optional): I voluntarily agree that my anonymised data may be included in the SEI National Outcomes Registry for research and quality improvement.",
+        type: "toggle",
+      },
+    ],
+  },
+];
+
+// ── Pre-consult sections — Module 2 (per appointment, clinical questions) ─────
+// Spec: SEI-Intake v4.0 — 18 universal core questions + 6 adaptive tail (ODI or NDI)
+//       + outcome-tracking anchor + conditional myelopathy screen
+
+// Routing helpers
+const isNeckPrimary = (a: Record<string, unknown>) => {
+  const v = a.q1PrimaryReason as string | undefined;
+  return v === "neck-pain" || v === "arm-pain" || v === "numbness" || v === "weakness" || v === "walking-difficulty";
+};
+const isBackPrimary = (a: Record<string, unknown>) => {
+  const v = a.q1PrimaryReason as string | undefined;
+  return v === "back-pain" || v === "leg-pain" || !v || (!isNeckPrimary(a));
+};
+const hasFrequentNeuro = (a: Record<string, unknown>) => {
+  const numbness = a.q10Numbness as string | undefined;
+  const weakness = a.q11Weakness as string | undefined;
+  return (numbness === "frequent" || numbness === "constant") ||
+         (weakness === "moderate" || weakness === "progressive");
+};
+
+export const preConsultSections: WorkflowSection[] = [
+  // ── Section A: Urgent Red-Flag Pre-Screen ────────────────────────────────────
+  {
+    id: "red-flags",
+    title: "Urgent red flag check",
+    subtitle: "Answer each item. Any positive answer alerts the clinical team immediately.",
+    note: "Section A — answered first, one screen.",
+    questions: [
+      { id: "redFlagBladderBowel", label: "A. Loss of bladder or bowel control", type: "toggle", required: true },
+      { id: "redFlagRapidWeakness", label: "B. Rapidly increasing weakness in arm or leg (hours to days)", type: "toggle", required: true },
+      { id: "redFlagFever", label: "C. Fever with spine pain", type: "toggle", required: true },
+      { id: "redFlagTrauma", label: "D. New or severe spine pain after a fall, accident, or major trauma", type: "toggle", required: true },
+      { id: "redFlagCancer", label: "E. Known cancer with new or worsening spine pain", type: "toggle", required: true },
+      { id: "redFlagWeightLoss", label: "F. Significant unexplained weight loss in the past 3 months", type: "toggle", required: true },
+      { id: "redFlagNone", label: "G. None of the above", type: "toggle", required: true },
+      {
+        id: "redFlagReason",
+        label: "If yes to any of the above — what should the clinic know right now?",
+        type: "textarea",
+        showIf: (a) => Boolean(
+          a.redFlagBladderBowel || a.redFlagRapidWeakness || a.redFlagFever ||
+          a.redFlagTrauma || a.redFlagCancer || a.redFlagWeightLoss,
+        ),
+      },
+    ],
+  },
+
+  // ── Section B: Universal Core Questions Q1–Q9 (routing + neuro screen) ───────
+  {
+    id: "primary-complaint",
+    title: "Your main complaint",
+    subtitle: "Section B — Q1 & Q2 — helps route your questionnaire correctly.",
+    questions: [
+      {
+        id: "q1PrimaryReason",
+        label: "Q1. Primary reason for this consultation",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Neck pain", value: "neck-pain" },
+          { label: "Back pain", value: "back-pain" },
+          { label: "Arm pain", value: "arm-pain" },
+          { label: "Leg pain / sciatica", value: "leg-pain" },
+          { label: "Numbness", value: "numbness" },
+          { label: "Weakness", value: "weakness" },
+          { label: "Walking difficulty", value: "walking-difficulty" },
+          { label: "Follow-up visit", value: "follow-up" },
+          { label: "Second opinion", value: "second-opinion" },
+        ],
+      },
+      {
+        id: "q2PainRegion",
+        label: "Q2. Where is your pain? (select all areas that apply)",
+        type: "multi-select",
+        required: true,
+        options: [
+          { label: "Neck", value: "neck" },
+          { label: "Upper back / mid back", value: "upper-back" },
+          { label: "Lower back", value: "lower-back" },
+          { label: "Right arm / hand", value: "right-arm" },
+          { label: "Left arm / hand", value: "left-arm" },
+          { label: "Right leg / foot", value: "right-leg" },
+          { label: "Left leg / foot", value: "left-leg" },
+          { label: "Central / midline", value: "central" },
+        ],
+      },
+      {
+        id: "q3Side",
+        label: "Q3. Which side is most affected?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Right", value: "right" },
+          { label: "Left", value: "left" },
+          { label: "Both sides equally", value: "both" },
+          { label: "Midline / central", value: "midline" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "symptom-details",
+    title: "Symptom details",
+    subtitle: "Q4–Q8 — duration, onset, pain level, pattern, and trend.",
+    questions: [
+      {
+        id: "q4Duration",
+        label: "Q4. How long have you had this problem?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Less than 2 weeks", value: "lt-2wk" },
+          { label: "2 weeks – 3 months", value: "2wk-3m" },
+          { label: "3 – 6 months", value: "3m-6m" },
+          { label: "More than 6 months", value: "gt-6m" },
+        ],
+      },
+      {
+        id: "q5Onset",
+        label: "Q5. How did this problem start?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Gradual / no specific cause", value: "gradual" },
+          { label: "After lifting or straining", value: "lifting" },
+          { label: "After an accident or fall", value: "accident" },
+          { label: "Bad posture / sitting long hours", value: "posture" },
+          { label: "After exercise or sports", value: "exercise" },
+          { label: "After a previous surgery", value: "post-surgery" },
+        ],
+      },
+      {
+        id: "q6VasPain",
+        label: "Q6. Pain level right now (0 = no pain, 10 = worst possible pain)",
+        type: "range",
+        required: true,
+        helpText: "VAS Pain Score — used for scoring",
+      },
+      {
+        id: "q7PainPattern",
+        label: "Q7. Which best describes your pain pattern?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Intermittent — comes and goes with pain-free periods", value: "intermittent" },
+          { label: "Activity-related — worse with movement, better with rest", value: "activity" },
+          { label: "Constant — present most of the time", value: "constant" },
+          { label: "Night pain — wakes me from sleep", value: "night" },
+        ],
+      },
+      {
+        id: "q8Trend",
+        label: "Q8. How is your condition changing overall?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Improving", value: "improving" },
+          { label: "Stable / no major change", value: "stable" },
+          { label: "Slowly getting worse", value: "slowly-worse" },
+          { label: "Rapidly getting worse", value: "rapidly-worse" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "neuro-screen",
+    title: "Neurological symptoms",
+    subtitle: "Q9–Q11 — nerve-related symptoms that help guide your care pathway.",
+    questions: [
+      {
+        id: "q9RadiatingPain",
+        label: "Q9. Do you have radiating pain into your arm or leg?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "No radiating pain", value: "no" },
+          { label: "Occasional", value: "occasional" },
+          { label: "Frequent", value: "frequent" },
+          { label: "Constant", value: "constant" },
+        ],
+      },
+      {
+        id: "q10Numbness",
+        label: "Q10. Numbness or tingling in arm, hand, leg, or foot?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "None", value: "none" },
+          { label: "Occasional", value: "occasional" },
+          { label: "Frequent", value: "frequent" },
+          { label: "Constant", value: "constant" },
+        ],
+      },
+      {
+        id: "q11Weakness",
+        label: "Q11. Weakness in arm, hand, leg, or foot?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "No weakness", value: "none" },
+          { label: "Mild weakness", value: "mild" },
+          { label: "Moderate weakness", value: "moderate" },
+          { label: "Progressive / worsening weakness", value: "progressive" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "mechanical-treatment",
+    title: "Mechanical pattern & treatment",
+    subtitle: "Q12–Q15 — triggers, relieving factors, and care tried so far.",
+    questions: [
+      {
+        id: "q12PainWorsens",
+        label: "Q12. Pain worsens with (select all that apply)",
+        type: "multi-select",
+        options: [
+          { label: "Sitting", value: "sitting" },
+          { label: "Standing", value: "standing" },
+          { label: "Walking", value: "walking" },
+          { label: "Forward bending", value: "forward-bend" },
+          { label: "Backward bending / extension", value: "backward-bend" },
+          { label: "Lifting", value: "lifting" },
+          { label: "Coughing or sneezing", value: "coughing" },
+        ],
+      },
+      {
+        id: "q13PainImproves",
+        label: "Q13. Pain improves with (select all that apply)",
+        type: "multi-select",
+        options: [
+          { label: "Rest / lying down", value: "rest" },
+          { label: "Walking", value: "walking" },
+          { label: "Changing position", value: "position-change" },
+          { label: "Medicines", value: "medicines" },
+          { label: "Heat or cold", value: "heat-cold" },
+          { label: "Nothing gives relief", value: "nothing" },
+        ],
+      },
+      {
+        id: "q14TreatmentTried",
+        label: "Q14. Treatments tried so far (select all that apply)",
+        type: "multi-select",
+        options: [
+          { label: "Medicines / painkillers", value: "medicines" },
+          { label: "Physiotherapy / rehabilitation", value: "physio" },
+          { label: "Injection / nerve block", value: "injection" },
+          { label: "Surgery", value: "surgery" },
+          { label: "Alternative therapy (yoga, Ayurveda, etc.)", value: "alternative" },
+          { label: "None yet", value: "none" },
+        ],
+      },
+      {
+        id: "q15TreatmentHelped",
+        label: "Q15. Has treatment helped?",
+        type: "select",
+        options: [
+          { label: "Significant improvement", value: "significant" },
+          { label: "Partial improvement", value: "partial" },
+          { label: "No improvement", value: "none" },
+          { label: "Worsened after treatment", value: "worsened" },
+          { label: "Not yet tried any treatment", value: "not-tried" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "function-domains",
+    title: "Function & daily activities",
+    subtitle: "Q16–Q18 — shared ODI/NDI scoring domains.",
+    questions: [
+      {
+        id: "q16PersonalCare",
+        label: "Q16. Personal care (bathing, dressing) difficulty",
+        type: "select",
+        required: true,
+        options: [
+          { label: "No difficulty", value: "none" },
+          { label: "Slight difficulty but manage independently", value: "slight" },
+          { label: "Needs modification or some help", value: "needs-help" },
+          { label: "Cannot do without help", value: "cannot" },
+        ],
+      },
+      {
+        id: "q17Lifting",
+        label: "Q17. Lifting difficulty",
+        type: "select",
+        required: true,
+        options: [
+          { label: "No difficulty", value: "none" },
+          { label: "Slight difficulty with heavy objects", value: "slight" },
+          { label: "Can lift light weights only", value: "light-only" },
+          { label: "Cannot lift anything", value: "cannot" },
+        ],
+      },
+      {
+        id: "q18Sleep",
+        label: "Q18. Sleep disturbed by pain?",
+        type: "select",
+        required: true,
+        options: [
+          { label: "Not disturbed", value: "none" },
+          { label: "Occasional disturbance", value: "occasional" },
+          { label: "Frequent waking due to pain", value: "frequent" },
+          { label: "Cannot sleep", value: "cannot" },
+        ],
+      },
+    ],
+  },
+
+  // ── Section C: Adaptive Functional Tail Q19–Q24 ───────────────────────────────
+  // LOW BACK primary → ODI domains; NECK primary → NDI domains
+  {
+    id: "adaptive-tail",
+    title: "Daily function",
+    subtitle: "Q19–Q24 — tailored questions based on your primary complaint region.",
+    questions: [
+      // ODI Q19–Q24 (back-primary)
+      {
+        id: "q19Walking",
+        label: "Q19. Walking tolerance",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "Unlimited — no restriction", value: "unlimited" },
+          { label: "15–30 minutes before pain stops me", value: "15-30min" },
+          { label: "5–15 minutes", value: "5-15min" },
+          { label: "Less than 5 minutes", value: "lt-5min" },
+        ],
+      },
+      {
+        id: "q19Reading",
+        label: "Q19. Reading affected by neck pain?",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+        ],
+      },
+      {
+        id: "q20Sitting",
+        label: "Q20. Sitting tolerance",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "More than 2 hours", value: "gt-2hr" },
+          { label: "30 minutes – 2 hours", value: "30min-2hr" },
+          { label: "Less than 30 minutes", value: "lt-30min" },
+          { label: "Cannot sit at all", value: "cannot" },
+        ],
+      },
+      {
+        id: "q20Headache",
+        label: "Q20. Headache associated with neck pain",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "None", value: "none" },
+          { label: "Mild, infrequent", value: "mild" },
+          { label: "Moderate, frequent", value: "moderate" },
+          { label: "Severe, constant", value: "severe" },
+        ],
+      },
+      {
+        id: "q21Standing",
+        label: "Q21. Standing tolerance",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "More than 1 hour", value: "gt-1hr" },
+          { label: "30–60 minutes", value: "30-60min" },
+          { label: "10–30 minutes", value: "10-30min" },
+          { label: "Less than 10 minutes", value: "lt-10min" },
+        ],
+      },
+      {
+        id: "q21Concentration",
+        label: "Q21. Concentration affected by neck pain?",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+        ],
+      },
+      {
+        id: "q22SocialLife",
+        label: "Q22. Social life affected by back pain?",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+        ],
+      },
+      {
+        id: "q22Work",
+        label: "Q22. Work affected by neck pain?",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Unable to work", value: "cannot" },
+        ],
+      },
+      {
+        id: "q23Travelling",
+        label: "Q23. Travelling affected by back pain?",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+        ],
+      },
+      {
+        id: "q23Recreation",
+        label: "Q23. Recreation / leisure activities affected by neck pain?",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+        ],
+      },
+      {
+        id: "q24Relationships",
+        label: "Q24. Effect on personal / intimate relationships",
+        type: "select",
+        required: true,
+        showIf: isBackPrimary,
+        options: [
+          { label: "Not affected", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Severely limited", value: "severe" },
+          { label: "Prefer not to answer", value: "pnta" },
+        ],
+      },
+      {
+        id: "q24Driving",
+        label: "Q24. Driving affected by neck pain?",
+        type: "select",
+        required: true,
+        showIf: isNeckPrimary,
+        options: [
+          { label: "Not affected / do not drive", value: "none" },
+          { label: "Slightly", value: "slight" },
+          { label: "Noticeably", value: "noticeable" },
+          { label: "Cannot drive", value: "cannot" },
+        ],
+      },
+    ],
+  },
+
+  // ── Outcome-Tracking Anchor + Conditional Myelopathy Screen ─────────────────
+  {
+    id: "outcome-myelopathy",
+    title: "Overall health & additional checks",
+    subtitle: "Registry baseline tracking and higher-risk neck screening (if applicable).",
+    questions: [
+      {
+        id: "spineHealthAnchor",
+        label: "Overall spine health today (0 = worst, 10 = completely healthy)",
+        type: "range",
+        helpText: "Used for 3/6/12-month outcome tracking — not for same-visit diagnosis.",
+      },
+      // Myelopathy screen — only for neck + frequent numbness or weakness
+      {
+        id: "myelopathyHandTasks",
+        label: "Fine hand tasks (buttoning, writing, picking up small objects)",
+        type: "select",
+        showIf: (a) => isNeckPrimary(a) && hasFrequentNeuro(a),
+        options: [
+          { label: "Normal", value: "normal" },
+          { label: "Slight clumsiness", value: "slight" },
+          { label: "Noticeable difficulty", value: "noticeable" },
+          { label: "Significant impairment", value: "significant" },
+        ],
+      },
+      {
+        id: "myelopathyBalance",
+        label: "Balance / gait",
+        type: "select",
+        showIf: (a) => isNeckPrimary(a) && hasFrequentNeuro(a),
+        options: [
+          { label: "Normal", value: "normal" },
+          { label: "Mild unsteadiness", value: "mild" },
+          { label: "Frequent imbalance", value: "frequent" },
+          { label: "Needs support to walk", value: "needs-support" },
+        ],
+      },
+    ],
+  },
+];

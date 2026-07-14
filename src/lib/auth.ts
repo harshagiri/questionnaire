@@ -5,7 +5,7 @@ export function isAllowedDemoOtp(input: string) {
 }
 
 export const roleHomePath: Record<string, string> = {
-  patient: "/patient/demo-session",
+  patient: "/patient",
   doctor: "/doctor",
   receptionist: "/receptionist",
   admin: "/admin",
