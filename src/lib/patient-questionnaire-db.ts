@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { calculateBmi } from "@/lib/questionnaire";
 import { prisma } from "@/lib/prisma";
+import { toPlainQuestionText } from "@/lib/question-text";
 import { patientWorkflowSections } from "@/lib/workflow-data";
 
 export const patientQuestionnaireSlug = "sei-pq-v3-final";
@@ -56,7 +57,7 @@ function getQuestionnaireQuestionData(questionnaireId: string) {
       return {
         questionnaireId,
         key: question.id,
-        label: question.label,
+        label: toPlainQuestionText(question.label),
         type: question.type,
         helpText: question.helpText ?? null,
         sortOrder,
@@ -66,7 +67,10 @@ function getQuestionnaireQuestionData(questionnaireId: string) {
           sectionSubtitle: section.subtitle,
           sectionNote: section.note ?? null,
           required: Boolean(question.required),
-          options: question.options ?? [],
+          options: (question.options ?? []).map((option) => ({
+            ...option,
+            label: toPlainQuestionText(option.label),
+          })),
           linkedFrom: question.linkedFrom ?? null,
           branchOn: question.branchOn ?? null,
           branchValue: question.branchValue ?? null,
@@ -80,11 +84,14 @@ function getLocalPatientQuestionContent(): PatientQuestionContent[] {
   return patientWorkflowSections.flatMap((section) =>
     section.questions.map((question) => ({
       id: question.id,
-      label: question.label,
+      label: toPlainQuestionText(question.label),
       type: question.type,
       helpText: question.helpText,
       required: question.required,
-      options: question.options,
+      options: question.options?.map((option) => ({
+        ...option,
+        label: toPlainQuestionText(option.label),
+      })),
     })),
   );
 }
@@ -366,7 +373,7 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
     return database!.$transaction(async (tx) => {
       const existing = await tx.questionnaireSubmission.findUnique({
         where: { sessionId: record.sessionId },
-        select: { id: true, appointmentId: true },
+        select: { id: true, appointmentId: true, createdAt: true },
       });
 
       const appointmentTimestamp = new Date();
@@ -435,6 +442,11 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
               } as never,
             });
 
+      const now = new Date();
+      const elapsedSeconds = existing
+        ? Math.max(0, Math.round((now.getTime() - existing.createdAt.getTime()) / 1000))
+        : 0;
+
       const submission = await tx.questionnaireSubmission.upsert({
         where: { sessionId: record.sessionId },
         create: {
@@ -448,7 +460,7 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
           sectionIndex: record.sectionIndex,
           questionIndex: record.questionIndex,
           completionPct,
-          durationSeconds: 0,
+          durationSeconds: elapsedSeconds,
           bmi,
         },
         update: {
@@ -457,6 +469,7 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
           sectionIndex: record.sectionIndex,
           questionIndex: record.questionIndex,
           completionPct,
+          durationSeconds: elapsedSeconds,
           bmi,
         },
       });

@@ -62,6 +62,24 @@ function isAnswerFilled(value: AnswerValue | undefined) {
   return value !== undefined;
 }
 
+function calculateCompletionPercent(
+  layout: "wizard" | "sectioned",
+  definition: QuestionnaireDefinition,
+  answers: AnswerMap,
+  stepIndex: number,
+) {
+  const visibleQuestions = getVisibleQuestions(answers, definition);
+  const totalQuestions = visibleQuestions.length;
+  const answeredCount = visibleQuestions.filter((question) => isAnswerFilled(answers[question.id])).length;
+
+  if (layout === "sectioned") {
+    return Math.round((answeredCount / Math.max(totalQuestions, 1)) * 100);
+  }
+
+  const safeStepIndex = Math.min(stepIndex, Math.max(totalQuestions - 1, 0));
+  return Math.round((Math.min(safeStepIndex, totalQuestions) / Math.max(totalQuestions, 1)) * 100);
+}
+
 function summarizeQuestionAnswer(question: QuestionnaireQuestion, value: AnswerValue | undefined) {
   if (value === undefined || value === null) {
     return "Not filled";
@@ -420,6 +438,8 @@ export function QuestionnaireFlow({
   const bmi = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
 
   const [remoteLoaded, setRemoteLoaded] = useState(() => !loadApiPath);
+  const [hasSubmittedRecord, setHasSubmittedRecord] = useState(false);
+  const [submittedCompletionSnapshot, setSubmittedCompletionSnapshot] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loadApiPath) {
@@ -439,6 +459,9 @@ export function QuestionnaireFlow({
           return;
         }
 
+        const loadedAnswers = payload.record.answers ?? {};
+        const loadedStepIndex = typeof payload.record.stepIndex === "number" ? payload.record.stepIndex : 0;
+
         if (payload.record.answers && Object.keys(payload.record.answers).length > 0) {
           setAnswers(payload.record.answers);
         }
@@ -448,11 +471,9 @@ export function QuestionnaireFlow({
         }
 
         if (payload.record.submitted) {
-          if (allowSubmittedEdit) {
-            setStage("form");
-          } else {
-            setStage("submitted");
-          }
+          setHasSubmittedRecord(true);
+          setSubmittedCompletionSnapshot(calculateCompletionPercent(layout, definition, loadedAnswers, loadedStepIndex));
+          setStage("submitted");
         } else if (skipIntro) {
           setStage("form");
         }
@@ -470,7 +491,7 @@ export function QuestionnaireFlow({
     return () => {
       active = false;
     };
-  }, [allowSubmittedEdit, loadApiPath, skipIntro]);
+  }, [allowSubmittedEdit, definition, layout, loadApiPath, skipIntro]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -628,7 +649,15 @@ export function QuestionnaireFlow({
           <button type="button" className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-5 py-3 text-sm font-semibold" onClick={goBack}>
             Back to edit
           </button>
-          <button type="button" className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white" onClick={() => setStage("submitted")}>
+          <button
+            type="button"
+            className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
+            onClick={() => {
+              setHasSubmittedRecord(true);
+              setSubmittedCompletionSnapshot(completion);
+              setStage("submitted");
+            }}
+          >
             Submit safely
           </button>
         </div>
@@ -640,9 +669,26 @@ export function QuestionnaireFlow({
     if (layout === "sectioned") {
       return (
         <div className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.85)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
-          <div className="mb-4">
-            <h2 className="headline text-2xl font-semibold sm:text-3xl">Doctor submitted details</h2>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">Read-only summary of answers submitted by doctor.</p>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="headline text-2xl font-semibold sm:text-3xl">Doctor submitted details</h2>
+              <p className="mt-1 text-sm text-[color:var(--muted)]">Read-only summary of answers submitted by doctor.</p>
+              {submittedCompletionSnapshot !== null ? (
+                <p className="mt-1 text-xs font-semibold text-[color:var(--muted)]">Completion at submission: {submittedCompletionSnapshot}%</p>
+              ) : null}
+            </div>
+            {allowSubmittedEdit && hasSubmittedRecord ? (
+              <button
+                type="button"
+                className="focus-ring inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3.5 py-2 text-xs font-semibold text-[var(--accent)]"
+                onClick={() => setStage("form")}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="m13.6 3.2 3.2 3.2M4 16l3.1-.6L16 6.5 12.8 3.3 3.9 12.2 3.3 15.3Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Edit
+              </button>
+            ) : null}
           </div>
 
           <div className="space-y-4">
@@ -715,8 +761,18 @@ export function QuestionnaireFlow({
             <h2 className="headline text-2xl font-semibold sm:text-3xl">{definition.title}</h2>
             <p className="mt-1 text-sm text-[color:var(--muted)]">{definition.subtitle}</p>
           </div>
-          <div className="rounded-lg bg-[rgba(15,118,110,0.08)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">
-            {completion}% complete
+          <div className="flex items-center gap-2">
+            {allowSubmittedEdit && hasSubmittedRecord ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-xs font-semibold text-[color:var(--muted)]">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="m13.6 3.2 3.2 3.2M4 16l3.1-.6L16 6.5 12.8 3.3 3.9 12.2 3.3 15.3Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Editing submitted form{submittedCompletionSnapshot !== null ? ` (${submittedCompletionSnapshot}% at submit)` : ""}
+              </span>
+            ) : null}
+            <div className="rounded-lg bg-[rgba(15,118,110,0.08)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">
+              {completion}% complete
+            </div>
           </div>
         </div>
 
@@ -761,7 +817,11 @@ export function QuestionnaireFlow({
             <button
               type="button"
               className="focus-ring rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white"
-              onClick={() => setStage("submitted")}
+              onClick={() => {
+                setHasSubmittedRecord(true);
+                setSubmittedCompletionSnapshot(completion);
+                setStage("submitted");
+              }}
             >
               Submit
             </button>

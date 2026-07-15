@@ -7,9 +7,8 @@ import {
   summarizeAnswer,
   type QuestionnaireDefinition,
 } from "@/lib/questionnaire";
-import { toPlainQuestionText } from "@/lib/question-text";
 import { QuestionnaireFlow } from "@/components/questionnaire-flow";
-import { patientWorkflowSections } from "@/lib/workflow-data";
+import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import { findPatientRecordByPhone, listAppointments, loadPatientQuestionnaire, type PatientRecord } from "@/lib/portal-storage";
 
 type AppointmentRecord = {
@@ -35,6 +34,15 @@ type ApiAppointmentsPayload = {
 type QuestionnaireAnswer = string | number | boolean | string[];
 type IntakeRecord = { sessionId: string; answers?: Record<string, QuestionnaireAnswer> };
 type PatientProfileSnapshot = Pick<PatientRecord, "age" | "gender" | "region" | "preferredLanguage">;
+
+type PatientDocument = {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes?: number | null;
+  storedPath?: string | null;
+  uploadedAt: string;
+};
 
 type DoctorPatient = {
   id: string;
@@ -445,6 +453,9 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [doctorDefinition, setDoctorDefinition] = useState<QuestionnaireDefinition>(doctorQuestionnaireDefinition);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState("");
+  const [patientDocuments, setPatientDocuments] = useState<PatientDocument[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [expandedPatientSectionId, setExpandedPatientSectionId] = useState<string | null>(null);
 
   const selectedPatient = useMemo(
     () => (selectedPatientId ? todayPatients.find((item) => item.id === selectedPatientId) ?? null : null),
@@ -464,6 +475,29 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [todayPatients]);
 
+  const activePatientSections = useMemo(() => {
+    if (!selectedPatient) {
+      return patientWorkflowSections;
+    }
+
+    const answerKeys = new Set(Object.keys(selectedPatient.answers));
+    const sectionCandidates = [preConsultSections, patientWorkflowSections] as const;
+
+    const withScores = sectionCandidates.map((sections) => {
+      const questionKeys = new Set(sections.flatMap((section) => section.questions.map((question) => question.id)));
+      let matches = 0;
+      for (const key of answerKeys) {
+        if (questionKeys.has(key)) {
+          matches += 1;
+        }
+      }
+      return { sections, matches };
+    });
+
+    const best = withScores.sort((a, b) => b.matches - a.matches)[0];
+    return best.matches > 0 ? best.sections : patientWorkflowSections;
+  }, [selectedPatient]);
+
   const patientQuestionMap = useMemo(() => {
     const map = new Map<
       string,
@@ -473,19 +507,19 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       }
     >();
 
-    for (const section of patientWorkflowSections) {
+    for (const section of activePatientSections) {
       for (const question of section.questions) {
         map.set(question.id, {
-          label: toPlainQuestionText(question.label),
+          label: question.label,
           optionLabelByValue: new Map(
-            (question.options ?? []).map((option) => [option.value, toPlainQuestionText(option.label)]),
+            (question.options ?? []).map((option) => [option.value, option.label]),
           ),
         });
       }
     }
 
     return map;
-  }, []);
+  }, [activePatientSections]);
 
   const patientReadOnlyRows = useMemo(() => {
     if (!selectedPatient) {
@@ -493,7 +527,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     }
 
     const answerKeys = new Set(Object.keys(selectedPatient.answers));
-    const orderedKeys = patientWorkflowSections
+    const orderedKeys = activePatientSections
       .flatMap((section) => section.questions.map((question) => question.id))
       .filter((key) => answerKeys.has(key));
     const unorderedKeys = Array.from(answerKeys).filter((key) => !orderedKeys.includes(key));
@@ -519,7 +553,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         }
 
         const questionMeta = patientQuestionMap.get(key);
-        const label = questionMeta?.label ?? toPlainQuestionText(titleize(key));
+        const label = questionMeta?.label ?? titleize(key);
 
         if (Array.isArray(value)) {
           const mapped = value.map((entry) => questionMeta?.optionLabelByValue.get(entry) ?? entry);
@@ -534,6 +568,54 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       })
       .filter((row): row is { key: string; label: string; value: string } => row !== null);
   }, [patientQuestionMap, selectedPatient]);
+
+  const patientReadOnlySections = useMemo(() => {
+    if (!selectedPatient || patientReadOnlyRows.length === 0) {
+      return [] as Array<{ id: string; title: string; rows: Array<{ key: string; label: string; value: string }> }>;
+    }
+
+    const sectionByQuestionKey = new Map<string, { id: string; title: string }>();
+    for (const section of activePatientSections) {
+      for (const question of section.questions) {
+        sectionByQuestionKey.set(question.id, { id: section.id, title: section.title });
+      }
+    }
+
+    const grouped = new Map<string, { id: string; title: string; rows: Array<{ key: string; label: string; value: string }> }>();
+
+    for (const row of patientReadOnlyRows) {
+      const sectionMeta = sectionByQuestionKey.get(row.key);
+      const sectionId = sectionMeta?.id ?? "additional-details";
+      const sectionTitle = sectionMeta?.title ?? "Additional details";
+
+      const existing = grouped.get(sectionId) ?? { id: sectionId, title: sectionTitle, rows: [] };
+      existing.rows.push(row);
+      grouped.set(sectionId, existing);
+    }
+
+    const orderedSectionIds = [
+      ...activePatientSections.map((section) => section.id),
+      ...Array.from(grouped.keys()).filter((key) => !activePatientSections.some((section) => section.id === key)),
+    ];
+
+    return orderedSectionIds
+      .map((sectionId) => grouped.get(sectionId))
+      .filter((section): section is { id: string; title: string; rows: Array<{ key: string; label: string; value: string }> } => Boolean(section));
+  }, [activePatientSections, patientReadOnlyRows, selectedPatient]);
+
+  useEffect(() => {
+    if (patientReadOnlySections.length === 0) {
+      setExpandedPatientSectionId(null);
+      return;
+    }
+
+    setExpandedPatientSectionId((current) => {
+      if (current && patientReadOnlySections.some((section) => section.id === current)) {
+        return current;
+      }
+      return patientReadOnlySections[0]?.id ?? null;
+    });
+  }, [patientReadOnlySections, selectedPatient?.id]);
 
   useEffect(() => {
     let active = true;
@@ -601,6 +683,52 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const patientPhone = selectedPatient?.phone;
+
+    if (!patientPhone) {
+      setPatientDocuments([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadPatientDocuments() {
+      setLoadingDocuments(true);
+      try {
+        const response = await fetch(`/api/uploads/lab-reports?patientPhone=${encodeURIComponent(String(patientPhone))}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { ok?: boolean; reports?: PatientDocument[] } | null;
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok || !payload?.ok) {
+          setPatientDocuments([]);
+          return;
+        }
+
+        setPatientDocuments(payload.reports ?? []);
+      } catch {
+        if (active) {
+          setPatientDocuments([]);
+        }
+      } finally {
+        if (active) {
+          setLoadingDocuments(false);
+        }
+      }
+    }
+
+    void loadPatientDocuments();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPatient?.phone]);
 
   const doctorSaveContext = useMemo(
     () => ({
@@ -717,9 +845,16 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             <span aria-label={`Gender ${selectedPatient.sex}`}>{genderSymbol(selectedPatient.sex)}</span> {selectedPatient.age}
           </span>
           <span className="text-sm text-[color:var(--muted)]">{selectedPatient.appointmentTime}</span>
+          <button
+            type="button"
+            onClick={() => window.open(`/print/consult/${encodeURIComponent(selectedPatient.consultSessionId)}`, "_blank", "noopener,noreferrer")}
+            className="focus-ring ml-auto inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+          >
+            Print
+          </button>
         </div>
 
-        <div className="mt-2">
+        <div className="mt-2 hidden sm:block">
           <dl className="grid grid-cols-1 gap-2 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white/90 p-3 sm:grid-cols-2">
             {demographicPairs.map((item) => (
               <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.55)] px-2.5 py-2">
@@ -761,19 +896,104 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       </div>
 
       {activeDetailTab === "patient-details" ? (
-        <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
-          <div className="mb-2 text-sm font-semibold text-[color:var(--foreground)]">Patient form details</div>
-          <div className="overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)]">
-            {patientReadOnlyRows.length === 0 ? (
-              <div className="px-4 py-4 text-sm text-[color:var(--muted)]">No submitted patient answers found for this session.</div>
-            ) : (
-              patientReadOnlyRows.map((row) => (
-                <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-[rgba(21,32,43,0.08)] px-4 py-2.5 text-sm last:border-b-0">
-                  <div className="font-medium text-[color:var(--foreground)]">{row.label}</div>
-                  <div className="text-[color:var(--muted)]">{row.value}</div>
+        <div className="space-y-4">
+          <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
+            <div className="mb-2 text-sm font-semibold text-[color:var(--foreground)]">Patient form details</div>
+            <div className="overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)]">
+              {patientReadOnlySections.length === 0 ? (
+                <div className="px-4 py-4 text-sm text-[color:var(--muted)]">No submitted patient answers found for this session.</div>
+              ) : (
+                <div className="divide-y divide-[rgba(21,32,43,0.08)]">
+                  {patientReadOnlySections.map((section, index) => {
+                    const isExpanded = expandedPatientSectionId === section.id;
+                    const colorBand =
+                      index % 4 === 0
+                        ? "from-teal-50 to-cyan-50 border-teal-200"
+                        : index % 4 === 1
+                          ? "from-amber-50 to-orange-50 border-amber-200"
+                          : index % 4 === 2
+                            ? "from-emerald-50 to-lime-50 border-emerald-200"
+                            : "from-sky-50 to-indigo-50 border-sky-200";
+
+                    return (
+                      <div key={section.id} className="px-2 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPatientSectionId((current) => (current === section.id ? null : section.id))}
+                          className={`focus-ring flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                            isExpanded
+                              ? `bg-gradient-to-r ${colorBand} text-[color:var(--foreground)] shadow-sm`
+                              : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(21,32,43,0.03)]"
+                          }`}
+                          aria-expanded={isExpanded}
+                          aria-controls={`patient-section-${section.id}`}
+                        >
+                          <span className="text-sm font-semibold">{section.title}</span>
+                          <span className="inline-flex items-center gap-2 text-xs font-semibold text-[color:var(--muted)]">
+                            {section.rows.length}
+                            <svg
+                              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path d="m5 7 5 6 5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </span>
+                        </button>
+
+                        {isExpanded ? (
+                          <div id={`patient-section-${section.id}`} className="mt-2 overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] bg-white">
+                            {section.rows.map((row) => (
+                              <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-[rgba(21,32,43,0.08)] px-4 py-2.5 text-sm last:border-b-0">
+                                <div className="font-medium text-[color:var(--foreground)]">{row.label}</div>
+                                <div className="text-[color:var(--muted)]">{row.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))
-            )}
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
+            <div className="mb-2 text-sm font-semibold text-[color:var(--foreground)]">Uploaded documents</div>
+            <div className="overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)]">
+              {loadingDocuments ? (
+                <div className="px-4 py-4 text-sm text-[color:var(--muted)]">Loading uploaded documents...</div>
+              ) : patientDocuments.length === 0 ? (
+                <div className="px-4 py-4 text-sm text-[color:var(--muted)]">No uploaded documents found for this patient.</div>
+              ) : (
+                patientDocuments.map((doc) => (
+                  <div key={doc.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-[rgba(21,32,43,0.08)] px-4 py-2.5 text-sm last:border-b-0">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-[color:var(--foreground)]">{doc.fileName}</div>
+                      <div className="text-xs text-[color:var(--muted)]">
+                        {doc.fileType}
+                        {typeof doc.fileSizeBytes === "number" && doc.fileSizeBytes > 0 ? ` · ${(doc.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB` : ""}
+                        {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString()}` : ""}
+                      </div>
+                    </div>
+                    {doc.storedPath ? (
+                      <a
+                        href={doc.storedPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span className="text-xs text-[color:var(--muted)]">Path unavailable</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : (

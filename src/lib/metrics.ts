@@ -5,6 +5,8 @@ export type AdminSummary = {
   completedPatients: number;
   completionRate: number;
   averageBmi: number;
+  totalDoctors: number;
+  totalRegionsServed: number;
 };
 
 export type UsageMetric = {
@@ -23,7 +25,7 @@ function formatDuration(seconds: number) {
 
 async function getDoctorReviewLatencyMinutes() {
   if (!prisma) {
-    return 0;
+    return null;
   }
 
   const doctorSubmissions = await prisma.questionnaireSubmission.findMany({
@@ -40,7 +42,7 @@ async function getDoctorReviewLatencyMinutes() {
   });
 
   if (doctorSubmissions.length === 0) {
-    return 0;
+    return null;
   }
 
   const patientSubmissionByAppointmentId = new Map(
@@ -67,12 +69,12 @@ async function getDoctorReviewLatencyMinutes() {
       }
 
       const diffMs = doctorItem.updatedAt.getTime() - patientUpdatedAt.getTime();
-      return diffMs > 0 ? diffMs / 60000 : null;
+      return diffMs >= 0 ? diffMs / 60000 : null;
     })
     .filter((value): value is number => value !== null);
 
   if (durations.length === 0) {
-    return 0;
+    return null;
   }
 
   const total = durations.reduce((sum, value) => sum + value, 0);
@@ -86,11 +88,17 @@ export async function getAdminSummary(): Promise<AdminSummary> {
       completedPatients: 0,
       completionRate: 0,
       averageBmi: 0,
+      totalDoctors: 0,
+      totalRegionsServed: 0,
     };
   }
 
-  const [totalPatients, completedPatients, bmiAggregate] = await Promise.all([
-    prisma.appointment.count(),
+  const [totalPatients, completedPatients, bmiAggregate, totalDoctors, regionRows] = await Promise.all([
+    prisma.questionnaireSubmission.count({
+      where: {
+        sessionId: { not: { contains: ":doctor" } },
+      },
+    }),
     prisma.questionnaireSubmission.count({
       where: {
         status: "submitted",
@@ -105,16 +113,34 @@ export async function getAdminSummary(): Promise<AdminSummary> {
       },
       _avg: { bmi: true },
     }),
+    prisma.doctorProfile.count(),
+    prisma.patientRecord.findMany({
+      where: {
+        region: {
+          not: null,
+        },
+      },
+      select: {
+        region: true,
+      },
+    }),
   ]);
 
   const completionRate = totalPatients > 0 ? Math.round((completedPatients / totalPatients) * 100) : 0;
   const averageBmi = Number((bmiAggregate._avg.bmi ?? 0).toFixed(1));
+  const totalRegionsServed = new Set(
+    regionRows
+      .map((row) => row.region?.trim().toLowerCase())
+      .filter((value): value is string => Boolean(value)),
+  ).size;
 
   return {
     totalPatients,
     completedPatients,
     completionRate,
     averageBmi,
+    totalDoctors,
+    totalRegionsServed,
   };
 }
 
@@ -150,20 +176,24 @@ export async function getUsageMetrics(): Promise<UsageMetric[]> {
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [durationAggregate, weeklySubmissions, totalSubmissions, resumedSubmissions, doctorReviewLatencyMinutes] =
+  const [submittedRows, weeklySubmissions, totalSubmissions, resumedSubmissions, doctorReviewLatencyMinutes] =
     await Promise.all([
-      prisma.questionnaireSubmission.aggregate({
+      prisma.questionnaireSubmission.findMany({
         where: {
           status: "submitted",
           sessionId: { not: { contains: ":doctor" } },
         },
-        _avg: { durationSeconds: true },
+        select: {
+          durationSeconds: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       prisma.questionnaireSubmission.count({
         where: {
           status: "submitted",
           sessionId: { not: { contains: ":doctor" } },
-          createdAt: { gte: weekAgo },
+          updatedAt: { gte: weekAgo },
         },
       }),
       prisma.questionnaireSubmission.count({
@@ -180,7 +210,22 @@ export async function getUsageMetrics(): Promise<UsageMetric[]> {
       getDoctorReviewLatencyMinutes(),
     ]);
 
-  const averageDurationSeconds = Math.round(durationAggregate._avg.durationSeconds ?? 0);
+  const submissionDurations = submittedRows
+    .map((row) => {
+      if (row.durationSeconds > 0) {
+        return row.durationSeconds;
+      }
+
+      // Fallback for older rows that saved with durationSeconds=0.
+      const derived = Math.round((row.updatedAt.getTime() - row.createdAt.getTime()) / 1000);
+      return derived > 0 ? derived : null;
+    })
+    .filter((value): value is number => value !== null);
+
+  const averageDurationSeconds =
+    submissionDurations.length > 0
+      ? Math.round(submissionDurations.reduce((sum, value) => sum + value, 0) / submissionDurations.length)
+      : 0;
   const autosaveResumeRate = totalSubmissions > 0 ? Math.round((resumedSubmissions / totalSubmissions) * 100) : 0;
 
   return [
@@ -204,9 +249,12 @@ export async function getUsageMetrics(): Promise<UsageMetric[]> {
     },
     {
       label: "Doctor review latency",
-      value: doctorReviewLatencyMinutes > 0 ? `${doctorReviewLatencyMinutes}m` : "—",
+      value: typeof doctorReviewLatencyMinutes === "number" ? `${doctorReviewLatencyMinutes}m` : "—",
       note: "Patient submit to doctor submit (average)",
-      progress: doctorReviewLatencyMinutes > 0 ? Math.min(100, Math.max(0, 100 - doctorReviewLatencyMinutes * 4)) : 0,
+      progress:
+        typeof doctorReviewLatencyMinutes === "number"
+          ? Math.min(100, Math.max(0, 100 - doctorReviewLatencyMinutes * 4))
+          : 0,
     },
   ];
 }

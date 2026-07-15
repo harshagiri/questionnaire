@@ -99,7 +99,7 @@ export function PatientRegister() {
   const bmi = useMemo(() => {
     const h = Number(answers.heightCm);
     const w = Number(answers.weightKg);
-    if (h > 0 && w > 0) return calculateBmi(h, w);
+    if (h > 0 && w > 0) return calculateBmi(w, h);
     return null;
   }, [answers.heightCm, answers.weightKg]);
 

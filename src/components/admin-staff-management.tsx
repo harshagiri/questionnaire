@@ -96,13 +96,6 @@ function ReceptionistAssignments({ receptionistEmail }: { receptionistEmail: str
   );
 }
 
-const initialForm = {
-  email: "",
-  displayName: "",
-  password: "",
-  photoUrl: "",
-};
-
 const ROLES: Array<{ role: StaffRole; label: string; color: string }> = [
   { role: "receptionist", label: "Receptionists", color: "bg-blue-600" },
   { role: "admin", label: "Admins", color: "bg-purple-600" },
@@ -191,13 +184,22 @@ function UserForm({
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setLocalMsg("Image must be 5 MB or smaller"); e.target.value = ""; return; }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setLocalMsg("Only JPEG or PNG is allowed");
+      e.target.value = "";
+      return;
+    }
+    if (file.size >= 1024 * 1024) {
+      setLocalMsg("Image must be smaller than 1 MB");
+      e.target.value = "";
+      return;
+    }
     setPhotoFile(file);
     setForm({ ...form, photoUrl: URL.createObjectURL(file) });
     setLocalMsg("");
   }
 
-  const resolvedAvatar = form.photoUrl?.trim() || "https://www.gravatar.com/avatar/?d=identicon&s=96";
+  const resolvedAvatar = form.photoUrl?.trim() || "";
 
   return (
     <div className="mt-3 border-t border-[rgba(21,32,43,0.06)] pt-4 space-y-3">
@@ -207,11 +209,17 @@ function UserForm({
 
       {/* Avatar upload */}
       <div className="flex items-center gap-3 rounded-xl border border-[rgba(21,32,43,0.10)] bg-[rgba(21,32,43,0.02)] px-3 py-2.5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={resolvedAvatar} alt="Preview" className="h-10 w-10 rounded-full object-cover border border-white shadow-sm" />
+        {resolvedAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={resolvedAvatar} alt="Preview" className="h-10 w-10 rounded-full object-cover border border-white shadow-sm" />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-teal-100 text-xs font-semibold text-teal-700 shadow-sm">
+            {form.displayName.trim().slice(0, 2).toUpperCase() || role.slice(0, 2).toUpperCase()}
+          </div>
+        )}
         <div className="flex-1">
-          <p className="text-xs text-[color:var(--muted)] mb-1">Profile photo (optional)</p>
-          <input type="file" accept="image/*" onChange={handlePhotoChange} className="block w-full text-xs" />
+          <p className="text-xs text-[color:var(--muted)] mb-1">Profile photo (JPEG/PNG, &lt;1MB)</p>
+          <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handlePhotoChange} className="block w-full text-xs" />
         </div>
       </div>
 
@@ -328,16 +336,6 @@ function RoleSection({
     setMessage("");
 
     try {
-      let resolvedPhotoUrl = form.photoUrl.trim();
-      if (photoFile) {
-        const fd = new FormData();
-        fd.append("file", photoFile);
-        const up = await fetch("/api/uploads/staff-photo", { method: "POST", body: fd });
-        const upPayload = (await up.json()) as { ok: boolean; photoUrl?: string; message?: string };
-        if (!up.ok || !upPayload.ok || !upPayload.photoUrl) { setMessage(upPayload.message ?? "Photo upload failed."); return; }
-        resolvedPhotoUrl = upPayload.photoUrl;
-      }
-
       const resolvedEmail = editingEmail ?? form.email.trim().toLowerCase();
 
       const res = await fetch("/api/staff-users", {
@@ -348,11 +346,23 @@ function RoleSection({
           email: resolvedEmail,
           displayName: form.displayName.trim(),
           password: form.password.trim() || undefined,
-          photoUrl: resolvedPhotoUrl,
+          photoUrl: editingEmail ? undefined : "",
         }),
       });
       const payload = (await res.json()) as { ok: boolean; message?: string };
       if (!res.ok || !payload.ok) { setMessage(payload.message ?? "Could not save."); return; }
+
+      if (photoFile) {
+        const fd = new FormData();
+        fd.append("file", photoFile);
+        fd.append("role", role);
+        fd.append("email", resolvedEmail);
+        const up = await fetch("/api/uploads/staff-photo", { method: "POST", body: fd });
+        const upPayload = (await up.json()) as { ok: boolean; message?: string };
+        if (!up.ok || !upPayload.ok) {
+          setMessage(upPayload.message ?? "Saved account, but photo upload failed.");
+        }
+      }
 
       // For new receptionists: immediately create doctor assignments
       if (role === "receptionist" && !editingEmail && selectedDoctorIds.length > 0) {
@@ -414,12 +424,18 @@ function RoleSection({
               roleUsers.map((user) => (
                 <div key={user.email} className="rounded-xl border border-[rgba(21,32,43,0.08)] overflow-hidden">
                   <div className="flex items-center gap-3 px-3 py-2.5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={user.photoUrl?.trim() || `https://www.gravatar.com/avatar/${user.email}?d=identicon&s=64`}
-                      alt={user.displayName}
-                      className="h-9 w-9 shrink-0 rounded-full object-cover border border-white shadow-sm"
-                    />
+                    {user.photoUrl?.trim() ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={user.photoUrl}
+                        alt={user.displayName}
+                        className="h-9 w-9 shrink-0 rounded-full object-cover border border-white shadow-sm"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white bg-teal-100 text-[11px] font-semibold text-teal-700 shadow-sm">
+                        {user.displayName.trim().slice(0, 2).toUpperCase() || role.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{user.displayName}</p>
                       <p className="text-xs text-[color:var(--muted)] truncate">{user.email}</p>

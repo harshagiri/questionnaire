@@ -9,7 +9,7 @@ const patientQuestionnaireSaveSchema = z.object({
   patientPhone: z.string().optional(),
   answers: z.record(z.string(), answerValueSchema),
   sectionIndex: z.coerce.number().int().min(0),
-  questionIndex: z.coerce.number().int().min(0),
+  questionIndex: z.coerce.number().int().min(-1),
   submitted: z.coerce.boolean(),
   updatedAt: z.string().optional(),
 });

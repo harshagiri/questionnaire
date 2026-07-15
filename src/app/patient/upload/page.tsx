@@ -4,22 +4,17 @@ import { PatientLabUpload } from "@/components/patient-lab-upload";
 import { PatientProfileGate } from "@/components/patient-profile-gate";
 
 export const metadata = {
-  title: "Upload Reports — SpineExpert",
+  title: "Upload Documents — SpineExpert",
 };
 
-export default async function LabUploadPage({
-  params,
-}: {
-  params: Promise<{ consultId: string }>;
-}) {
+export default async function PatientUploadPage() {
   const cookieStore = await cookies();
   const phone = (cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");
-  const { consultId } = await params;
 
   return (
     <AppShell role="patient">
       <PatientProfileGate phone={phone}>
-        <PatientLabUpload consultId={consultId} patientPhone={phone} backHref="/patient" />
+        <PatientLabUpload patientPhone={phone} backHref="/patient" />
       </PatientProfileGate>
     </AppShell>
   );

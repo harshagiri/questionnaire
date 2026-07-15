@@ -39,10 +39,13 @@ DEPLOY_BRANCH=${DEPLOY_BRANCH:-main}
 DEPLOY_TARGET_DIR=${DEPLOY_TARGET_DIR:-/root/questionnaire}
 DEPLOY_ENV_FILE=${DEPLOY_ENV_FILE:-./.env}
 DEPLOY_RUN_DOCTOR_MIGRATION=${DEPLOY_RUN_DOCTOR_MIGRATION:-false}
-DEPLOY_LOCAL_IMAGE=${DEPLOY_LOCAL_IMAGE:-questionnaire:latest}
-DEPLOY_APP_IMAGE=${DEPLOY_APP_IMAGE:-localhost:5000/questionnaire:latest}
+DEPLOY_RESET_DATABASE=${DEPLOY_RESET_DATABASE:-false}
 DEPLOY_CONFIGURE_HTTPS=${DEPLOY_CONFIGURE_HTTPS:-false}
 DEPLOY_HTTPS_DOMAIN=${DEPLOY_HTTPS_DOMAIN:-}
+
+IMAGE_TAG=${DEPLOY_IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo latest)-$(date +%Y%m%d%H%M%S)}
+DEPLOY_LOCAL_IMAGE=${DEPLOY_LOCAL_IMAGE:-questionnaire:${IMAGE_TAG}}
+DEPLOY_APP_IMAGE=${DEPLOY_APP_IMAGE:-localhost:5000/questionnaire:${IMAGE_TAG}}
 
 if [[ -z "$DEPLOY_REMOTE" ]]; then
   echo "Missing DEPLOY_REMOTE. Set it in ./.deploy.secrets or env." >&2
@@ -53,6 +56,18 @@ if [[ -z "$DEPLOY_SSH_PASSWORD" ]]; then
   echo "Missing DEPLOY_SSH_PASSWORD. Set it in ./.deploy.secrets or env." >&2
   exit 1
 fi
+
+if [[ "$DEPLOY_RESET_DATABASE" == "true" ]]; then
+  echo "[local] Pruning unused Docker data on droplet before pushing the new image"
+  sshpass -p "$DEPLOY_SSH_PASSWORD" ssh \
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_REMOTE" \
+    "docker system prune -af --volumes || true"
+fi
+
+echo "[local] Recreating droplet-local registry"
+sshpass -p "$DEPLOY_SSH_PASSWORD" ssh \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_REMOTE" \
+  "docker rm -f registry >/dev/null 2>&1 || true && docker run -d --restart unless-stopped -p 5000:5000 --name registry registry:2 >/dev/null"
 
 if [[ "$DEPLOY_RUN_DOCTOR_MIGRATION" != "true" && "$DEPLOY_RUN_DOCTOR_MIGRATION" != "false" ]]; then
   echo "DEPLOY_RUN_DOCTOR_MIGRATION must be true or false." >&2

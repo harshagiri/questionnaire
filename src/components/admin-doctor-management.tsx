@@ -33,7 +33,6 @@ const initialForm = {
   licenseNumber: "",
   password: "",
   bio: "",
-  photoUrl: "",
 };
 
 // ── Slot Manager Panel ────────────────────────────────────────────────────────
@@ -283,6 +282,9 @@ export function AdminDoctorManagement() {
   const [expanded, setExpanded] = useState(false);
   const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
   const [form, setForm] = useState(initialForm);
+  const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [managingSlotsFor, setManagingSlotsFor] = useState<DoctorRecord | null>(null);
@@ -306,16 +308,73 @@ export function AdminDoctorManagement() {
     loadDoctors();
   }, []);
 
-  const selectedPreview = useMemo(() => {
-    return form.photoUrl.trim() || "https://www.gravatar.com/avatar/?d=identicon&s=256";
-  }, [form.photoUrl]);
+  const selectedPreview = useMemo(() => photoPreviewUrl.trim(), [photoPreviewUrl]);
+  const isEditing = Boolean(editingDoctorId);
 
-  async function handleCreateDoctor() {
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.registrationNumber.trim() || !form.licenseNumber.trim() || !form.password.trim()) {
-      setMessage("Name, email, phone, registration, license, and password are required.");
+  function resetFormState() {
+    setForm(initialForm);
+    setEditingDoctorId(null);
+    setPhotoFile(null);
+    setPhotoPreviewUrl("");
+  }
+
+  function startEditDoctor(doctor: DoctorRecord) {
+    setEditingDoctorId(doctor.id ?? null);
+    setForm({
+      name: doctor.name,
+      email: doctor.email,
+      phone: doctor.phone,
+      registrationNumber: doctor.registrationNumber,
+      licenseNumber: doctor.licenseNumber,
+      password: "",
+      bio: doctor.bio ?? "",
+    });
+    setPhotoFile(null);
+    setPhotoPreviewUrl(doctor.photoUrl?.trim() || "");
+    setManagingSlotsFor(null);
+    setMessage("");
+  }
+
+  function cancelEditDoctor() {
+    resetFormState();
+    setMessage("");
+  }
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
       return;
     }
-    if (form.password.trim().length < 8) {
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setMessage("Only JPEG or PNG is allowed for doctor profile photo.");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size >= 1024 * 1024) {
+      setMessage("Doctor photo must be smaller than 1 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+    setMessage("");
+  }
+
+  async function handleSaveDoctor() {
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.registrationNumber.trim() || !form.licenseNumber.trim()) {
+      setMessage("Name, email, phone, registration, and license are required.");
+      return;
+    }
+
+    if (!isEditing && !form.password.trim()) {
+      setMessage("Password is required when creating a doctor.");
+      return;
+    }
+
+    if (form.password.trim() && form.password.trim().length < 8) {
       setMessage("Password must be at least 8 characters.");
       return;
     }
@@ -325,29 +384,57 @@ export function AdminDoctorManagement() {
 
     try {
       const doctorResponse = await fetch("/api/doctors", {
-        method: "POST",
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          id: editingDoctorId ?? undefined,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          registrationNumber: form.registrationNumber,
+          licenseNumber: form.licenseNumber,
+          password: form.password.trim() || undefined,
+          bio: form.bio,
+        }),
       });
       const doctorPayload = (await doctorResponse.json()) as { ok: boolean; message?: string; doctor?: DoctorRecord };
 
       if (!doctorResponse.ok || !doctorPayload.ok) {
-        setMessage(doctorPayload.message ?? "Could not create doctor profile.");
+        setMessage(doctorPayload.message ?? "Could not save doctor profile.");
         return;
       }
 
       await fetch("/api/staff-users", {
-        method: "POST",
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "doctor", email: form.email, password: form.password, displayName: form.name }),
+        body: JSON.stringify({
+          role: "doctor",
+          email: form.email,
+          password: form.password.trim() || undefined,
+          displayName: form.name,
+        }),
       }).catch(() => {});
 
-      setMessage("Doctor created. Configure their weekly availability slots →");
-      setForm(initialForm);
+      if (photoFile) {
+        const fd = new FormData();
+        fd.append("file", photoFile);
+        fd.append("role", "doctor");
+        fd.append("email", form.email.trim().toLowerCase());
+        const up = await fetch("/api/uploads/staff-photo", { method: "POST", body: fd });
+        const upPayload = (await up.json()) as { ok: boolean; message?: string };
+        if (!up.ok || !upPayload.ok) {
+          setMessage(upPayload.message ?? "Doctor created, but photo upload failed.");
+        }
+      }
+
+      setMessage(isEditing ? "Doctor updated successfully." : "Doctor created. Configure their weekly availability slots →");
+      resetFormState();
       await loadDoctors();
-      if (doctorPayload.doctor) setManagingSlotsFor(doctorPayload.doctor);
+      if (!isEditing && doctorPayload.doctor) {
+        setManagingSlotsFor(doctorPayload.doctor);
+      }
     } catch {
-      setMessage("Could not create doctor.");
+      setMessage("Could not save doctor.");
     } finally {
       setSubmitting(false);
     }
@@ -386,33 +473,46 @@ export function AdminDoctorManagement() {
             <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
               {/* ── Left: Add doctor form ── */}
               <div className="rounded-[1.25rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.01)] p-5">
-                <h3 className="text-base font-semibold text-gray-900">Add doctor</h3>
+                <h3 className="text-base font-semibold text-gray-900">{isEditing ? "Edit doctor" : "Add doctor"}</h3>
                 <p className="mt-1 text-sm text-[color:var(--muted)]">
-                  Creates profile + login. Configure availability slots after saving.
+                  {isEditing ? "Update doctor profile and login details." : "Creates profile + login. Configure availability slots after saving."}
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} placeholder="Doctor full name" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
-                  <input value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} placeholder="Doctor email" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
+                  <input value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} placeholder="Doctor email" disabled={isEditing} className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none disabled:opacity-60" />
                   <input value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} placeholder="Phone" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
                   <input value={form.registrationNumber} onChange={(e) => setForm((c) => ({ ...c, registrationNumber: e.target.value }))} placeholder="Registration number" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
                   <input value={form.licenseNumber} onChange={(e) => setForm((c) => ({ ...c, licenseNumber: e.target.value }))} placeholder="License number" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
-                  <input type="password" value={form.password} onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))} placeholder="Login password (min 8)" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
-                  <input value={form.photoUrl} onChange={(e) => setForm((c) => ({ ...c, photoUrl: e.target.value }))} placeholder="Photo URL (optional)" className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
+                  <input type="password" value={form.password} onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))} placeholder={isEditing ? "New password (optional)" : "Login password (min 8)"} className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
+                  <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={handlePhotoChange} className="focus-ring rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
                   <textarea value={form.bio} onChange={(e) => setForm((c) => ({ ...c, bio: e.target.value }))} placeholder="Bio (optional)" rows={2} className="focus-ring sm:col-span-2 rounded-xl border border-[rgba(21,32,43,0.12)] px-3 py-2.5 outline-none" />
                 </div>
 
                 <div className="mt-3 flex items-center gap-3 rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={selectedPreview} alt="Doctor preview" className="h-11 w-11 rounded-full object-cover" />
-                  <div className="text-xs text-[color:var(--muted)]">Gravatar identicon used when no URL provided.</div>
+                  {selectedPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selectedPreview} alt="Doctor preview" className="h-11 w-11 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700">
+                      {form.name.trim().slice(0, 2).toUpperCase() || "DR"}
+                    </div>
+                  )}
+                  <div className="text-xs text-[color:var(--muted)]">Upload JPEG/PNG photo smaller than 1 MB.</div>
                 </div>
 
                 {message && <p className="mt-3 text-sm text-[color:var(--muted)]">{message}</p>}
 
-                <button type="button" onClick={handleCreateDoctor} disabled={submitting} className="focus-ring mt-4 rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {submitting ? "Saving..." : "Add doctor"}
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <button type="button" onClick={handleSaveDoctor} disabled={submitting} className="focus-ring rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                    {submitting ? "Saving..." : isEditing ? "Update doctor" : "Add doctor"}
+                  </button>
+                  {isEditing ? (
+                    <button type="button" onClick={cancelEditDoctor} className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-5 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               {/* ── Right: Doctor roster ── */}
@@ -432,8 +532,14 @@ export function AdminDoctorManagement() {
                       const slotCount = (doctor as DoctorRecord & { slots?: unknown[] }).slots?.length ?? 0;
                       return (
                         <div key={doctor.id ?? doctor.email} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${isActive ? "border-teal-300 bg-teal-50/40" : "border-[rgba(21,32,43,0.08)]"}`}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={doctor.photoUrl ?? "https://www.gravatar.com/avatar/?d=identicon&s=256"} alt={doctor.name} className="h-10 w-10 rounded-full object-cover shrink-0 border border-white shadow-sm" />
+                          {doctor.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={doctor.photoUrl} alt={doctor.name} className="h-10 w-10 rounded-full object-cover shrink-0 border border-white shadow-sm" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white bg-teal-100 text-xs font-semibold text-teal-700 shadow-sm">
+                              {doctor.name.trim().slice(0, 2).toUpperCase() || "DR"}
+                            </div>
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold truncate">{doctor.name}</div>
                             <div className="text-xs text-[color:var(--muted)] truncate">{doctor.registrationNumber}</div>
@@ -441,6 +547,12 @@ export function AdminDoctorManagement() {
                           <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${slotCount > 0 ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"}`}>
                             {slotCount}/{MAX_SLOTS} slots
                           </div>
+                          <button
+                            onClick={() => startEditDoctor(doctor)}
+                            className="shrink-0 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => setManagingSlotsFor(isActive ? null : doctor)}
                             className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? "bg-gray-200 text-gray-700" : "bg-teal-600 text-white hover:bg-teal-700"}`}

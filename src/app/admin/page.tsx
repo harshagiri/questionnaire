@@ -16,6 +16,9 @@ export default async function AdminPage() {
             { label: "Total patients", value: adminSummary.totalPatients },
             { label: "Completed", value: adminSummary.completedPatients },
             { label: "Completion rate", value: `${adminSummary.completionRate}%` },
+            { label: "Total patients screened", value: adminSummary.completedPatients },
+            { label: "Total doctors", value: adminSummary.totalDoctors },
+            { label: "Regions/Cities served", value: adminSummary.totalRegionsServed },
           ].map((metric) => (
             <div key={metric.label} className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
               <div className="text-sm text-[color:var(--muted)]">{metric.label}</div>

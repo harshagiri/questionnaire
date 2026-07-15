@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { isAllowedDemoOtp, roleHomePath } from "@/lib/auth";
 import { verifyStaffCredentials } from "@/lib/staff-auth";
 import { demoOtpCode } from "@/lib/workflow-data";
@@ -22,12 +21,6 @@ function hasValidPatientPhone(phone: string | undefined) {
 function hasValidStaffCredentials(email: string | undefined, password: string | undefined) {
   const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email ?? "").trim());
   return looksLikeEmail && (password ?? "").trim().length >= 6;
-}
-
-function toGravatarUrl(input: string) {
-  const normalized = input.trim().toLowerCase();
-  const hash = createHash("md5").update(normalized).digest("hex");
-  return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=256`;
 }
 
 function normalizeDoctorEmailAlias(email: string) {
@@ -113,7 +106,12 @@ export async function POST(request: Request) {
   if (body.role === "patient") {
     response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
   } else {
-    response.cookies.set("se_avatar", resolvedStaffPhotoUrl?.trim() || toGravatarUrl(body.email ?? sessionName), cookieOptions);
+    const avatar = resolvedStaffPhotoUrl?.trim() || "";
+    if (avatar) {
+      response.cookies.set("se_avatar", avatar, cookieOptions);
+    } else {
+      response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
+    }
   }
   if (body.role === "patient") {
     response.cookies.set("se_demo_otp", demoOtpCode, {

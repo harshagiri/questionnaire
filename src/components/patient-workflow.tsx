@@ -4,12 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import type { PatientQuestionContent, PatientQuestionnaireRecord } from "@/lib/patient-questionnaire-db";
 import { calculateBmi, summarizeAnswer } from "@/lib/questionnaire";
-import { toPlainQuestionText } from "@/lib/question-text";
 import { findPatientRecordByPhone, savePatientQuestionnaire } from "@/lib/portal-storage";
 
 type AnswerValue = string | number | boolean | string[];
 type AnswerMap = Record<string, AnswerValue>;
-type SectionIconProps = { sectionId: string; className?: string };
 type WorkflowSections = typeof patientWorkflowSections;
 type WorkflowQuestion = WorkflowSections[number]["questions"][number];
 
@@ -35,133 +33,142 @@ const celebrationConfetti = [
   { left: "92%", delay: "360ms", color: "#15202b", size: "8px", drift: "14px", rotate: "32deg" },
 ] as const;
 
+const painMapAreas = [
+  { label: "Neck", value: "neck", style: { left: "50%", top: "2.8rem", transform: "translateX(-50%)" } },
+  { label: "Upper / mid back", value: "upper-back", style: { left: "50%", top: "7.4rem", transform: "translateX(-50%)" } },
+  { label: "Lower back", value: "lower-back", style: { left: "50%", top: "13.4rem", transform: "translateX(-50%)" } },
+  { label: "Arm / hand", value: "arm", style: { left: "8%", top: "8.8rem" } },
+  { label: "Leg / foot", value: "leg", style: { right: "8%", top: "18rem" } },
+] as const;
+
 const initialAnswers: AnswerMap = {
   onBehalf: false,
   reviewConsent: false,
 };
 
-function SectionIcon({ sectionId, className = "h-5 w-5" }: SectionIconProps) {
-  const sharedProps = {
-    className,
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    strokeWidth: 1.9,
-    viewBox: "0 0 24 24",
-    "aria-hidden": true,
-  };
-
+function getSectionIntro(sectionId: string, sectionTitle: string) {
   switch (sectionId) {
     case "red-flags":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 3.5 3.8 18a1.7 1.7 0 0 0 1.5 2.5h13.4a1.7 1.7 0 0 0 1.5-2.5L12 3.5Z" />
-          <path d="M12 8.5v4.5" />
-          <path d="M12 16.5h.01" />
-        </svg>
-      );
+      return {
+        kicker: "Safety first",
+        title: "Before we dive in, let’s check the smoke alarm.",
+        body:
+          "A quick safety check is a bit like glancing at the dashboard before driving off. If a warning light is on, you want to know before the engine starts complaining.",
+        summary: "This section checks for anything urgent that should be escalated before the rest of the visit.",
+        buttonLabel: "Start safety check",
+      };
     case "patient-profile":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-          <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
-        </svg>
-      );
+      return {
+        kicker: "A quick hello",
+        title: "Let’s pin down the basics.",
+        body:
+          "This is the part where the form learns who you are, so the doctor does not have to do an awkward ‘Now, who are we meeting today?’ routine.",
+        summary: "This section captures your identity, contact details, and the quick facts the clinic needs to reach you.",
+        buttonLabel: "Start profile",
+      };
     case "medical-history":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 21s-7-4.4-7-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7 3.5C19 16.6 12 21 12 21Z" />
-          <path d="M9 12h6" />
-          <path d="M12 9v6" />
-        </svg>
-      );
+      return {
+        kicker: "Background check",
+        title: "A little context goes a long way.",
+        body:
+          "Old health facts can change the whole script. A blood pressure issue, diabetes, or a previous surgery can turn a simple plan into a very different one.",
+        summary: "This section gathers the health history that can change how today’s symptoms are interpreted.",
+        buttonLabel: "Start medical history",
+      };
     case "previous-reports":
-      return (
-        <svg {...sharedProps}>
-          <path d="M7 3.5h7l3 3V20a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 20V3.5Z" />
-          <path d="M14 3.5V7h3" />
-          <path d="M9.5 12h5" />
-          <path d="M9.5 15.5h5" />
-        </svg>
-      );
+      return {
+        kicker: "Paper trail",
+        title: "Let’s see what clues you brought with you.",
+        body:
+          "Reports are the breadcrumbs that keep everyone from wandering into the forest of ‘maybe it’s this, maybe it’s that.’ One look can save a lot of guesswork.",
+        summary: "This section collects reports, scans, and notes that help the doctor connect the dots faster.",
+        buttonLabel: "Start reports",
+      };
     case "diagnosis-understanding":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 3.5a6.5 6.5 0 0 0-4 11.6V18h8v-2.9a6.5 6.5 0 0 0-4-11.6Z" />
-          <path d="M9 21h6" />
-          <path d="M10 18h4" />
-        </svg>
-      );
+      return {
+        kicker: "What you were told",
+        title: "We’re checking the story you were given before.",
+        body:
+          "A diagnosis can travel through too many hands and come back wearing a different hat. This helps the doctor compare the original story with what you heard.",
+        summary: "This section captures the diagnosis or explanation you were given, so the visit starts from the same page.",
+        buttonLabel: "Start diagnosis check",
+      };
     case "current-problem":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 20.5c4-3.4 6-6.4 6-9a6 6 0 0 0-12 0c0 2.6 2 5.6 6 9Z" />
-          <path d="M12 13.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-        </svg>
-      );
+      return {
+        kicker: "Main complaint",
+        title: "Now we get to the main character.",
+        body:
+          "Every visit has a main character, and this is it. If the spine problem were a movie, this would be the scene where the plot finally makes sense.",
+        summary: "This section tells the doctor what is bothering you most and what brought you in today.",
+        buttonLabel: "Start main complaint",
+      };
     case "pain-behaviour":
-      return (
-        <svg {...sharedProps}>
-          <path d="M4 15c2.6-6.4 5.4-6.4 8 0s5.4 6.4 8 0" />
-          <path d="M5 9h3" />
-          <path d="M16 9h3" />
-        </svg>
-      );
+      return {
+        kicker: "Pain map",
+        title: "Let’s find the mischief maker on the map.",
+        body:
+          "Pain likes to play hide-and-seek in inconvenient places. The map helps the doctor stop guessing where the trouble is hiding.",
+        summary: "This section shows exactly where the pain lives and how it spreads around the body.",
+        buttonLabel: "Start pain map",
+      };
     case "symptom-severity":
-      return (
-        <svg {...sharedProps}>
-          <path d="M4 19V9" />
-          <path d="M10 19V5" />
-          <path d="M16 19v-7" />
-          <path d="M22 19H2" />
-        </svg>
-      );
+      return {
+        kicker: "How loud it feels",
+        title: "Now let’s measure how much the trouble is shouting.",
+        body:
+          "A pain score is the fastest way to tell whether this is a whisper, a grumble, or a full brass band. That helps the doctor judge urgency without needing a drama degree.",
+        summary: "This section captures how strong the symptoms feel right now and how intense the discomfort is.",
+        buttonLabel: "Start severity",
+      };
     case "neurological-symptoms":
-      return (
-        <svg {...sharedProps}>
-          <path d="M9 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 5.5 1.7" />
-          <path d="M15 4.5a3 3 0 0 1 3 3v9a3 3 0 0 1-5.5 1.7" />
-          <path d="M9 9h6" />
-          <path d="M9 13h6" />
-        </svg>
-      );
+      return {
+        kicker: "Nerves and signals",
+        title: "We’re checking the wires.",
+        body:
+          "Numbness and weakness are the body’s version of a bad Wi-Fi signal. This section helps the doctor tell the difference between a wobble and a warning.",
+        summary: "This section checks for numbness, weakness, and other nerve-related warning signs.",
+        buttonLabel: "Start nerve check",
+      };
     case "functional-disability":
-      return (
-        <svg {...sharedProps}>
-          <path d="M7 20 12 4l5 16" />
-          <path d="M9 14h6" />
-          <path d="M5 20h14" />
-        </svg>
-      );
+      return {
+        kicker: "Day-to-day life",
+        title: "Let’s see what the pain is bossing around.",
+        body:
+          "Pain has a nasty habit of acting like a tiny manager. These answers show whether it’s only being annoying, or whether it’s running the whole office.",
+        summary: "This section shows how the symptoms are affecting your walking, sleep, work, and everyday tasks.",
+        buttonLabel: "Start daily function",
+      };
     case "previous-treatment":
-      return (
-        <svg {...sharedProps}>
-          <path d="M6 7h12" />
-          <path d="M6 12h12" />
-          <path d="M6 17h8" />
-          <path d="M4 7h.01" />
-          <path d="M4 12h.01" />
-          <path d="M4 17h.01" />
-        </svg>
-      );
+      return {
+        kicker: "What you’ve tried",
+        title: "We’re checking the treatment trail.",
+        body:
+          "Nobody wants the same treatment remix on repeat. This section shows what already helped, what did not, and what deserves a firmer handshake next time.",
+        summary: "This section records what treatments, exercises, or medicines you have already tried.",
+        buttonLabel: "Start treatment history",
+      };
     case "concerns-goals":
-      return (
-        <svg {...sharedProps}>
-          <path d="M12 21s7-4.3 7-10.5A4.5 4.5 0 0 0 12 7a4.5 4.5 0 0 0-7 3.5C5 16.7 12 21 12 21Z" />
-          <path d="m9.5 12 1.6 1.6 3.4-3.6" />
-        </svg>
-      );
+      return {
+        kicker: "Closing thoughts",
+        title: "Almost there, just the patient side of the story.",
+        body:
+          "This is the part where we ask what you’re worried about and what you want most from the visit. It helps the doctor aim at the right finish line, not just any finish line.",
+        summary: "This section captures your concerns, goals, and what you hope this visit will fix.",
+        buttonLabel: "Start final section",
+      };
     default:
-      return (
-        <svg {...sharedProps}>
-          <path d="M5 4.5h14v15H5z" />
-          <path d="M8 8h8" />
-          <path d="M8 12h8" />
-          <path d="M8 16h5" />
-        </svg>
-      );
+      return {
+        kicker: "Section start",
+        title: sectionTitle,
+        body: "Let’s open this section and keep moving through the questions.",
+        summary: "This section gathers the details the doctor needs to understand this part of the story.",
+        buttonLabel: "Start section",
+      };
   }
+}
+
+function formatDisplayLabel(label: string) {
+  return label.trim();
 }
 
 function applyQuestionContentOverrides(questionContent: PatientQuestionContent[] = []): WorkflowSections {
@@ -182,13 +189,13 @@ function applyQuestionContentOverrides(questionContent: PatientQuestionContent[]
 
       return {
         ...question,
-        label: toPlainQuestionText(override.label),
+        label: override.label,
         type: override.type as typeof question.type,
         helpText: override.helpText ?? question.helpText,
         required: override.required ?? question.required,
         options: (override.options ?? question.options)?.map((option) => ({
           ...option,
-          label: toPlainQuestionText(option.label),
+          label: option.label,
         })),
       };
     }),
@@ -343,7 +350,7 @@ export function PatientWorkflow({
   );
   const [answers, setAnswers] = useState<AnswerMap>(initialAnswersState);
   const [sectionIndex, setSectionIndex] = useState(0);
-  const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState(-1);
   const [submitted, setSubmitted] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
   const [profileBmi, setProfileBmi] = useState<number | null>(null);
@@ -400,7 +407,7 @@ export function PatientWorkflow({
       ...(saved.answers ?? {}),
     } as AnswerMap));
     setSectionIndex(saved.sectionIndex ?? 0);
-    setQuestionIndex(saved.questionIndex ?? 0);
+    setQuestionIndex(typeof saved.questionIndex === "number" ? saved.questionIndex : -1);
     setSubmitted(Boolean(saved.submitted));
   }, [initialSavedWorkflow, registeredProfileDefaults, sessionId]);
 
@@ -577,6 +584,9 @@ export function PatientWorkflow({
     () =>
       (index: number) => {
         const sectionQuestions = getVisibleQuestions(workflowSections, index, answers);
+        if (workflowSections[index]?.id === "symptom-severity") {
+          return sectionQuestions.filter((question) => question.id !== "painScore");
+        }
         return sectionQuestions;
       },
     [answers, workflowSections],
@@ -584,6 +594,17 @@ export function PatientWorkflow({
 
   const section = workflowSections[sectionIndex];
   const visibleQuestions = getSectionQuestions(sectionIndex);
+  const isRedFlagSection = section.id === "red-flags";
+  const sectionQuestionCount = isRedFlagSection ? 1 : visibleQuestions.length;
+  const isSectionIntro = questionIndex < 0;
+  const currentQuestionIndex = Math.min(Math.max(questionIndex, 0), Math.max(sectionQuestionCount - 1, 0));
+  const currentQuestion = visibleQuestions[currentQuestionIndex];
+  const isShortSectionWrapUp =
+    !isRedFlagSection &&
+    sectionIndex < workflowSections.length - 1 &&
+    sectionQuestionCount > 0 &&
+    sectionQuestionCount <= 3 &&
+    currentQuestionIndex === sectionQuestionCount - 1;
   const bmi = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
   const resolvedBmi = bmi ?? profileBmi;
   const redFlagTriggered = Boolean(
@@ -594,77 +615,63 @@ export function PatientWorkflow({
       answers.redFlagFever ||
       answers.redFlagWeightLoss,
   );
-  const isRedFlagSection = section.id === "red-flags";
   const redFlagOptions = visibleQuestions.filter((question) => redFlagKeys.includes(question.id));
   const redFlagNoneQuestion = visibleQuestions.find((question) => question.id === "redFlagNone");
   const redFlagReasonQuestion = workflowSections[0].questions.find((question) => question.id === "redFlagReason");
+  const redFlagPositiveQuestions = redFlagOptions.filter((question) => answers[question.id] === true);
   const redFlagSectionAnswered =
     answers.redFlagNone === true || redFlagKeys.every((redFlagKey) => typeof answers[redFlagKey] === "boolean");
 
-  const sectionCards = useMemo(
-    () =>
-      workflowSections.map((item, index) => {
-        const sectionQuestions = getSectionQuestions(index);
-
-        if (item.id === "red-flags") {
-          return {
-            ...item,
-            active: index === sectionIndex,
-            visibleCount: 1,
-            answeredCount: redFlagSectionAnswered ? 1 : 0,
-          };
-        }
-
-        return {
-          ...item,
-          active: index === sectionIndex,
-          visibleCount: sectionQuestions.length,
-          answeredCount: sectionQuestions.filter((question) => isQuestionAnswered(question, answers)).length,
-        };
-      }),
-    [answers, getSectionQuestions, redFlagSectionAnswered, sectionIndex, workflowSections],
-  );
-
-  const goToSection = (index: number) => {
-    setSectionIndex(index);
-    setQuestionIndex(0);
-
-    window.setTimeout(() => {
-      questionAreaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
-  };
-
   const nextSection = () => {
     setSectionIndex((current) => Math.min(current + 1, workflowSections.length - 1));
-    setQuestionIndex(0);
-  };
-
-  const prevSection = () => {
-    setSectionIndex((current) => Math.max(current - 1, 0));
-    setQuestionIndex(0);
+    setQuestionIndex(-1);
   };
 
   const nextQuestion = () => {
+    if (isSectionIntro) {
+      setQuestionIndex(0);
+      return;
+    }
+
     if (isRedFlagSection && !redFlagSectionAnswered) {
       setValidationMessage("Please answer each red flag item, or choose None of the above.");
       return;
     }
 
-    const firstMissingInSection = visibleQuestions.find((question) => question.required && !isQuestionAnswered(question, answers));
-
-    if (firstMissingInSection) {
-      setValidationMessage(`Please complete: ${firstMissingInSection.label}`);
+    if (!currentQuestion) {
+      nextSection();
       return;
     }
 
-    nextSection();
+    if (currentQuestion.required && !isQuestionAnswered(currentQuestion, answers)) {
+      setValidationMessage(`Please complete: ${formatDisplayLabel(currentQuestion.label)}`);
+      return;
+    }
+
+    if (currentQuestionIndex < sectionQuestionCount - 1) {
+      setQuestionIndex((current) => current + 1);
+      return;
+    }
+
+    if (sectionIndex < workflowSections.length - 1) {
+      nextSection();
+    }
   };
 
   const prevQuestion = () => {
-    prevSection();
+    if (questionIndex > 0) {
+      setQuestionIndex((current) => Math.max(current - 1, 0));
+      return;
+    }
+
+    if (sectionIndex > 0) {
+      const previousSectionIndex = sectionIndex - 1;
+      const previousSectionQuestions = getSectionQuestions(previousSectionIndex);
+      setSectionIndex(previousSectionIndex);
+      setQuestionIndex(Math.max(previousSectionQuestions.length - 1, 0));
+    }
   };
 
-  const sectionQuestionCount = isRedFlagSection ? 1 : visibleQuestions.length;
   const sectionProgress = useMemo(() => {
     let totalVisibleQuestions = 0;
     let totalAnsweredQuestions = 0;
@@ -681,13 +688,19 @@ export function PatientWorkflow({
     };
   }, [answers, getSectionQuestions, workflowSections.length]);
 
-  const targetTotalMinutes = 5;
-  const completionRatio =
-    sectionProgress.totalVisibleQuestions === 0
-      ? 0
-      : sectionProgress.totalAnsweredQuestions / sectionProgress.totalVisibleQuestions;
-  const estimatedMinutesSpent = Math.min(targetTotalMinutes, Math.round(completionRatio * targetTotalMinutes));
-  const estimatedMinutesRemaining = Math.max(0, Math.round((1 - completionRatio) * targetTotalMinutes));
+  const questionsBeforeCurrentSection = useMemo(() => {
+    let total = 0;
+
+    for (let index = 0; index < sectionIndex; index += 1) {
+      total += getSectionQuestions(index).length;
+    }
+
+    return total;
+  }, [getSectionQuestions, sectionIndex]);
+
+  const totalQuestionCount = sectionProgress.totalVisibleQuestions;
+  const currentQuestionNumber = questionsBeforeCurrentSection + (isRedFlagSection ? 1 : currentQuestionIndex + 1);
+
   const hasConsent = answers.reviewConsent === true;
   const patientDisplayName = String(answers.patientName ?? "").trim() || "Patient";
   const requiredQuestions = useMemo(
@@ -696,12 +709,6 @@ export function PatientWorkflow({
   );
   const missingRequiredQuestions = requiredQuestions.filter((question) => !isQuestionAnswered(question, answers));
   const requiredComplete = missingRequiredQuestions.length === 0;
-  const patientCompletion = Math.round(completionRatio * 100);
-  const sectionJourneyCompletion = Math.round(((sectionIndex + 1) / workflowSections.length) * 100);
-  const currentSectionCard = sectionCards[sectionIndex];
-  const currentSectionAnswered = currentSectionCard?.answeredCount ?? 0;
-  const currentSectionTotal = currentSectionCard?.visibleCount ?? sectionQuestionCount;
-  const nextSectionTitle = sectionCards[sectionIndex + 1]?.title;
   const answeredForSummary = sectionProgress.totalAnsweredQuestions;
 
   const questionIdSet = useMemo(
@@ -743,7 +750,7 @@ export function PatientWorkflow({
     `Patient goal: ${summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey])}`,
   ];
 
-  const setValue = (key: string, value: AnswerValue) =>
+  const setValue = (key: string, value: AnswerValue, autoAdvance = false) => {
     setAnswers((current) => {
       const nextAnswers = { ...current, [key]: value };
       setValidationMessage("");
@@ -767,6 +774,17 @@ export function PatientWorkflow({
 
       return nextAnswers;
     });
+    if (autoAdvance && !isSectionIntro) {
+      if (currentQuestionIndex < sectionQuestionCount - 1) {
+        setQuestionIndex((current) => current + 1);
+        return;
+      }
+
+      if (sectionIndex < workflowSections.length - 1) {
+        nextSection();
+      }
+    }
+  };
 
   const toggleMultiSelectValue = (question: (typeof visibleQuestions)[number], optionValue: string) => {
     const currentAnswer = answers[question.id];
@@ -837,55 +855,89 @@ export function PatientWorkflow({
   };
 
   const renderRedFlagSection = () => (
-    <article className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Urgent safety check</div>
-          <h2 className="headline mt-1.5 text-xl font-semibold leading-tight sm:text-2xl">Do any of these urgent red flags apply?</h2>
-          <p className="mt-1 text-xs leading-6 text-[color:var(--muted)]">
-            Answer each item Yes or No, or choose None of the above if none apply.
-          </p>
+    <article className="rounded-xl border border-[rgba(255,138,91,0.22)] bg-[linear-gradient(180deg,rgba(255,138,91,0.12),rgba(255,255,255,0.98))] p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-[rgba(255,138,91,0.18)] pb-3">
+        <button
+          type="button"
+          aria-label="Previous question"
+          onClick={prevQuestion}
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          &lt;
+        </button>
+
+        <div className="min-w-0 flex-1 text-center">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
+            Question {currentQuestionNumber} / {totalQuestionCount}
+          </div>
+          <div className="mt-1 flex items-center justify-center gap-2">
+            <span className="rounded-full bg-[rgba(255,138,91,0.16)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">
+              Urgent safety check
+            </span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          aria-label="Next question"
+          onClick={nextQuestion}
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
+        >
+          &gt;
+        </button>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-[rgba(21,32,43,0.1)] bg-white">
+      <div className="text-center">
+        <h2 className="headline mt-4 text-xl font-semibold leading-tight sm:text-2xl">Do any of these urgent red flags apply?</h2>
+        <p className="mx-auto mt-1 max-w-2xl text-xs leading-6 text-[color:var(--muted)]">
+          Answer each item one by one, or choose None of the above if none apply.
+        </p>
+      </div>
+
+      <div className="mx-auto mt-4 w-full max-w-2xl overflow-hidden rounded-xl border border-[rgba(21,32,43,0.1)] bg-white">
         {redFlagOptions.map((question) => (
-          <div key={question.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)] items-center gap-2 border-b border-[rgba(21,32,43,0.08)] px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.32fr)] sm:gap-3">
-            <div className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{question.label}</div>
-            <select
-              aria-label={question.label}
-              value={typeof answers[question.id] === "boolean" ? String(answers[question.id]) : ""}
-              onChange={(event) => setValue(question.id, event.target.value === "true")}
-              className="focus-ring min-w-0 max-w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none"
+          <div key={question.id} className="border-b border-[rgba(21,32,43,0.08)] px-3 py-2.5 text-center last:border-b-0">
+            <button
+              type="button"
+              onClick={() => setValue(question.id, answers[question.id] === true ? false : true)}
+              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
             >
-              <option value="">Select</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
+              <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(question.label)}</span>
+            </button>
           </div>
         ))}
       </div>
 
+      <div className="mt-3 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.03)] px-3 py-3 text-xs leading-6 text-[color:var(--foreground)]">
+        {redFlagPositiveQuestions.length > 0 ? (
+          <>
+            Positive red flags: <span className="font-semibold">{redFlagPositiveQuestions.map((question) => formatDisplayLabel(question.label)).join("; ")}</span>
+          </>
+        ) : answers.redFlagNone === true ? (
+          <span className="font-medium text-[var(--accent)]">None of the above selected.</span>
+        ) : (
+          <span>Answer all items first, then the summary will update automatically.</span>
+        )}
+      </div>
+
       {redFlagNoneQuestion ? (
-        <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)] items-center gap-2 rounded-xl border border-[rgba(21,32,43,0.1)] bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.32fr)] sm:gap-3">
-          <div className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{redFlagNoneQuestion.label}</div>
-          <select
-            aria-label={redFlagNoneQuestion.label}
-            value={answers.redFlagNone === true ? "true" : ""}
-            onChange={(event) => setValue(redFlagNoneQuestion.id, event.target.value === "true")}
-            className="focus-ring min-w-0 max-w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none"
+        <div className="mt-3 px-3 text-center">
+          <button
+            type="button"
+            aria-label={formatDisplayLabel(redFlagNoneQuestion.label)}
+            onClick={() => setValue(redFlagNoneQuestion.id, answers.redFlagNone === true ? false : true)}
+            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
-            <option value="">Select</option>
-            <option value="true">None of the above</option>
-          </select>
+            <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(redFlagNoneQuestion.label)}</span>
+          </button>
         </div>
       ) : null}
 
-      {redFlagReasonQuestion ? (
+      {redFlagReasonQuestion && redFlagTriggered ? (
         <div className={`mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)] items-start gap-2 rounded-xl border px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.46fr)] sm:gap-3 ${redFlagTriggered ? "border-[rgba(255,138,91,0.24)] bg-[rgba(255,138,91,0.08)]" : "border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.03)]"}`}>
           <div className="min-w-0">
             <label className="text-sm font-medium leading-6 text-[color:var(--foreground)]" htmlFor="redFlagReason">
-              {redFlagReasonQuestion.label}
+              {formatDisplayLabel(redFlagReasonQuestion.label)}
             </label>
             <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
               Add details only if you want the clinic to see them before the consultation.
@@ -913,88 +965,95 @@ export function PatientWorkflow({
   const renderQuestionInput = (question: (typeof visibleQuestions)[number]) => {
     if (question.type === "toggle") {
       return (
-        <select
-          aria-label={question.label}
-          value={typeof answers[question.id] === "boolean" ? String(answers[question.id]) : ""}
-          onChange={(event) => setValue(question.id, event.target.value === "true")}
-          className="focus-ring min-w-0 max-w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none"
-        >
-          <option value="">Select</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
+        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setValue(question.id, true, true)}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+          >
+            Yes
+          </button>
+          <button
+            type="button"
+            onClick={() => setValue(question.id, false, true)}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+          >
+            No
+          </button>
+        </div>
       );
     }
 
     if (question.type === "multi-select") {
       const currentAnswer = answers[question.id];
       const selectedValues = Array.isArray(currentAnswer) ? currentAnswer : currentAnswer ? [String(currentAnswer)] : [];
-      const selectedLabels = selectedValues
-        .map((value) => question.options?.find((option) => option.value === value)?.label ?? value)
-        .filter(Boolean);
 
       return (
-        <details className="group relative min-w-0">
-          <summary className="focus-ring flex min-w-0 max-w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none [&::-webkit-details-marker]:hidden">
-            <span className={`min-w-0 truncate ${selectedLabels.length ? "text-[color:var(--foreground)]" : "text-[color:var(--muted)]"}`}>
-              {selectedLabels.length ? selectedLabels.join(", ") : "Select one or more"}
-            </span>
-            <span className="shrink-0 text-[10px] font-semibold text-[color:var(--muted)] group-open:rotate-180">⌄</span>
-          </summary>
-          <div className="absolute right-0 z-30 mt-2 max-h-72 w-full min-w-[min(18rem,calc(100vw-2rem))] overflow-auto rounded-xl border border-[rgba(21,32,43,0.12)] bg-white p-2 shadow-[0_18px_45px_rgba(21,32,43,0.16)]">
-            {question.options?.map((option) => {
-              const checked = selectedValues.includes(option.value);
+        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+          {question.options?.map((option) => {
+            const checked = selectedValues.includes(option.value);
 
-              return (
-                <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm leading-5 text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.06)]">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleMultiSelectValue(question, option.value)}
-                    className="h-4 w-4 shrink-0 accent-[var(--accent)]"
-                  />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{option.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </details>
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => toggleMultiSelectValue(question, option.value)}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+              >
+                {formatDisplayLabel(option.label)}
+              </button>
+            );
+          })}
+        </div>
       );
     }
 
     if (question.type === "radio" || question.type === "select") {
       return (
-        <select
-          aria-label={question.label}
-          value={String(answers[question.id] ?? "")}
-          onChange={(event) => setValue(question.id, event.target.value)}
-          className="focus-ring min-w-0 max-w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none"
-        >
-          <option value="">Select an option</option>
-          {question.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+          {question.options?.map((option) => {
+            const active = answers[question.id] === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setValue(question.id, option.value, true)}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+              >
+                {formatDisplayLabel(option.label)}
+              </button>
+            );
+          })}
+        </div>
       );
     }
 
     if (question.type === "range") {
+      const currentValue = typeof answers[question.id] === "number" ? Number(answers[question.id]) : question.min ?? 0;
+
       return (
-        <select
-          aria-label={question.label}
-          value={answers[question.id] === undefined ? "" : String(answers[question.id])}
-          onChange={(event) => setValue(question.id, Number(event.target.value))}
-          className="focus-ring min-w-0 max-w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 text-sm outline-none"
-        >
-          <option value="">Select score</option>
-          {Array.from({ length: 11 }, (_, score) => (
-            <option key={score} value={score}>
-              {score}
-            </option>
-          ))}
-        </select>
+        <div className="mx-auto w-full max-w-md rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-center">
+            <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--accent)]">
+              Selected: {currentValue}
+            </div>
+          </div>
+          <input
+            aria-label={question.label}
+            className="w-full accent-[var(--accent)]"
+            type="range"
+            min={question.min ?? 0}
+            max={question.max ?? 10}
+            step={question.step ?? 1}
+            value={currentValue}
+            onChange={(event) => setValue(question.id, Number(event.target.value))}
+          />
+          <div className="mt-3 flex items-center justify-between text-xs font-medium text-[color:var(--muted)]">
+            <span>{question.min ?? 0}</span>
+            <span>{question.max ?? 10}</span>
+          </div>
+        </div>
       );
     }
 
@@ -1035,39 +1094,210 @@ export function PatientWorkflow({
     );
   };
 
-  const renderSectionForm = () => {
+
+  const renderPainMapPage = () => {
+    const painScoreValue = typeof answers.painScore === "number" ? answers.painScore : 0;
+
+    return (
+      <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)] lg:gap-5">
+          <div className="overflow-hidden rounded-[1.4rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(180deg,rgba(15,118,110,0.08),rgba(255,255,255,0.96))] p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Body map</div>
+            <h3 className="mt-1 text-2xl font-semibold text-[color:var(--foreground)]">Where does it hurt most?</h3>
+            <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Tap the area on the neutral body figure. This keeps the form short and still gives the doctor a precise pain location.</p>
+
+            <div className="relative mx-auto mt-5 h-[26rem] w-full max-w-[18rem]">
+              <div className="absolute left-1/2 top-3 h-11 w-11 -translate-x-1/2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
+              <div className="absolute left-1/2 top-14 h-24 w-16 -translate-x-1/2 rounded-[2rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
+              <div className="absolute left-1/2 top-[6.5rem] h-28 w-8 -translate-x-1/2 rounded-full bg-[rgba(21,32,43,0.06)]" aria-hidden="true" />
+              <div className="absolute left-1/2 top-[8.9rem] h-28 w-28 -translate-x-1/2 rounded-[3rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
+              <div className="absolute left-1/2 top-[16rem] h-24 w-16 -translate-x-1/2 rounded-[2rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
+              <div className="absolute left-1/2 top-[19.7rem] h-36 w-10 -translate-x-1/2 rounded-full bg-[rgba(21,32,43,0.06)]" aria-hidden="true" />
+
+              {painMapAreas.map((area, index) => {
+                const active = answers.painLocation === area.value;
+
+                return (
+                  <button
+                    key={`${area.value}-${index}`}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={`Select ${area.label}`}
+                    onClick={() => setValue("painLocation", area.value)}
+                    className={`focus-ring absolute rounded-full border px-3 py-2 text-[11px] font-semibold shadow-sm transition ${active ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.08)]"}`}
+                    style={area.style}
+                  >
+                    {area.label}
+                  </button>
+                );
+              })}
+
+              <div className="absolute left-1/2 top-[10.1rem] h-5 w-5 -translate-x-1/2 rounded-full bg-[rgba(15,118,110,0.16)]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
+              Neutral outline only. No gendered body shape, just a quick visual map to reduce typing.
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain location</div>
+              <div className="mx-auto mt-3 flex w-full max-w-md flex-col gap-2">
+                {(currentQuestion?.options ?? []).map((option) => {
+                  const active = answers.painLocation === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setValue("painLocation", option.value)}
+                      className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[color:var(--muted)]">Choose the main area that hurts the most.</p>
+            </div>
+
+            <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain score</div>
+                  <div className="mt-1 text-sm font-medium text-[color:var(--foreground)]">How intense does this feel right now?</div>
+                </div>
+                <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--accent)]">Selected: {painScoreValue}/10</div>
+              </div>
+
+              <input
+                className="mt-5 w-full accent-[var(--accent)]"
+                type="range"
+                min={0}
+                max={10}
+                step={1}
+                value={painScoreValue}
+                onChange={(event) => setValue("painScore", Number(event.target.value))}
+                aria-label="Pain score"
+              />
+
+              <div className="mt-3 flex items-center justify-between text-xs font-medium text-[color:var(--muted)]">
+                <span>0 - mild</span>
+                <span>10 - worst</span>
+              </div>
+            </div>
+
+            {answers.painLocation ? (
+              <div className="rounded-[1.35rem] border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
+                Selected area: <span className="font-semibold">{currentQuestion?.options?.find((option) => option.value === answers.painLocation)?.label ?? answers.painLocation}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
+      </div>
+    );
+  };
+
+  const renderQuestionPage = () => {
+    if (!currentQuestion) {
+      return <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-3 text-xs text-[color:var(--muted)]">No visible questions in this section for current answers.</div>;
+    }
+
+    if (section.id === "pain-behaviour" && currentQuestion.id === "painLocation") {
+      return renderPainMapPage();
+    }
+
+    return (
+      <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
+          <button
+            type="button"
+            aria-label="Previous question"
+            onClick={prevQuestion}
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm"
+          >
+            &lt;
+          </button>
+
+          <div className="min-w-0 flex-1 text-center">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
+              Question {currentQuestionIndex + 1} / {sectionQuestionCount}
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              {currentQuestion.required ? <span className="rounded-full bg-[rgba(255,138,91,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">Required</span> : null}
+              {currentQuestion.linkedFrom ? <span className="rounded-full bg-[rgba(15,118,110,0.08)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">Linked</span> : null}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Next question"
+            onClick={nextQuestion}
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
+          >
+            &gt;
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-4 text-center">
+          <div className="space-y-2">
+            <label className="block text-2xl font-semibold leading-tight text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(currentQuestion.label)}</label>
+            {currentQuestion.helpText ? <p className="mx-auto max-w-2xl text-sm leading-6 text-[color:var(--muted)]">{currentQuestion.helpText}</p> : null}
+          </div>
+          <div>{renderQuestionInput(currentQuestion)}</div>
+        </div>
+
+        {isShortSectionWrapUp ? (
+          <div className="mt-4 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
+            Great job. This shorter section gives the doctor a quick, high-signal snapshot and keeps the questionnaire moving.
+          </div>
+        ) : null}
+
+        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
+      </div>
+    );
+  };
+
+  const renderSectionIntro = () => {
+    const intro = getSectionIntro(section.id, section.title);
+
+    return (
+      <div className="mx-auto flex min-h-[54vh] w-full max-w-3xl items-center justify-center rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(135deg,rgba(15,118,110,0.08),rgba(255,255,255,0.96))] p-5 text-center shadow-sm sm:p-8">
+        <div className="w-full">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">{intro.kicker}</div>
+          <h2 className="headline mt-2 text-2xl font-semibold leading-tight text-[color:var(--foreground)] sm:text-4xl">{intro.title}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[color:var(--muted)] sm:text-base">{intro.body}</p>
+
+          <div className="mx-auto mt-6 flex w-full max-w-md flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setQuestionIndex(0)}
+              className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-sm"
+            >
+              {intro.buttonLabel}
+            </button>
+            <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
+              {intro.summary}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCurrentPanel = () => {
     if (isRedFlagSection) {
       return renderRedFlagSection();
     }
 
-    if (visibleQuestions.length === 0) {
-      return (
-        <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-3 text-xs text-[color:var(--muted)]">
-          No visible questions in this section for current answers.
-        </div>
-      );
+    if (isSectionIntro) {
+      return renderSectionIntro();
     }
 
-    return (
-      <div className="min-w-0 overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] bg-white shadow-sm">
-        {visibleQuestions.map((question) => (
-          <div key={question.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.78fr)] items-start gap-2 border-b border-[rgba(21,32,43,0.08)] px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(240px,0.72fr)] sm:gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.6fr)]">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                {question.required ? <span className="rounded-full bg-[rgba(255,138,91,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">Required</span> : null}
-                {question.linkedFrom ? <span className="rounded-full bg-[rgba(15,118,110,0.08)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">Linked</span> : null}
-              </div>
-              <label className="mt-1 block text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">
-                {question.label}
-              </label>
-              {question.helpText ? <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">{question.helpText}</p> : null}
-            </div>
-            <div className="min-w-0">{renderQuestionInput(question)}</div>
-          </div>
-        ))}
-        {validationMessage ? <p className="text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
-      </div>
-    );
+    return renderQuestionPage();
   };
 
   if (submitted) {
@@ -1217,138 +1447,7 @@ export function PatientWorkflow({
         </button>
       ) : null}
 
-      <div className="sticky top-16 z-20 rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(255,255,255,0.96)] px-3 py-3 shadow-sm backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-medium text-[color:var(--muted)]">{patientDisplayName}</div>
-            <div className="text-sm font-semibold text-[color:var(--foreground)]">{patientCompletion}% complete</div>
-          </div>
-          <div className="text-right text-xs text-[color:var(--muted)]">
-            <div>Section {sectionIndex + 1} / {workflowSections.length}</div>
-            <div>{estimatedMinutesSpent} min done • {estimatedMinutesRemaining} min left</div>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-2xl border border-[rgba(15,118,110,0.14)] bg-[rgba(15,118,110,0.06)] p-3 sm:hidden">
-          <div className="flex items-start gap-2">
-            <button
-              type="button"
-              aria-label="Previous section"
-              onClick={prevQuestion}
-              disabled={sectionIndex === 0}
-              className="focus-ring mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              &lt;
-            </button>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-[var(--accent)] shadow-sm">
-                  <SectionIcon sectionId={section.id} className="h-4 w-4" />
-                </span>
-                <span>Chapter {sectionIndex + 1} of {workflowSections.length}</span>
-              </div>
-              <div className="mt-1 text-base font-semibold leading-snug text-[color:var(--foreground)] [overflow-wrap:anywhere]">
-                {section.title}
-              </div>
-              <div className="mt-1 text-xs leading-5 text-[color:var(--muted)] [overflow-wrap:anywhere]">
-                {section.subtitle}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              aria-label="Next section"
-              onClick={nextQuestion}
-              disabled={sectionIndex === workflowSections.length - 1}
-              className="focus-ring mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              &gt;
-            </button>
-          </div>
-
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-            <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${sectionJourneyCompletion}%` }} />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[color:var(--muted)]">
-            <span>{currentSectionAnswered}/{currentSectionTotal} answered here</span>
-            <span>{sectionJourneyCompletion}% journey</span>
-          </div>
-          {nextSectionTitle ? (
-            <div className="mt-2 truncate rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-[color:var(--muted)]">
-              Next: {nextSectionTitle}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-3 hidden items-center gap-2 sm:flex">
-          <button
-            type="button"
-            aria-label="Previous section"
-            onClick={prevQuestion}
-            disabled={sectionIndex === 0}
-            className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            &lt;
-          </button>
-
-          <div className="grid min-w-0 flex-1 grid-cols-12 gap-1.5">
-            {sectionCards.map((item, index) => {
-              const completed = item.answeredCount >= item.visibleCount && item.visibleCount > 0;
-              const inProgress = item.answeredCount > 0 && !completed;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-label={`Go to ${item.title}`}
-                  title={item.title}
-                  onClick={() => goToSection(index)}
-                  className={`focus-ring h-3 rounded-full transition ${item.active ? "bg-[var(--accent)] ring-2 ring-[rgba(15,118,110,0.24)]" : completed ? "bg-[rgba(15,118,110,0.45)]" : inProgress ? "bg-[color:#f6a44d]" : "bg-[rgba(21,32,43,0.14)]"}`}
-                />
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            aria-label="Next section"
-            onClick={nextQuestion}
-            disabled={sectionIndex === workflowSections.length - 1}
-            className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            &gt;
-          </button>
-        </div>
-
-        <div className="mt-2 hidden h-1.5 overflow-hidden rounded-full bg-[rgba(21,32,43,0.08)] sm:block">
-          <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${sectionJourneyCompletion}%` }} />
-        </div>
-      </div>
-
       <section ref={questionAreaRef} className="rounded-[1.1rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-3.5 shadow-[0_20px_60px_rgba(21,32,43,0.12)] sm:rounded-[1.75rem] sm:p-4 lg:p-8">
-
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="min-w-0">
-            <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)] sm:px-3 sm:py-1.5 sm:text-xs">
-              Confidential patient document
-            </span>
-            <div className="mt-2 flex min-w-0 items-center gap-3 sm:mt-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[rgba(15,118,110,0.14)] bg-[rgba(15,118,110,0.08)] text-[var(--accent)] shadow-sm sm:h-14 sm:w-14 sm:rounded-[1.25rem]">
-                <SectionIcon sectionId={section.id} className="h-5 w-5 sm:h-6 sm:w-6" />
-              </span>
-              <h1 className="headline min-w-0 text-xl font-semibold leading-tight [overflow-wrap:anywhere] sm:text-4xl">{section.title}</h1>
-            </div>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-[color:var(--muted)] sm:mt-1.5 sm:text-sm sm:leading-6">{section.subtitle}</p>
-            <div className="mt-2 text-xs font-medium text-[color:var(--muted)]">
-              {sectionQuestionCount} question{sectionQuestionCount === 1 ? "" : "s"} in this section • about {estimatedMinutesRemaining} min left
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[rgba(21,32,43,0.08)]">
-          <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${patientCompletion}%` }} />
-        </div>
 
         {redFlagTriggered && section.id === "red-flags" ? (
           <div className="mt-4 rounded-xl border border-[rgba(255,138,91,0.24)] bg-[rgba(255,138,91,0.12)] p-3 text-xs leading-6 text-[color:var(--foreground)]">
@@ -1356,28 +1455,10 @@ export function PatientWorkflow({
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-3">{renderSectionForm()}</div>
-
-        <div className="mt-4 flex flex-wrap gap-2.5">
-            <button
-              type="button"
-              aria-label="Previous section"
-              onClick={prevQuestion}
-              disabled={sectionIndex === 0}
-              className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Previous section
-            </button>
-            <button
-              type="button"
-              aria-label="Next section"
-              onClick={nextQuestion}
-              disabled={sectionIndex === workflowSections.length - 1}
-              className="focus-ring rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Next section
-            </button>
+        <div className="mt-4">
+          {renderCurrentPanel()}
         </div>
+
       </section>
 
         <div className="pt-1">

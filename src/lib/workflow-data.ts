@@ -1,4 +1,5 @@
 import type { AppRole } from "@/lib/rbac";
+import { toPlainQuestionText } from "@/lib/question-text";
 
 export const demoOtpCode = "482931";
 
@@ -28,6 +29,9 @@ export type WorkflowQuestion = {
   helpText?: string;
   required?: boolean;
   options?: SelectOption[];
+  min?: number;
+  max?: number;
+  step?: number;
   linkedFrom?: string;
   branchOn?: string;
   branchValue?: string;
@@ -892,7 +896,21 @@ const hasFrequentNeuro = (a: Record<string, unknown>) => {
          (weakness === "moderate" || weakness === "progressive");
 };
 
-export const preConsultSections: WorkflowSection[] = [
+function sanitizeWorkflowSections(sections: WorkflowSection[]): WorkflowSection[] {
+  return sections.map((section) => ({
+    ...section,
+    questions: section.questions.map((question) => ({
+      ...question,
+      label: toPlainQuestionText(question.label),
+      options: question.options?.map((option) => ({
+        ...option,
+        label: toPlainQuestionText(option.label),
+      })),
+    })),
+  }));
+}
+
+export const preConsultSections: WorkflowSection[] = sanitizeWorkflowSections([
   // ── Section A: Urgent Red-Flag Pre-Screen ────────────────────────────────────
   {
     id: "red-flags",
@@ -1393,4 +1411,4 @@ export const preConsultSections: WorkflowSection[] = [
       },
     ],
   },
-];
+]);

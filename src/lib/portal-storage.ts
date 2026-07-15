@@ -254,7 +254,23 @@ export function savePatientRecord(data: Omit<PatientRecord, "id" | "patientId" |
 
 export function findPatientRecordByPhone(phone: string): PatientRecord | null {
 	const normalized = phone.replace(/\D/g, "");
-	return readJson<PatientRecord | null>(`${storageKeys.patientRecordByPhone}${normalized}`, null);
+	if (!normalized) {
+		return null;
+	}
+
+	const direct = readJson<PatientRecord | null>(`${storageKeys.patientRecordByPhone}${normalized}`, null);
+	if (direct) {
+		return direct;
+	}
+
+	// Backward compatibility: older records may have been keyed by unnormalized phone values.
+	const all = listAllPatientRecords();
+	const match = all.find((record) => record.phone.replace(/\D/g, "") === normalized) ?? null;
+	if (match) {
+		writeJson(`${storageKeys.patientRecordByPhone}${normalized}`, match);
+	}
+
+	return match;
 }
 
 export function findPatientRecordById(patientId: string): PatientRecord | null {

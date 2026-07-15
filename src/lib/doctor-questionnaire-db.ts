@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { doctorQuestionnaireDefinition } from "@/lib/questionnaire";
 import { prisma } from "@/lib/prisma";
+import { toPlainQuestionText } from "@/lib/question-text";
 
 export const doctorQuestionnaireSlug = "sei-doctor-consult-v1";
 
@@ -61,7 +62,7 @@ function getQuestionnaireQuestionData(questionnaireId: string) {
   return doctorQuestionnaireDefinition.questions.map((question, index) => ({
     questionnaireId,
     key: question.id,
-    label: question.label,
+    label: toPlainQuestionText(question.label),
     type: question.type,
     helpText: question.helpText ?? null,
     sortOrder: index + 1,
@@ -69,7 +70,10 @@ function getQuestionnaireQuestionData(questionnaireId: string) {
       sectionId: question.sectionId ?? null,
       sectionTitle: question.sectionTitle ?? null,
       required: Boolean(question.required),
-      options: question.options ?? [],
+      options: (question.options ?? []).map((option) => ({
+        ...option,
+        label: toPlainQuestionText(option.label),
+      })),
       multiSelect: Boolean(question.multiSelect),
       placeholder: question.placeholder ?? null,
       min: question.min ?? null,
@@ -413,6 +417,17 @@ export async function saveDoctorQuestionnaireToDatabase(record: DoctorQuestionna
         questionIndex: record.stepIndex,
         completionPct,
       },
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    });
+
+    const durationSeconds = Math.max(0, Math.round((Date.now() - submission.createdAt.getTime()) / 1000));
+    await tx.questionnaireSubmission.update({
+      where: { id: submission.id },
+      data: { durationSeconds },
+      select: { id: true },
     });
 
     await tx.questionnaireAnswer.deleteMany({ where: { submissionId: submission.id } });

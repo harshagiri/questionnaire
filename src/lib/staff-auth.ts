@@ -13,6 +13,15 @@ export type StaffAccount = {
   createdAt: string;
 };
 
+export function buildStaffPhotoUrl(role: Exclude<AppRole, "patient">, email: string) {
+  const params = new URLSearchParams({
+    role,
+    email: email.trim().toLowerCase(),
+    v: String(Date.now()),
+  });
+  return `/api/uploads/staff-photo?${params.toString()}`;
+}
+
 function isStaffRole(role: string): role is Exclude<AppRole, "patient"> {
   return role === "doctor" || role === "receptionist" || role === "admin";
 }
@@ -82,7 +91,7 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
         email: true,
         passwordHash: true,
         displayName: true,
-        photoUrl: true,
+        photoMimeType: true,
         createdAt: true,
       },
     });
@@ -94,7 +103,7 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
         email: item.email,
         passwordHash: item.passwordHash,
         displayName: item.displayName,
-        photoUrl: item.photoUrl ?? "",
+        photoUrl: item.photoMimeType ? buildStaffPhotoUrl(item.role, item.email) : "",
         createdAt: item.createdAt.toISOString(),
       }));
 
@@ -161,17 +170,17 @@ export async function createStaffAccount(input: {
         email: true,
         passwordHash: true,
         displayName: true,
-        photoUrl: true,
+        photoMimeType: true,
         createdAt: true,
       },
     });
 
     return {
-      role: created.role,
+      role,
       email: created.email,
       passwordHash: created.passwordHash,
       displayName: created.displayName,
-      photoUrl: created.photoUrl ?? "",
+      photoUrl: created.photoMimeType ? buildStaffPhotoUrl(role, created.email) : "",
       createdAt: created.createdAt.toISOString(),
     };
   }
@@ -242,17 +251,17 @@ export async function updateStaffAccount(input: {
         email: true,
         passwordHash: true,
         displayName: true,
-        photoUrl: true,
+        photoMimeType: true,
         createdAt: true,
       },
     });
 
     return {
-      role: updated.role,
+      role,
       email: updated.email,
       passwordHash: updated.passwordHash,
       displayName: updated.displayName,
-      photoUrl: updated.photoUrl ?? "",
+      photoUrl: updated.photoMimeType ? buildStaffPhotoUrl(role, updated.email) : "",
       createdAt: updated.createdAt.toISOString(),
     };
   }
@@ -297,18 +306,41 @@ export async function verifyStaffCredentials(
   const normalizedEmail = email.trim().toLowerCase();
 
   if (shouldUseDb() && prisma) {
-    const account = await prisma.user.findFirst({
-      where: { role, email: normalizedEmail },
-      select: {
-        passwordHash: true,
-        displayName: true,
-        photoUrl: true,
-        doctorProfile: { select: { photoUrl: true } },
-      },
-    });
+    try {
+      const account = await prisma.user.findFirst({
+        where: { role, email: normalizedEmail },
+        select: {
+          passwordHash: true,
+          displayName: true,
+          photoMimeType: true,
+        },
+      });
 
-    if (!account) {
-      const fallback = defaultStaffAccounts.find((item) => item.role === role && item.email === normalizedEmail);
+      if (!account) {
+        const fallback = defaultStaffAccounts.find((item) => item.role === role && item.email === normalizedEmail);
+        if (!fallback) {
+          return { ok: false };
+        }
+
+        const fallbackValid = await compare(password, fallback.passwordHash);
+        if (!fallbackValid) {
+          return { ok: false };
+        }
+
+        return { ok: true, displayName: fallback.displayName, photoUrl: fallback.photoUrl };
+      }
+
+      const valid = await compare(password, account.passwordHash);
+      if (!valid) {
+        return { ok: false };
+      }
+
+      const resolvedPhotoUrl = account.photoMimeType ? buildStaffPhotoUrl(role, normalizedEmail) : "";
+      return { ok: true, displayName: account.displayName, photoUrl: resolvedPhotoUrl };
+    } catch {
+      const fallbackAccounts = [...defaultStaffAccounts, ...(await readStoredStaffAccounts())];
+      const fallback = fallbackAccounts.find((item) => item.role === role && item.email === normalizedEmail);
+
       if (!fallback) {
         return { ok: false };
       }
@@ -320,15 +352,6 @@ export async function verifyStaffCredentials(
 
       return { ok: true, displayName: fallback.displayName, photoUrl: fallback.photoUrl };
     }
-
-    const valid = await compare(password, account.passwordHash);
-    if (!valid) {
-      return { ok: false };
-    }
-
-    // Prefer User.photoUrl; fall back to DoctorProfile.photoUrl if available
-    const resolvedPhotoUrl = account.photoUrl?.trim() || account.doctorProfile?.photoUrl?.trim() || "";
-    return { ok: true, displayName: account.displayName, photoUrl: resolvedPhotoUrl };
   }
 
   const accounts = await listStaffAccounts();

@@ -14,6 +14,7 @@ TARGET_DIR=${4:-/home/${REMOTE%%@*}/questionnaire}
 ENV_FILE=${5:-}
 RUN_DOCTOR_MIGRATION=${6:-false}
 APP_IMAGE=${7:-}
+RESET_DATABASE=${DEPLOY_RESET_DATABASE:-false}
 
 # Optional local secrets file (never commit secrets):
 #   ./.deploy.secrets containing: DEPLOY_SSH_PASSWORD='your_password'
@@ -30,6 +31,11 @@ fi
 
 if [[ "$RUN_DOCTOR_MIGRATION" != "true" && "$RUN_DOCTOR_MIGRATION" != "false" ]]; then
   echo "run_doctor_migration must be 'true' or 'false'" >&2
+  exit 1
+fi
+
+if [[ "$RESET_DATABASE" != "true" && "$RESET_DATABASE" != "false" ]]; then
+  echo "DEPLOY_RESET_DATABASE must be true or false." >&2
   exit 1
 fi
 
@@ -55,7 +61,7 @@ if [[ -n "$ENV_FILE" ]]; then
   sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$ENV_FILE" "$REMOTE:/tmp/questionnaire.env"
 fi
 
-sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" "TARGET_DIR='${TARGET_DIR}' BRANCH='${BRANCH}' RUN_DOCTOR_MIGRATION='${RUN_DOCTOR_MIGRATION}' APP_IMAGE='${APP_IMAGE}' bash -s" <<'EOF'
+sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$REMOTE" "TARGET_DIR='${TARGET_DIR}' BRANCH='${BRANCH}' RUN_DOCTOR_MIGRATION='${RUN_DOCTOR_MIGRATION}' RESET_DATABASE='${RESET_DATABASE}' APP_IMAGE='${APP_IMAGE}' bash -s" <<'EOF'
 set -euo pipefail
 
 if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
@@ -124,14 +130,20 @@ if ! grep -q '^DOCTORS_STORAGE_MODE=' .env 2>/dev/null; then
 fi
 
 echo "[remote] Starting containers with docker compose"
-docker compose down || true
+if [ "${RESET_DATABASE}" = "true" ]; then
+  echo "[remote] Resetting database volume"
+  docker compose down -v || true
+else
+  docker compose down || true
+fi
 docker compose pull || true
-docker compose up -d --no-build
+docker compose up -d --no-build --force-recreate
+
+echo "[remote] Syncing Prisma schema"
+docker compose exec -T app npm run db:push
 
 if [ "${RUN_DOCTOR_MIGRATION}" = "true" ]; then
   echo "[remote] Applying Prisma schema to database"
-  docker compose exec -T app npx prisma db push
-
   echo "[remote] Running doctors migration inside app container"
   docker compose exec -T app npm run db:migrate:doctors
 fi

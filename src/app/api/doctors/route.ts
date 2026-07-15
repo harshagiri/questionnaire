@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { buildStaffPhotoUrl } from "@/lib/staff-auth";
 
 type DbDoctorRecord = {
   id: string;
@@ -31,10 +31,16 @@ const doctorCreateSchema = z.object({
   photoUrl: z.string().min(1).optional().or(z.literal("")),
 });
 
-function toGravatarUrl(email: string) {
-  const md5 = createHash("md5").update(email.trim().toLowerCase()).digest("hex");
-  return `https://www.gravatar.com/avatar/${md5}?d=identicon&s=256`;
-}
+const doctorUpdateSchema = z.object({
+  id: z.string().min(1).optional(),
+  email: z.string().email(),
+  name: z.string().min(2),
+  phone: z.string().min(8),
+  registrationNumber: z.string().min(2),
+  licenseNumber: z.string().min(2),
+  bio: z.string().optional(),
+  password: z.string().min(8).optional(),
+});
 
 type StoredDoctor = {
   id: string;
@@ -129,8 +135,8 @@ export async function GET(request: Request) {
         ok: true,
         doctors: doctorProfiles.map((doctor) => {
           const d = doctor as typeof doctor & { user: { email: string; photoUrl?: string | null }; availabilitySlots?: unknown[] };
-          // Prefer User.photoUrl (where uploaded photos are stored), fall back to DoctorProfile.photoUrl, then Gravatar
-          const resolvedPhoto = d.user.photoUrl?.trim() || doctor.photoUrl?.trim() || toGravatarUrl(d.user.email);
+          const hasDbPhoto = Boolean((d.user as { photoMimeType?: string | null }).photoMimeType);
+          const resolvedPhoto = hasDbPhoto ? buildStaffPhotoUrl("doctor", d.user.email) : "";
           return {
             id: doctor.id,
             name: doctor.name,
@@ -173,7 +179,7 @@ export async function POST(request: Request) {
 
   const input = payload.data;
   const email = input.email.trim().toLowerCase();
-  const photoUrl = input.photoUrl?.trim() ? input.photoUrl.trim() : toGravatarUrl(email);
+  const photoUrl = input.photoUrl?.trim() ? input.photoUrl.trim() : "";
 
   const existing = await readDoctors();
   if (storageMode === "database" && !prisma) {
@@ -208,7 +214,7 @@ export async function POST(request: Request) {
                 passwordHash,
                 role: "doctor",
                 displayName: input.name,
-                photoUrl,
+                photoUrl: "",
               },
             });
 
@@ -245,7 +251,7 @@ export async function POST(request: Request) {
           registrationNumber: created.registrationNumber,
           licenseNumber: created.licenseNumber,
           bio: created.bio ?? "",
-          photoUrl: created.photoUrl ?? toGravatarUrl(created.user.email),
+          photoUrl: created.user.photoMimeType ? buildStaffPhotoUrl("doctor", created.user.email) : "",
           createdAt: created.createdAt.toISOString(),
         },
         storage: "database",
@@ -283,4 +289,109 @@ export async function POST(request: Request) {
   await saveDoctors(next);
 
   return NextResponse.json({ ok: true, doctor: created, storage: "file" });
+}
+
+export async function PUT(request: Request) {
+  const payload = doctorUpdateSchema.safeParse(await request.json());
+  if (!payload.success) {
+    return NextResponse.json({ ok: false, message: "Invalid doctor update payload" }, { status: 400 });
+  }
+
+  const input = payload.data;
+  const email = input.email.trim().toLowerCase();
+
+  if (storageMode === "database" && !prisma) {
+    return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
+  }
+
+  if (shouldUseDb() && prisma) {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const profile = input.id
+          ? await tx.doctorProfile.findUnique({
+              where: { id: input.id },
+              include: { user: true },
+            })
+          : await tx.doctorProfile.findFirst({
+              where: { user: { email } },
+              include: { user: true },
+            });
+
+        if (!profile) {
+          throw new Error("Doctor not found");
+        }
+
+        if (profile.user.email.trim().toLowerCase() !== email) {
+          throw new Error("Doctor email does not match selected profile");
+        }
+
+        const nextPasswordHash = input.password?.trim() ? await hash(input.password.trim(), 10) : profile.user.passwordHash;
+
+        const user = await tx.user.update({
+          where: { id: profile.userId },
+          data: {
+            displayName: input.name,
+            passwordHash: nextPasswordHash,
+          },
+          select: {
+            email: true,
+            photoMimeType: true,
+          },
+        });
+
+        const doctor = await tx.doctorProfile.update({
+          where: { id: profile.id },
+          data: {
+            name: input.name,
+            phone: input.phone,
+            registrationNumber: input.registrationNumber,
+            licenseNumber: input.licenseNumber,
+            bio: input.bio ?? "",
+          },
+        });
+
+        return { doctor, user };
+      });
+
+      return NextResponse.json({
+        ok: true,
+        doctor: {
+          id: updated.doctor.id,
+          name: updated.doctor.name,
+          email: updated.user.email,
+          phone: updated.doctor.phone,
+          registrationNumber: updated.doctor.registrationNumber,
+          licenseNumber: updated.doctor.licenseNumber,
+          bio: updated.doctor.bio ?? "",
+          photoUrl: updated.user.photoMimeType ? buildStaffPhotoUrl("doctor", updated.user.email) : "",
+          createdAt: updated.doctor.createdAt.toISOString(),
+        },
+        storage: "database",
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, message: error instanceof Error ? error.message : "Could not update doctor" },
+        { status: 409 },
+      );
+    }
+  }
+
+  const doctors = await readDoctors();
+  const index = doctors.findIndex((item) => item.email.toLowerCase() === email);
+  if (index < 0) {
+    return NextResponse.json({ ok: false, message: "Doctor not found" }, { status: 404 });
+  }
+
+  doctors[index] = {
+    ...doctors[index],
+    name: input.name,
+    phone: input.phone,
+    registrationNumber: input.registrationNumber,
+    licenseNumber: input.licenseNumber,
+    bio: input.bio ?? "",
+  };
+
+  await saveDoctors(doctors);
+
+  return NextResponse.json({ ok: true, doctor: doctors[index], storage: "file" });
 }

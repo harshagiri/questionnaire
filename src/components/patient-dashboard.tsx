@@ -116,13 +116,55 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
 export function PatientDashboard({ phone }: { phone: string }) {
   const router = useRouter();
   const [patientRecord, setPatientRecord] = useState<PatientRecord | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [consultModal, setConsultModal] = useState<ConsultModal | null>(null);
 
   useEffect(() => {
-    const record = findPatientRecordByPhone(phone);
-    setPatientRecord(record);
+    let cancelled = false;
+
+    async function resolvePatientRecord() {
+      const normalizedPhone = phone.replace(/\D/g, "");
+      if (normalizedPhone.length < 10) {
+        if (!cancelled) {
+          setPatientRecord(null);
+          setProfileLoading(false);
+        }
+        return;
+      }
+
+      const localRecord = findPatientRecordByPhone(normalizedPhone);
+      if (localRecord?.patientId) {
+        if (!cancelled) {
+          setPatientRecord(localRecord);
+          setProfileLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/patient-register?phone=${encodeURIComponent(normalizedPhone)}`, { cache: "no-store" });
+        const payload = (await response.json()) as { ok?: boolean; record?: PatientRecord | null };
+        if (!cancelled) {
+          setPatientRecord(response.ok && payload.ok ? (payload.record ?? null) : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setPatientRecord(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+      }
+    }
+
+    void resolvePatientRecord();
+
+    return () => {
+      cancelled = true;
+    };
   }, [phone]);
 
   useEffect(() => {
@@ -152,7 +194,9 @@ export function PatientDashboard({ phone }: { phone: string }) {
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Patient ID banner */}
-        {patientRecord ? (
+        {profileLoading ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-6 text-sm text-gray-500">Checking your profile…</div>
+        ) : patientRecord ? (
           <div className="bg-teal-700 text-white rounded-2xl p-5 mb-6">
             <div className="flex items-center justify-between">
               <div>
@@ -215,6 +259,19 @@ export function PatientDashboard({ phone }: { phone: string }) {
             <p className="text-sm font-semibold text-gray-800">Update profile</p>
             <p className="text-xs text-gray-400 mt-0.5">Edit your registration details</p>
           </button>
+          <button
+            onClick={() => canProceed && router.push("/patient/upload")}
+            disabled={!canProceed}
+            className={`col-span-2 bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
+          >
+            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
+              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 8l-3-3m3 3l3-3M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-800">Upload documents</p>
+            <p className="text-xs text-gray-400 mt-0.5">Add MRI, X-ray, labs, and prescriptions anytime</p>
+          </button>
         </div>
 
         {/* Upcoming appointments */}
@@ -235,12 +292,12 @@ export function PatientDashboard({ phone }: { phone: string }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingAppointments.map((appt) => {
+              {upcomingAppointments.map((appt, index) => {
                 const consultId = appt.consultId ?? appt.sessionId;
                 const preConsultLink = `${typeof window !== "undefined" ? window.location.origin : ""}/patient/consult/${consultId}`;
                 const videoConsultLink = `https://meet.spinexpert.ai/consult/${consultId}`;
                 return (
-                  <div key={appt.sessionId} className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div key={`${appt.sessionId}-${consultId}-${index}`} className="bg-white border border-gray-200 rounded-xl p-4">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
                         <p className="text-sm font-semibold text-gray-800">{appt.doctorName || "Doctor TBD"}</p>
@@ -275,8 +332,11 @@ export function PatientDashboard({ phone }: { phone: string }) {
           <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Past</h2>
             <div className="space-y-2">
-              {pastAppointments.map((appt) => (
-                <div key={appt.sessionId} className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between">
+              {pastAppointments.map((appt, index) => (
+                <div
+                  key={`${appt.sessionId}-${appt.consultId ?? appt.sessionId}-${index}`}
+                  className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between"
+                >
                   <div>
                     <p className="text-sm font-medium text-gray-700">{appt.doctorName || "Doctor"}</p>
                     <p className="text-xs text-gray-400">{appt.appointmentDate}</p>

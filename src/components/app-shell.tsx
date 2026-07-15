@@ -11,8 +11,17 @@ export async function AppShell({ children, role }: AppShellProps) {
   const cookieStore = await cookies();
   const sessionRole = cookieStore.get("se_role")?.value;
   const sessionName = cookieStore.get("se_name")?.value;
-  const sessionAvatar = cookieStore.get("se_avatar")?.value;
+  const sessionAvatarCookie = cookieStore.get("se_avatar")?.value;
+  const sessionEmail = cookieStore.get("se_email")?.value?.trim().toLowerCase() || "";
   const resolvedRole = role ?? sessionRole;
+  const staffRole =
+    resolvedRole === "doctor" || resolvedRole === "receptionist" || resolvedRole === "admin"
+      ? resolvedRole
+      : null;
+  const sessionAvatar =
+    staffRole && sessionEmail
+      ? `/api/uploads/staff-photo?role=${encodeURIComponent(staffRole)}&email=${encodeURIComponent(sessionEmail)}&v=${Date.now()}`
+      : sessionAvatarCookie;
 
   const roleLabel =
     resolvedRole === "patient"

@@ -215,6 +215,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone");
   const date = searchParams.get("date");
+  const consultSessionId = searchParams.get("consultSessionId") ?? searchParams.get("sessionId");
   const doctorEmail = searchParams.get("doctorEmail");
   const doctorProfileId = searchParams.get("doctorProfileId");
 
@@ -225,7 +226,19 @@ export async function GET(request: Request) {
   try {
     let appointments;
 
-    if (doctorEmail || doctorProfileId) {
+    if (consultSessionId) {
+      const raw = await prisma.appointment.findMany({
+        where: { consultSessionId },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      appointments = raw.map((a) =>
+        toAppointmentPayload({
+          ...a,
+          appointmentDate: a.appointmentDate,
+        }),
+      );
+    } else if (doctorEmail || doctorProfileId) {
       // Doctor-filtered view: resolve doctorId from email if needed
       let resolvedDoctorUserId: string | undefined;
 

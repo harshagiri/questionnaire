@@ -330,9 +330,18 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
               <div key={item.id} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <span className="font-semibold">{item.patientName} · {item.patientPhone}</span>
-                  <select value={item.status} onChange={(e) => updateQueueStatus(item.id, e.target.value)} className="rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-3 py-1 text-xs font-semibold outline-none">
-                    {queueStatusOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/print/consult/${encodeURIComponent(item.consultSessionId)}`, "_blank", "noopener,noreferrer")}
+                      className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]"
+                    >
+                      Print
+                    </button>
+                    <select value={item.status} onChange={(e) => updateQueueStatus(item.id, e.target.value)} className="rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-3 py-1 text-xs font-semibold outline-none">
+                      {queueStatusOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div className="mt-1 text-sm text-[color:var(--muted)]">{item.doctorName} · {`${item.appointmentDate || "today"} ${item.appointmentTime || ""}`.trim()}</div>
               </div>
