@@ -700,6 +700,9 @@ export function PatientWorkflow({
 
   const totalQuestionCount = sectionProgress.totalVisibleQuestions;
   const currentQuestionNumber = questionsBeforeCurrentSection + (isRedFlagSection ? 1 : currentQuestionIndex + 1);
+  const isFirstQuestion = !isSectionIntro && sectionIndex === 0 && (isRedFlagSection || currentQuestionIndex === 0);
+  const isLastQuestionInSection = !isSectionIntro && (isRedFlagSection || currentQuestionIndex >= sectionQuestionCount - 1);
+  const isLastQuestionOverall = !isSectionIntro && sectionIndex === workflowSections.length - 1 && isLastQuestionInSection;
 
   const hasConsent = answers.reviewConsent === true;
   const patientDisplayName = String(answers.patientName ?? "").trim() || "Patient";
@@ -750,7 +753,7 @@ export function PatientWorkflow({
     `Patient goal: ${summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey])}`,
   ];
 
-  const setValue = (key: string, value: AnswerValue, autoAdvance = false) => {
+  const setValue = (key: string, value: AnswerValue) => {
     setAnswers((current) => {
       const nextAnswers = { ...current, [key]: value };
       setValidationMessage("");
@@ -774,16 +777,6 @@ export function PatientWorkflow({
 
       return nextAnswers;
     });
-    if (autoAdvance && !isSectionIntro) {
-      if (currentQuestionIndex < sectionQuestionCount - 1) {
-        setQuestionIndex((current) => current + 1);
-        return;
-      }
-
-      if (sectionIndex < workflowSections.length - 1) {
-        nextSection();
-      }
-    }
   };
 
   const toggleMultiSelectValue = (question: (typeof visibleQuestions)[number], optionValue: string) => {
@@ -861,6 +854,7 @@ export function PatientWorkflow({
           type="button"
           aria-label="Previous question"
           onClick={prevQuestion}
+            disabled={isFirstQuestion}
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
         >
           &lt;
@@ -877,14 +871,18 @@ export function PatientWorkflow({
           </div>
         </div>
 
-        <button
-          type="button"
-          aria-label="Next question"
-          onClick={nextQuestion}
-          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
-        >
-          &gt;
-        </button>
+        {isLastQuestionOverall ? (
+          <div className="h-10 w-10 shrink-0" aria-hidden="true" />
+        ) : (
+          <button
+            type="button"
+            aria-label="Next question"
+            onClick={nextQuestion}
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
+          >
+            &gt;
+          </button>
+        )}
       </div>
 
       <div className="text-center">
@@ -968,14 +966,14 @@ export function PatientWorkflow({
         <div className="mx-auto flex w-full max-w-md flex-col gap-2">
           <button
             type="button"
-            onClick={() => setValue(question.id, true, true)}
+            onClick={() => setValue(question.id, true)}
             className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
             Yes
           </button>
           <button
             type="button"
-            onClick={() => setValue(question.id, false, true)}
+            onClick={() => setValue(question.id, false)}
             className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
             No
@@ -1018,7 +1016,7 @@ export function PatientWorkflow({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setValue(question.id, option.value, true)}
+                onClick={() => setValue(question.id, option.value)}
                 className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
               >
                 {formatDisplayLabel(option.label)}
@@ -1217,7 +1215,8 @@ export function PatientWorkflow({
             type="button"
             aria-label="Previous question"
             onClick={prevQuestion}
-            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm"
+            disabled={isFirstQuestion}
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
           >
             &lt;
           </button>
@@ -1232,14 +1231,18 @@ export function PatientWorkflow({
             </div>
           </div>
 
-          <button
-            type="button"
-            aria-label="Next question"
-            onClick={nextQuestion}
-            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
-          >
-            &gt;
-          </button>
+          {isLastQuestionOverall ? (
+            <div className="h-10 w-10 shrink-0" aria-hidden="true" />
+          ) : (
+            <button
+              type="button"
+              aria-label="Next question"
+              onClick={nextQuestion}
+              className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
+            >
+              &gt;
+            </button>
+          )}
         </div>
 
         <div className="mt-4 space-y-4 text-center">
