@@ -110,6 +110,75 @@ a {
   height: var(--confetti-size);
 }
 
+.selected-answer {
+  animation: answer-pop 360ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.18);
+}
+
+.section-reveal {
+  animation: section-reveal 380ms cubic-bezier(0.22, 0.78, 0.2, 1);
+}
+
+.milestone-pill {
+  animation: milestone-glow 1800ms ease-in-out infinite;
+}
+
+.progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: progress-shimmer 1900ms ease-in-out infinite;
+}
+
+@keyframes answer-pop {
+  0% {
+    transform: scale(0.985);
+  }
+  60% {
+    transform: scale(1.015);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes section-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes milestone-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(15, 118, 110, 0);
+  }
+  50% {
+    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+  }
+}
+
+@keyframes progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(160%);
+  }
+}
+
 @keyframes confetti-fall {
   0% {
     opacity: 0;
@@ -132,6 +201,13 @@ a {
     animation: none;
     opacity: 0.45;
     top: 14px;
+  }
+
+  .selected-answer,
+  .section-reveal,
+  .milestone-pill,
+  .progress-shimmer::after {
+    animation: none;
   }
 }
 

@@ -1,0 +1,22 @@
+<svg width="920" height="620" viewBox="0 0 920 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="140" y1="50" x2="780" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E2F6F1"/>
+      <stop offset="0.62" stop-color="#FFF7EF"/>
+      <stop offset="1" stop-color="#FFE8DD"/>
+    </linearGradient>
+  </defs>
+  <rect width="920" height="620" rx="40" fill="url(#g1)"/>
+  <circle cx="460" cy="322" r="110" fill="#FFFFFF" stroke="#E2ECEA" stroke-width="3"/>
+  <circle cx="460" cy="322" r="44" fill="#0F766E" fill-opacity="0.14"/>
+  <circle cx="460" cy="322" r="20" fill="#0F766E"/>
+  <ellipse cx="460" cy="140" rx="56" ry="126" fill="#FF8A5B" fill-opacity="0.34"/>
+  <ellipse cx="460" cy="504" rx="56" ry="126" fill="#FF8A5B" fill-opacity="0.34"/>
+  <ellipse cx="644" cy="322" rx="126" ry="56" fill="#0F766E" fill-opacity="0.26"/>
+  <ellipse cx="276" cy="322" rx="126" ry="56" fill="#0F766E" fill-opacity="0.26"/>
+  <ellipse cx="590" cy="196" rx="98" ry="46" transform="rotate(35 590 196)" fill="#F6C85F" fill-opacity="0.38"/>
+  <ellipse cx="330" cy="196" rx="98" ry="46" transform="rotate(-35 330 196)" fill="#F6C85F" fill-opacity="0.38"/>
+  <ellipse cx="590" cy="448" rx="98" ry="46" transform="rotate(-35 590 448)" fill="#F6C85F" fill-opacity="0.38"/>
+  <ellipse cx="330" cy="448" rx="98" ry="46" transform="rotate(35 330 448)" fill="#F6C85F" fill-opacity="0.38"/>
+  <text x="308" y="334" fill="#15202B" font-family="system-ui, sans-serif" font-size="46" font-weight="700">Well done</text>
+</svg>

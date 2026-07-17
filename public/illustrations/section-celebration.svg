@@ -1,0 +1,20 @@
+<svg width="920" height="620" viewBox="0 0 920 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="base" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(460 300) rotate(90) scale(340 520)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F0FAF7"/>
+    </radialGradient>
+  </defs>
+  <rect width="920" height="620" rx="40" fill="url(#base)"/>
+  <circle cx="204" cy="196" r="94" fill="#D9F0EC"/>
+  <circle cx="706" cy="450" r="110" fill="#FFE6DB"/>
+  <path d="M260 390C348 286 422 236 528 236C612 236 676 266 756 326" stroke="#0F766E" stroke-width="14" stroke-linecap="round" stroke-dasharray="2 28"/>
+  <rect x="258" y="120" width="404" height="220" rx="28" fill="white" stroke="#E3ECEA" stroke-width="2"/>
+  <text x="312" y="194" fill="#15202B" font-family="system-ui, sans-serif" font-size="44" font-weight="700">Section Complete</text>
+  <text x="312" y="248" fill="#0F766E" font-family="system-ui, sans-serif" font-size="28" font-weight="600">Nice work. Keep going.</text>
+  <g opacity="0.95">
+    <path d="M156 490C171 462 182 450 200 438C211 460 218 474 232 490C212 492 196 498 178 512C174 505 166 497 156 490Z" fill="#FF8A5B"/>
+    <path d="M716 156C731 128 742 116 760 104C771 126 778 140 792 156C772 158 756 164 738 178C734 171 726 163 716 156Z" fill="#0F766E"/>
+    <path d="M774 540C789 512 800 500 818 488C829 510 836 524 850 540C830 542 814 548 796 562C792 555 784 547 774 540Z" fill="#F6C85F"/>
+  </g>
+</svg>

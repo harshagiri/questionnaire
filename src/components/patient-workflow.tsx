@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import type { PatientQuestionContent, PatientQuestionnaireRecord } from "@/lib/patient-questionnaire-db";
 import { calculateBmi, summarizeAnswer } from "@/lib/questionnaire";
@@ -169,6 +170,215 @@ function getSectionIntro(sectionId: string, sectionTitle: string) {
 
 function formatDisplayLabel(label: string) {
   return label.trim();
+}
+
+function progressMood(percent: number) {
+  if (percent >= 90) {
+    return "Brilliant pace. You are almost consultation-ready.";
+  }
+
+  if (percent >= 75) {
+    return "Excellent progress. Just a quick final stretch.";
+  }
+
+  if (percent >= 50) {
+    return "Great momentum. You are past the halfway mark.";
+  }
+
+  if (percent >= 25) {
+    return "Nice start. Your doctor will thank you for this clarity.";
+  }
+
+  return "Strong start. Each answer helps your doctor prepare better.";
+}
+
+function milestoneLabel(percent: number) {
+  if (percent >= 75) {
+    return "Milestone unlocked: 75% complete";
+  }
+
+  if (percent >= 50) {
+    return "Milestone unlocked: halfway done";
+  }
+
+  if (percent >= 25) {
+    return "Milestone unlocked: great start";
+  }
+
+  return "Your care journey has begun";
+}
+
+type SectionVisual = {
+  emoji: string;
+  iconLabel: string;
+  spotlight: string;
+  imageSrc: string;
+  imageAlt: string;
+};
+
+function getSectionVisual(sectionId: string): SectionVisual {
+  switch (sectionId) {
+    case "red-flags":
+      return {
+        emoji: "🚦",
+        iconLabel: "Safety",
+        spotlight: "Why this matters: this is your emergency brake check; red flags here can change triage immediately.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Safety and section progress illustration",
+      };
+    case "patient-profile":
+      return {
+        emoji: "🪪",
+        iconLabel: "Profile",
+        spotlight: "Why this matters: boring admin, heroic impact; correct identity and demographics prevent wrong-path decisions.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Patient profile context illustration",
+      };
+    case "medical-history":
+      return {
+        emoji: "🩺",
+        iconLabel: "History",
+        spotlight: "Why this matters: your medical backstory is the plot twist; diabetes, thyroid, or prior issues change the plan.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Medical history relevance illustration",
+      };
+    case "previous-reports":
+      return {
+        emoji: "🧾",
+        iconLabel: "Reports",
+        spotlight: "Why this matters: old scans are cheat codes; they reduce repeat tests and sharpen decisions faster.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Previous reports relevance illustration",
+      };
+    case "diagnosis-understanding":
+      return {
+        emoji: "🧠",
+        iconLabel: "Diagnosis",
+        spotlight: "Why this matters: same words, different meanings; this aligns what you heard with what symptoms now show.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Diagnosis understanding relevance illustration",
+      };
+    case "current-problem":
+      return {
+        emoji: "🎯",
+        iconLabel: "Current issue",
+        spotlight: "Why this matters: this picks the main villain; your top complaint sets consultation priority and focus.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Current problem relevance illustration",
+      };
+    case "pain-behaviour":
+      return {
+        emoji: "🧭",
+        iconLabel: "Pain map",
+        spotlight: "Why this matters: pain behavior is a map, not drama; location and spread narrow likely causes.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Care journey illustration",
+      };
+    case "symptom-severity":
+      return {
+        emoji: "📈",
+        iconLabel: "Severity",
+        spotlight: "Why this matters: severity scores are your speedometer; they guide urgency and track if treatment is working.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Symptom severity relevance illustration",
+      };
+    case "neurological-symptoms":
+      return {
+        emoji: "🧬",
+        iconLabel: "Neurology",
+        spotlight: "Why this matters: numbness and weakness are nerve warning lights; this section checks neurological risk early.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Neurological symptoms relevance illustration",
+      };
+    case "functional-disability":
+      return {
+        emoji: "🚶",
+        iconLabel: "Function",
+        spotlight: "Why this matters: pain is one thing, life impact is another; function limits reveal real-world severity.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Functional disability relevance illustration",
+      };
+    case "previous-treatment":
+      return {
+        emoji: "💊",
+        iconLabel: "Treatment history",
+        spotlight: "Why this matters: no reruns please; what helped or failed shapes smarter next-step treatment.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Previous treatment relevance illustration",
+      };
+    case "concerns-goals":
+      return {
+        emoji: "🌼",
+        iconLabel: "Final focus",
+        spotlight: "Why this matters: this is your wishlist with clinical intent; goals align treatment with what matters to you.",
+        imageSrc: "/illustrations/completion-bloom.svg",
+        imageAlt: "Completion bloom illustration",
+      };
+    case "primary-complaint":
+      return {
+        emoji: "🎯",
+        iconLabel: "Complaint",
+        spotlight: "Why this matters: this section picks the lane early; complaint type routes the rest of the questionnaire correctly.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Primary complaint routing illustration",
+      };
+    case "symptom-details":
+      return {
+        emoji: "🕒",
+        iconLabel: "Symptom details",
+        spotlight: "Why this matters: duration, onset, and trend are the timeline clues; they separate flare-ups from progressive problems.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Symptom details timeline illustration",
+      };
+    case "neuro-screen":
+      return {
+        emoji: "🧠",
+        iconLabel: "Neuro screen",
+        spotlight: "Why this matters: think of this as the nerve systems check; it flags early neurological risk before it worsens.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Neurological screening illustration",
+      };
+    case "mechanical-treatment":
+      return {
+        emoji: "🛠️",
+        iconLabel: "Mechanics",
+        spotlight: "Why this matters: what worsens or relieves pain reveals mechanical patterns and guides targeted treatment choices.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Mechanical pattern and treatment illustration",
+      };
+    case "function-domains":
+      return {
+        emoji: "📏",
+        iconLabel: "Function score",
+        spotlight: "Why this matters: these functional domains quantify daily impact, not just pain intensity, for better baseline scoring.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Function domain scoring illustration",
+      };
+    case "adaptive-tail":
+      return {
+        emoji: "🧩",
+        iconLabel: "Adaptive path",
+        spotlight: "Why this matters: this smart tail asks neck- or back-specific questions so your data stays relevant, not repetitive.",
+        imageSrc: "/illustrations/section-celebration.svg",
+        imageAlt: "Adaptive questionnaire path illustration",
+      };
+    case "outcome-myelopathy":
+      return {
+        emoji: "🌉",
+        iconLabel: "Outcome",
+        spotlight: "Why this matters: this creates your baseline bridge for follow-up and checks higher-risk neck signs when needed.",
+        imageSrc: "/illustrations/completion-bloom.svg",
+        imageAlt: "Outcome baseline and myelopathy check illustration",
+      };
+    default:
+      return {
+        emoji: "✨",
+        iconLabel: "Journey",
+        spotlight: "Why this matters: every section here adds a useful clue so the doctor can decide faster and safer.",
+        imageSrc: "/illustrations/care-journey.svg",
+        imageAlt: "Patient care journey illustration",
+      };
+  }
 }
 
 function applyQuestionContentOverrides(questionContent: PatientQuestionContent[] = []): WorkflowSections {
@@ -352,6 +562,7 @@ export function PatientWorkflow({
   const [sectionIndex, setSectionIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(-1);
   const [submitted, setSubmitted] = useState(false);
+  const [sectionTransition, setSectionTransition] = useState<{ from: number; to: number } | null>(null);
   const [validationMessage, setValidationMessage] = useState("");
   const [profileBmi, setProfileBmi] = useState<number | null>(null);
   const questionAreaRef = useRef<HTMLDivElement | null>(null);
@@ -599,12 +810,6 @@ export function PatientWorkflow({
   const isSectionIntro = questionIndex < 0;
   const currentQuestionIndex = Math.min(Math.max(questionIndex, 0), Math.max(sectionQuestionCount - 1, 0));
   const currentQuestion = visibleQuestions[currentQuestionIndex];
-  const isShortSectionWrapUp =
-    !isRedFlagSection &&
-    sectionIndex < workflowSections.length - 1 &&
-    sectionQuestionCount > 0 &&
-    sectionQuestionCount <= 3 &&
-    currentQuestionIndex === sectionQuestionCount - 1;
   const bmi = calculateBmi(Number(answers.weightKg), Number(answers.heightCm));
   const resolvedBmi = bmi ?? profileBmi;
   const redFlagTriggered = Boolean(
@@ -654,7 +859,7 @@ export function PatientWorkflow({
     }
 
     if (sectionIndex < workflowSections.length - 1) {
-      nextSection();
+      setSectionTransition({ from: sectionIndex, to: sectionIndex + 1 });
     }
   };
 
@@ -688,6 +893,21 @@ export function PatientWorkflow({
     };
   }, [answers, getSectionQuestions, workflowSections.length]);
 
+  const sectionCompletionStats = useMemo(
+    () =>
+      workflowSections.map((_, index) => {
+        const questions = getSectionQuestions(index);
+        const answered = questions.filter((question) => isQuestionMeaningfullyAnswered(question, answers)).length;
+
+        return {
+          answered,
+          total: questions.length,
+          complete: questions.length > 0 && answered === questions.length,
+        };
+      }),
+    [answers, getSectionQuestions, workflowSections],
+  );
+
   const questionsBeforeCurrentSection = useMemo(() => {
     let total = 0;
 
@@ -700,9 +920,21 @@ export function PatientWorkflow({
 
   const totalQuestionCount = sectionProgress.totalVisibleQuestions;
   const currentQuestionNumber = questionsBeforeCurrentSection + (isRedFlagSection ? 1 : currentQuestionIndex + 1);
+  const overallCompletionPercent = Math.round(
+    (sectionProgress.totalAnsweredQuestions / Math.max(totalQuestionCount, 1)) * 100,
+  );
   const isFirstQuestion = !isSectionIntro && sectionIndex === 0 && (isRedFlagSection || currentQuestionIndex === 0);
   const isLastQuestionInSection = !isSectionIntro && (isRedFlagSection || currentQuestionIndex >= sectionQuestionCount - 1);
   const isLastQuestionOverall = !isSectionIntro && sectionIndex === workflowSections.length - 1 && isLastQuestionInSection;
+  const completedSectionsCount = sectionCompletionStats.filter((sectionStat) => sectionStat.complete).length;
+  const milestoneMessage = milestoneLabel(overallCompletionPercent);
+  const momentumMessage = progressMood(overallCompletionPercent);
+  const sectionVisual = getSectionVisual(section.id);
+  const transitionFromSection = sectionTransition ? workflowSections[sectionTransition.from] : null;
+  const transitionToSection = sectionTransition ? workflowSections[sectionTransition.to] : null;
+  const transitionToVisual = transitionToSection ? getSectionVisual(transitionToSection.id) : null;
+  const transitionFromStats = sectionTransition ? sectionCompletionStats[sectionTransition.from] : null;
+  const transitionShortSection = Boolean(transitionFromStats && transitionFromStats.total > 0 && transitionFromStats.total <= 3);
 
   const hasConsent = answers.reviewConsent === true;
   const patientDisplayName = String(answers.patientName ?? "").trim() || "Patient";
@@ -848,7 +1080,7 @@ export function PatientWorkflow({
   };
 
   const renderRedFlagSection = () => (
-    <article className="rounded-xl border border-[rgba(255,138,91,0.22)] bg-[linear-gradient(180deg,rgba(255,138,91,0.12),rgba(255,255,255,0.98))] p-4 shadow-sm">
+    <article className="section-reveal rounded-xl border border-[rgba(255,138,91,0.22)] bg-[linear-gradient(180deg,rgba(255,138,91,0.12),rgba(255,255,255,0.98))] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-[rgba(255,138,91,0.18)] pb-3">
         <button
           type="button"
@@ -872,7 +1104,15 @@ export function PatientWorkflow({
         </div>
 
         {isLastQuestionOverall ? (
-          <div className="h-10 w-10 shrink-0" aria-hidden="true" />
+          <button
+            type="button"
+            aria-label="Submit for clinical review"
+            onClick={submitQuestionnaire}
+            disabled={!requiredComplete}
+            className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
+          >
+            Submit
+          </button>
         ) : (
           <button
             type="button"
@@ -898,7 +1138,7 @@ export function PatientWorkflow({
             <button
               type="button"
               onClick={() => setValue(question.id, answers[question.id] === true ? false : true)}
-              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
+              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
             >
               <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(question.label)}</span>
             </button>
@@ -914,7 +1154,7 @@ export function PatientWorkflow({
         ) : answers.redFlagNone === true ? (
           <span className="font-medium text-[var(--accent)]">None of the above selected.</span>
         ) : (
-          <span>Answer all items first, then the summary will update automatically.</span>
+          <span>Answer each item to complete this safety check and unlock the next section.</span>
         )}
       </div>
 
@@ -924,7 +1164,7 @@ export function PatientWorkflow({
             type="button"
             aria-label={formatDisplayLabel(redFlagNoneQuestion.label)}
             onClick={() => setValue(redFlagNoneQuestion.id, answers.redFlagNone === true ? false : true)}
-            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
             <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(redFlagNoneQuestion.label)}</span>
           </button>
@@ -967,14 +1207,14 @@ export function PatientWorkflow({
           <button
             type="button"
             onClick={() => setValue(question.id, true)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
             Yes
           </button>
           <button
             type="button"
             onClick={() => setValue(question.id, false)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "selected-answer border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
           >
             No
           </button>
@@ -996,7 +1236,7 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => toggleMultiSelectValue(question, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
               >
                 {formatDisplayLabel(option.label)}
               </button>
@@ -1017,7 +1257,7 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => setValue(question.id, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
               >
                 {formatDisplayLabel(option.label)}
               </button>
@@ -1122,7 +1362,7 @@ export function PatientWorkflow({
                     aria-pressed={active}
                     aria-label={`Select ${area.label}`}
                     onClick={() => setValue("painLocation", area.value)}
-                    className={`focus-ring absolute rounded-full border px-3 py-2 text-[11px] font-semibold shadow-sm transition ${active ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.08)]"}`}
+                    className={`focus-ring absolute rounded-full border px-3 py-2 text-[11px] font-semibold shadow-sm transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.08)]"}`}
                     style={area.style}
                   >
                     {area.label}
@@ -1150,7 +1390,7 @@ export function PatientWorkflow({
                       key={option.value}
                       type="button"
                       onClick={() => setValue("painLocation", option.value)}
-                      className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                      className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
                     >
                       {option.label}
                     </button>
@@ -1209,7 +1449,7 @@ export function PatientWorkflow({
     }
 
     return (
-      <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
+      <div className="section-reveal rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
           <button
             type="button"
@@ -1232,7 +1472,15 @@ export function PatientWorkflow({
           </div>
 
           {isLastQuestionOverall ? (
-            <div className="h-10 w-10 shrink-0" aria-hidden="true" />
+            <button
+              type="button"
+              aria-label="Submit for clinical review"
+              onClick={submitQuestionnaire}
+              disabled={!requiredComplete}
+              className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
+            >
+              Submit
+            </button>
           ) : (
             <button
               type="button"
@@ -1249,15 +1497,12 @@ export function PatientWorkflow({
           <div className="space-y-2">
             <label className="block text-2xl font-semibold leading-tight text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(currentQuestion.label)}</label>
             {currentQuestion.helpText ? <p className="mx-auto max-w-2xl text-sm leading-6 text-[color:var(--muted)]">{currentQuestion.helpText}</p> : null}
+            <p className="mx-auto max-w-2xl text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              {momentumMessage}
+            </p>
           </div>
           <div>{renderQuestionInput(currentQuestion)}</div>
         </div>
-
-        {isShortSectionWrapUp ? (
-          <div className="mt-4 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
-            Great job. This shorter section gives the doctor a quick, high-signal snapshot and keeps the questionnaire moving.
-          </div>
-        ) : null}
 
         {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
       </div>
@@ -1274,6 +1519,32 @@ export function PatientWorkflow({
           <h2 className="headline mt-2 text-2xl font-semibold leading-tight text-[color:var(--foreground)] sm:text-4xl">{intro.title}</h2>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[color:var(--muted)] sm:text-base">{intro.body}</p>
 
+          <div className="mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white shadow-sm">
+            <div className="grid items-stretch gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] sm:gap-0">
+              <div className="flex flex-col justify-center px-4 py-4 text-left sm:px-5">
+                <div className="flex items-start gap-3">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[var(--accent-soft)] text-2xl" aria-hidden="true">
+                    {sectionVisual.emoji}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted)]">Section relevance</div>
+                    <div className="mt-0.5 text-sm font-semibold text-[color:var(--foreground)] sm:text-base">{sectionVisual.iconLabel}</div>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[color:var(--foreground)] sm:text-base">{sectionVisual.spotlight}</p>
+              </div>
+              <div className="relative min-h-[138px] sm:min-h-[170px]">
+                <Image
+                  src={sectionVisual.imageSrc}
+                  alt={sectionVisual.imageAlt}
+                  fill
+                  sizes="(max-width: 640px) 100vw, 40vw"
+                  className="object-cover"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="mx-auto mt-6 flex w-full max-w-md flex-col gap-3">
             <button
               type="button"
@@ -1283,7 +1554,7 @@ export function PatientWorkflow({
               {intro.buttonLabel}
             </button>
             <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
-              {intro.summary}
+              {intro.summary} You have completed {completedSectionsCount} of {workflowSections.length} sections.
             </div>
           </div>
         </div>
@@ -1367,6 +1638,16 @@ export function PatientWorkflow({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">red flag screen</div>
               </div>
             </div>
+
+            <div className="relative mt-3 h-24 overflow-hidden rounded-2xl border border-white/70 bg-white/85 sm:h-28">
+              <Image
+                src="/illustrations/completion-bloom.svg"
+                alt="Celebration bloom illustration"
+                fill
+                sizes="(max-width: 1024px) 100vw, 32vw"
+                className="object-cover"
+              />
+            </div>
           </div>
         </div>
 
@@ -1439,6 +1720,82 @@ export function PatientWorkflow({
 
   return (
     <div className="space-y-4">
+      {sectionTransition && transitionFromSection && transitionToSection && transitionToVisual ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(21,32,43,0.42)] p-4 backdrop-blur-[2px]">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-[0_26px_80px_rgba(21,32,43,0.22)] sm:p-6">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+              {celebrationConfetti.slice(0, 7).map((piece) => (
+                <span
+                  key={`transition-${piece.left}-${piece.delay}`}
+                  className="confetti-piece"
+                  style={{
+                    "--confetti-left": piece.left,
+                    "--confetti-delay": piece.delay,
+                    "--confetti-color": piece.color,
+                    "--confetti-size": piece.size,
+                    "--confetti-drift": piece.drift,
+                    "--confetti-rotate": piece.rotate,
+                  } as React.CSSProperties}
+                />
+              ))}
+            </div>
+
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(15,118,110,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+                <span aria-hidden="true">🎉</span>
+                Section completed
+              </div>
+
+              <h3 className="headline mt-3 text-2xl font-semibold leading-tight text-[color:var(--foreground)] sm:text-3xl">
+                {transitionFromSection.title} completed
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-[color:var(--foreground)]">
+                You answered <span className="font-semibold">{transitionFromStats?.answered ?? 0}</span> out of <span className="font-semibold">{transitionFromStats?.total ?? 0}</span> questions in this section.
+              </p>
+
+              {transitionShortSection ? (
+                <div className="mt-3 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
+                  Great job. This shorter section gives the doctor a quick, high-signal snapshot and keeps the questionnaire moving.
+                </div>
+              ) : null}
+
+              <div className="mt-4 rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.03)] px-4 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted)]">Next up</div>
+                <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-[var(--accent-soft)] text-lg" aria-hidden="true">
+                    {transitionToVisual.emoji}
+                  </span>
+                  {transitionToSection.title}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--foreground)]">{transitionToVisual.spotlight}</p>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]"
+                  onClick={() => setSectionTransition(null)}
+                >
+                  Stay here
+                </button>
+                <button
+                  type="button"
+                  className="focus-ring rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white"
+                  onClick={() => {
+                    setSectionIndex(sectionTransition.to);
+                    setQuestionIndex(-1);
+                    setSectionTransition(null);
+                  }}
+                >
+                  Continue to next section
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {dashboardHref ? (
         <button
           type="button"
@@ -1451,6 +1808,23 @@ export function PatientWorkflow({
       ) : null}
 
       <section ref={questionAreaRef} className="rounded-[1.1rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-3.5 shadow-[0_20px_60px_rgba(21,32,43,0.12)] sm:rounded-[1.75rem] sm:p-4 lg:p-8">
+        <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(135deg,rgba(15,118,110,0.08),rgba(255,255,255,0.94))] p-3 shadow-sm sm:p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">Care journey progress</div>
+              <div className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">
+                {overallCompletionPercent}% complete • {completedSectionsCount}/{workflowSections.length} sections completed
+              </div>
+              <p className="mt-1 text-xs text-[color:var(--muted)]">{momentumMessage}</p>
+            </div>
+            <div className="milestone-pill inline-flex rounded-full border border-[rgba(15,118,110,0.18)] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              {milestoneMessage}
+            </div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(21,32,43,0.08)]">
+            <div className="progress-shimmer h-full rounded-full bg-[linear-gradient(90deg,var(--accent),#16a394)]" style={{ width: `${overallCompletionPercent}%` }} />
+          </div>
+        </div>
 
         {redFlagTriggered && section.id === "red-flags" ? (
           <div className="mt-4 rounded-xl border border-[rgba(255,138,91,0.24)] bg-[rgba(255,138,91,0.12)] p-3 text-xs leading-6 text-[color:var(--foreground)]">
@@ -1467,26 +1841,16 @@ export function PatientWorkflow({
         <div className="pt-1">
           {!requiredComplete ? (
             <p className="mb-2 text-xs text-[color:var(--muted)]">
-              Complete required answers before submitting. Remaining: {missingRequiredQuestions.length}
+              You are close. Complete required answers to finish this journey. Remaining: {missingRequiredQuestions.length}
             </p>
           ) : !hasConsent ? (
             <p className="mb-2 text-xs text-[color:var(--muted)]">
-              Please accept the consent statement in the final section before review.
+              Final step: accept the consent statement in the last section to submit confidently.
             </p>
           ) : null}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={submitQuestionnaire}
-              disabled={!requiredComplete}
-              className={`focus-ring w-full rounded-full border px-4 py-2.5 text-sm font-semibold sm:w-auto ${requiredComplete ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
-            >
-              Submit for clinical review
-            </button>
-            <p className="text-xs font-medium text-[color:var(--muted)]">
-              Draft autosaves as you answer. Use the same session link to resume.
-            </p>
-          </div>
+          <p className="text-xs font-medium text-[color:var(--muted)]">
+            Draft autosaves while you answer, so you can resume anytime from this same session link.
+          </p>
         </div>
     </div>
   );

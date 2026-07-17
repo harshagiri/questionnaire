@@ -1,0 +1,27 @@
+<svg width="920" height="620" viewBox="0 0 920 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="100" y1="30" x2="820" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DDF4EF"/>
+      <stop offset="0.55" stop-color="#F8F3EC"/>
+      <stop offset="1" stop-color="#FFE4D8"/>
+    </linearGradient>
+    <linearGradient id="path" x1="180" y1="140" x2="740" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="1" stop-color="#16A394"/>
+    </linearGradient>
+  </defs>
+  <rect width="920" height="620" rx="40" fill="url(#bg)"/>
+  <path d="M152 468C214 330 322 262 436 262C560 262 662 326 760 170" stroke="url(#path)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="182" cy="470" r="34" fill="#0F766E" fill-opacity="0.2"/>
+  <circle cx="182" cy="470" r="18" fill="#0F766E"/>
+  <circle cx="436" cy="262" r="34" fill="#16A394" fill-opacity="0.2"/>
+  <circle cx="436" cy="262" r="18" fill="#16A394"/>
+  <circle cx="760" cy="170" r="34" fill="#FF8A5B" fill-opacity="0.25"/>
+  <circle cx="760" cy="170" r="18" fill="#FF8A5B"/>
+  <rect x="86" y="86" width="180" height="84" rx="20" fill="white" fill-opacity="0.9"/>
+  <text x="110" y="124" fill="#0F766E" font-family="system-ui, sans-serif" font-size="24" font-weight="700">Start</text>
+  <rect x="336" y="404" width="250" height="88" rx="20" fill="white" fill-opacity="0.94"/>
+  <text x="366" y="442" fill="#15202B" font-family="system-ui, sans-serif" font-size="24" font-weight="700">Great progress</text>
+  <rect x="618" y="58" width="228" height="88" rx="20" fill="white" fill-opacity="0.95"/>
+  <text x="648" y="96" fill="#A34722" font-family="system-ui, sans-serif" font-size="24" font-weight="700">Ready for doctor</text>
+</svg>
