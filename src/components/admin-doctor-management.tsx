@@ -7,6 +7,8 @@ type DoctorRecord = {
   id?: string;
   name: string;
   email: string;
+  isActive?: boolean;
+  deactivatedAt?: string | null;
   phone: string;
   registrationNumber: string;
   licenseNumber: string;
@@ -255,9 +257,12 @@ function SlotManager({
                   disabled={saving}
                   className="ml-auto rounded-xl bg-teal-600 text-white text-sm font-semibold px-4 py-2 hover:bg-teal-700 disabled:opacity-60 transition-colors"
                 >
-                  {saving ? "Adding…" : `+ Add ${DAY_FULL[newDay]} ${newTime}`}
+                  {saving ? "Saving…" : "Save slot"}
                 </button>
               </div>
+              <p className="mt-2 text-[11px] text-gray-400">
+                Save slot stores this selection immediately.
+              </p>
             </div>
           ) : (
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
@@ -287,12 +292,13 @@ export function AdminDoctorManagement() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [actioningDoctorEmail, setActioningDoctorEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [managingSlotsFor, setManagingSlotsFor] = useState<DoctorRecord | null>(null);
 
   async function loadDoctors() {
     try {
-      const response = await fetch("/api/doctors?withSlots=true", { cache: "no-store" });
+      const response = await fetch("/api/doctors?withSlots=true&includeInactive=true", { cache: "no-store" });
       const payload = (await response.json()) as { ok: boolean; doctors?: DoctorRecord[] };
       if (!response.ok || !payload.ok) {
         setMessage("Could not load doctors from backend.");
@@ -441,6 +447,74 @@ export function AdminDoctorManagement() {
     }
   }
 
+  async function handleDoctorActivation(doctor: DoctorRecord) {
+    const currentlyActive = doctor.isActive !== false;
+    setActioningDoctorEmail(doctor.email);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/staff-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "doctor",
+          email: doctor.email,
+          action: currentlyActive ? "deactivate" : "activate",
+        }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; message?: string };
+      if (!response.ok || !payload.ok) {
+        setMessage(payload.message ?? "Could not update doctor status.");
+        return;
+      }
+
+      if (currentlyActive && managingSlotsFor?.email === doctor.email) {
+        setManagingSlotsFor(null);
+      }
+
+      await loadDoctors();
+    } catch {
+      setMessage("Could not update doctor status.");
+    } finally {
+      setActioningDoctorEmail(null);
+    }
+  }
+
+  async function handleDoctorSoftDelete(doctor: DoctorRecord) {
+    const confirmed = window.confirm(`Delete ${doctor.name} (${doctor.email})? This is a soft delete and will hide the doctor from this list.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setActioningDoctorEmail(doctor.email);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/staff-users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "doctor", email: doctor.email }),
+      });
+
+      const payload = (await response.json()) as { ok: boolean; message?: string };
+      if (!response.ok || !payload.ok) {
+        setMessage(payload.message ?? "Could not delete doctor.");
+        return;
+      }
+
+      if (managingSlotsFor?.email === doctor.email) {
+        setManagingSlotsFor(null);
+      }
+
+      await loadDoctors();
+    } catch {
+      setMessage("Could not delete doctor.");
+    } finally {
+      setActioningDoctorEmail(null);
+    }
+  }
+
   return (
     <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white shadow-sm overflow-hidden">
       {/* Accordion header */}
@@ -531,6 +605,7 @@ export function AdminDoctorManagement() {
                     doctors.map((doctor) => {
                       const isActive = managingSlotsFor?.id === doctor.id;
                       const slotCount = (doctor as DoctorRecord & { slots?: unknown[] }).slots?.length ?? 0;
+                      const currentlyActive = doctor.isActive !== false;
                       return (
                         <div key={doctor.id ?? doctor.email} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${isActive ? "border-teal-300 bg-teal-50/40" : "border-[rgba(21,32,43,0.08)]"}`}>
                           {doctor.photoUrl ? (
@@ -545,17 +620,36 @@ export function AdminDoctorManagement() {
                             <div className="text-sm font-semibold truncate">{formatDoctorDisplayName(doctor.name)}</div>
                             <div className="text-xs text-[color:var(--muted)] truncate">{doctor.registrationNumber}</div>
                           </div>
+                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${currentlyActive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                            {currentlyActive ? "Active" : "Inactive"}
+                          </div>
                           <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${slotCount > 0 ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"}`}>
                             {slotCount}/{MAX_SLOTS} slots
                           </div>
                           <button
                             onClick={() => startEditDoctor(doctor)}
-                            className="shrink-0 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] hover:bg-gray-50"
+                            disabled={actioningDoctorEmail === doctor.email}
+                            className="shrink-0 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] hover:bg-gray-50 disabled:opacity-60"
                           >
                             Edit
                           </button>
                           <button
+                            onClick={() => handleDoctorActivation(doctor)}
+                            disabled={actioningDoctorEmail === doctor.email}
+                            className="shrink-0 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            {currentlyActive ? "Deactivate" : "Activate"}
+                          </button>
+                          <button
+                            onClick={() => handleDoctorSoftDelete(doctor)}
+                            disabled={actioningDoctorEmail === doctor.email}
+                            className="shrink-0 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                          <button
                             onClick={() => setManagingSlotsFor(isActive ? null : doctor)}
+                            disabled={!currentlyActive || actioningDoctorEmail === doctor.email}
                             className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? "bg-gray-200 text-gray-700" : "bg-teal-600 text-white hover:bg-teal-700"}`}
                           >
                             {isActive ? "Close" : "Manage slots"}

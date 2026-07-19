@@ -30,16 +30,27 @@ export async function GET(request: Request) {
     // Resolve receptionistId from email if provided
     let resolvedReceptionistId = receptionistId;
     if (!resolvedReceptionistId && receptionistEmail) {
-      const user = await prisma.user.findUnique({
-        where: { email: receptionistEmail.toLowerCase() },
+      const receptionist = await prisma.user.findFirst({
+        where: {
+          email: receptionistEmail.toLowerCase(),
+          role: "receptionist",
+          isActive: true,
+          deletedAt: null,
+        },
         select: { id: true },
       });
-      resolvedReceptionistId = user?.id ?? null;
+      resolvedReceptionistId = receptionist?.id ?? null;
     }
 
     if (resolvedReceptionistId) {
       const assignments = await prisma.receptionistDoctorAssignment.findMany({
-        where: { receptionistId: resolvedReceptionistId },
+        where: {
+          receptionistId: resolvedReceptionistId,
+          receptionist: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
         include: {
           doctorProfile: {
             select: { id: true, name: true, registrationNumber: true },
@@ -63,7 +74,13 @@ export async function GET(request: Request) {
 
     if (doctorProfileId) {
       const assignments = await prisma.receptionistDoctorAssignment.findMany({
-        where: { doctorProfileId },
+        where: {
+          doctorProfileId,
+          receptionist: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
         include: {
           receptionist: {
             select: { id: true, email: true, displayName: true },
@@ -96,8 +113,13 @@ export async function POST(request: Request) {
     let resolvedReceptionistId = parsed.data.receptionistId;
     if (!resolvedReceptionistId && parsed.data.receptionistEmail) {
       const normalizedEmail = parsed.data.receptionistEmail.toLowerCase();
-      const user = await prisma.user.findUnique({
-        where: { email: normalizedEmail },
+      const user = await prisma.user.findFirst({
+        where: {
+          email: normalizedEmail,
+          role: "receptionist",
+          isActive: true,
+          deletedAt: null,
+        },
         select: { id: true },
       });
 
@@ -144,8 +166,13 @@ export async function DELETE(request: Request) {
   try {
     let resolvedReceptionistId = receptionistId;
     if (!resolvedReceptionistId && receptionistEmail) {
-      const user = await prisma.user.findUnique({
-        where: { email: receptionistEmail.toLowerCase() },
+      const user = await prisma.user.findFirst({
+        where: {
+          email: receptionistEmail.toLowerCase(),
+          role: "receptionist",
+          isActive: true,
+          deletedAt: null,
+        },
         select: { id: true },
       });
       resolvedReceptionistId = user?.id ?? null;

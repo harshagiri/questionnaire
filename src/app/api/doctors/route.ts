@@ -87,6 +87,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const receptionistEmail = searchParams.get("receptionistEmail");
   const withSlots = searchParams.get("withSlots") === "true";
+  const includeInactive = searchParams.get("includeInactive") === "true";
 
   if (storageMode === "database" && !prisma) {
     return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
@@ -103,19 +104,37 @@ export async function GET(request: Request) {
           select: { id: true },
         });
 
-        if (!receptionistUser) {
+        const activeReceptionist = receptionistUser
+          ? await prisma.user.findFirst({
+              where: {
+                id: receptionistUser.id,
+                role: "receptionist",
+                isActive: true,
+                deletedAt: null,
+              },
+              select: { id: true },
+            })
+          : null;
+
+        if (!activeReceptionist) {
           return NextResponse.json({ ok: true, doctors: [], storage: "database" });
         }
 
         const assignments = await prisma.receptionistDoctorAssignment.findMany({
-          where: { receptionistId: receptionistUser.id },
+          where: { receptionistId: activeReceptionist.id },
           select: { doctorProfileId: true },
         });
 
         const assignedIds = assignments.map((a) => a.doctorProfileId);
 
         doctorProfiles = await prisma.doctorProfile.findMany({
-          where: { id: { in: assignedIds } },
+          where: {
+            id: { in: assignedIds },
+            user: {
+              deletedAt: null,
+              ...(includeInactive ? {} : { isActive: true }),
+            },
+          },
           include: {
             user: true,
             availabilitySlots: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
@@ -124,6 +143,12 @@ export async function GET(request: Request) {
         });
       } else {
         doctorProfiles = await prisma.doctorProfile.findMany({
+          where: {
+            user: {
+              deletedAt: null,
+              ...(includeInactive ? {} : { isActive: true }),
+            },
+          },
           include: {
             user: true,
             ...(withSlots ? { availabilitySlots: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } } : {}),
@@ -142,6 +167,8 @@ export async function GET(request: Request) {
             id: doctor.id,
             name: formatDoctorDisplayName(doctor.name),
             email: d.user.email,
+              isActive: (d.user as { isActive?: boolean }).isActive ?? true,
+              deactivatedAt: (d.user as { deactivatedAt?: Date | null }).deactivatedAt?.toISOString() ?? null,
             phone: doctor.phone,
             registrationNumber: doctor.registrationNumber,
             licenseNumber: doctor.licenseNumber,
@@ -167,7 +194,11 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    doctors,
+    doctors: doctors.map((doctor) => ({
+      ...doctor,
+      isActive: true,
+      deactivatedAt: null,
+    })),
     storage: "file",
   });
 }

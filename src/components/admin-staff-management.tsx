@@ -10,6 +10,8 @@ type StaffUser = {
   role: StaffRole;
   email: string;
   displayName: string;
+  isActive: boolean;
+  deactivatedAt?: string | null;
   photoUrl?: string;
   createdAt: string;
 };
@@ -299,6 +301,7 @@ function RoleSection({
   const [form, setForm] = useState<SectionForm>(emptyForm);
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [actioningEmail, setActioningEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   const roleUsers = users.filter((u) => u.role === role).sort((a, b) => a.email.localeCompare(b.email));
@@ -388,6 +391,69 @@ function RoleSection({
     }
   }
 
+  async function handleToggleActive(user: StaffUser) {
+    if (user.role === "admin" && user.isActive && roleUsers.filter((u) => u.isActive).length <= 1) {
+      setMessage("At least one active admin is required.");
+      return;
+    }
+
+    setActioningEmail(user.email);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/staff-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: user.role,
+          email: user.email,
+          action: user.isActive ? "deactivate" : "activate",
+        }),
+      });
+      const payload = (await res.json()) as { ok: boolean; message?: string };
+      if (!res.ok || !payload.ok) {
+        setMessage(payload.message ?? "Could not update status.");
+        return;
+      }
+      await reloadUsers();
+    } catch {
+      setMessage("Network error.");
+    } finally {
+      setActioningEmail(null);
+    }
+  }
+
+  async function handleSoftDelete(user: StaffUser) {
+    if (user.role === "admin" && roleUsers.length <= 1) {
+      setMessage("Cannot delete the only admin account.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${user.displayName} (${user.email})? This is a soft delete and will hide the account from this list.`);
+    if (!confirmed) return;
+
+    setActioningEmail(user.email);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/staff-users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: user.role, email: user.email }),
+      });
+      const payload = (await res.json()) as { ok: boolean; message?: string };
+      if (!res.ok || !payload.ok) {
+        setMessage(payload.message ?? "Could not delete user.");
+        return;
+      }
+      await reloadUsers();
+    } catch {
+      setMessage("Network error.");
+    } finally {
+      setActioningEmail(null);
+    }
+  }
+
   return (
     <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white shadow-sm overflow-hidden">
       {/* Section header — always visible, click to toggle */}
@@ -441,16 +507,36 @@ function RoleSection({
                       <p className="text-sm font-semibold truncate">{user.displayName}</p>
                       <p className="text-xs text-[color:var(--muted)] truncate">{user.email}</p>
                     </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${user.isActive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => openEdit(user)}
+                      disabled={actioningEmail === user.email}
                       className="shrink-0 focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold hover:bg-gray-50"
                     >
                       Edit
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(user)}
+                      disabled={actioningEmail === user.email}
+                      className="shrink-0 focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 disabled:opacity-60"
+                    >
+                      {user.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSoftDelete(user)}
+                      disabled={actioningEmail === user.email}
+                      className="shrink-0 focus-ring rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
                   </div>
                   {/* Doctor assignments shown inside each receptionist card */}
-                  {role === "receptionist" && (
+                  {role === "receptionist" && user.isActive && (
                     <div className="px-3 pb-3">
                       <ReceptionistAssignments receptionistEmail={user.email} />
                     </div>

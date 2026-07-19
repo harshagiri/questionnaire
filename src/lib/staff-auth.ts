@@ -9,8 +9,15 @@ export type StaffAccount = {
   email: string;
   passwordHash: string;
   displayName: string;
+  isActive: boolean;
+  deactivatedAt?: string | null;
+  deletedAt?: string | null;
   photoUrl?: string;
   createdAt: string;
+};
+
+type ListStaffOptions = {
+  includeDeleted?: boolean;
 };
 
 export function buildStaffPhotoUrl(role: Exclude<AppRole, "patient">, email: string) {
@@ -46,7 +53,12 @@ async function readStoredStaffAccounts(): Promise<StaffAccount[]> {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed;
+    return parsed.map((item) => ({
+      ...item,
+      isActive: item.isActive ?? true,
+      deactivatedAt: item.deactivatedAt ?? null,
+      deletedAt: item.deletedAt ?? null,
+    }));
   } catch {
     return [];
   }
@@ -57,16 +69,24 @@ async function writeStoredStaffAccounts(accounts: StaffAccount[]) {
   await writeFile(staffStorePath, JSON.stringify(accounts, null, 2), "utf8");
 }
 
-export async function listStaffAccounts(): Promise<StaffAccount[]> {
+export async function listStaffAccounts(options: ListStaffOptions = {}): Promise<StaffAccount[]> {
+  const includeDeleted = options.includeDeleted ?? false;
+
   if (shouldUseDb() && prisma) {
     const dbUsers = await prisma.user.findMany({
-      where: { role: { in: ["doctor", "receptionist", "admin"] } },
+      where: {
+        role: { in: ["doctor", "receptionist", "admin"] },
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
       orderBy: { createdAt: "desc" },
       select: {
         role: true,
         email: true,
         passwordHash: true,
         displayName: true,
+        isActive: true,
+        deactivatedAt: true,
+        deletedAt: true,
         photoMimeType: true,
         createdAt: true,
       },
@@ -79,6 +99,9 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
         email: item.email,
         passwordHash: item.passwordHash,
         displayName: item.displayName,
+        isActive: item.isActive,
+        deactivatedAt: item.deactivatedAt?.toISOString() ?? null,
+        deletedAt: item.deletedAt?.toISOString() ?? null,
         photoUrl: item.photoMimeType ? buildStaffPhotoUrl(item.role, item.email) : "",
         createdAt: item.createdAt.toISOString(),
       }));
@@ -92,8 +115,9 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
   }
 
   const stored = await readStoredStaffAccounts();
+  const filteredStored = includeDeleted ? stored : stored.filter((item) => !item.deletedAt);
   const dedupedByRoleEmail = new Map<string, StaffAccount>();
-  for (const item of stored) {
+  for (const item of filteredStored) {
     dedupedByRoleEmail.set(`${item.role}:${item.email.toLowerCase()}`, item);
   }
 
@@ -132,6 +156,9 @@ export async function createStaffAccount(input: {
         email,
         passwordHash: await hash(input.password, 10),
         displayName,
+        isActive: true,
+        deactivatedAt: null,
+        deletedAt: null,
         photoUrl,
       },
       select: {
@@ -139,6 +166,9 @@ export async function createStaffAccount(input: {
         email: true,
         passwordHash: true,
         displayName: true,
+        isActive: true,
+        deactivatedAt: true,
+        deletedAt: true,
         photoMimeType: true,
         createdAt: true,
       },
@@ -149,6 +179,9 @@ export async function createStaffAccount(input: {
       email: created.email,
       passwordHash: created.passwordHash,
       displayName: created.displayName,
+      isActive: created.isActive,
+      deactivatedAt: created.deactivatedAt?.toISOString() ?? null,
+      deletedAt: created.deletedAt?.toISOString() ?? null,
       photoUrl: created.photoMimeType ? buildStaffPhotoUrl(role, created.email) : "",
       createdAt: created.createdAt.toISOString(),
     };
@@ -166,6 +199,9 @@ export async function createStaffAccount(input: {
     email,
     passwordHash,
     displayName,
+    isActive: true,
+    deactivatedAt: null,
+    deletedAt: null,
     photoUrl,
     createdAt: new Date().toISOString(),
   };
@@ -220,6 +256,9 @@ export async function updateStaffAccount(input: {
         email: true,
         passwordHash: true,
         displayName: true,
+        isActive: true,
+        deactivatedAt: true,
+        deletedAt: true,
         photoMimeType: true,
         createdAt: true,
       },
@@ -230,6 +269,9 @@ export async function updateStaffAccount(input: {
       email: updated.email,
       passwordHash: updated.passwordHash,
       displayName: updated.displayName,
+      isActive: updated.isActive,
+      deactivatedAt: updated.deactivatedAt?.toISOString() ?? null,
+      deletedAt: updated.deletedAt?.toISOString() ?? null,
       photoUrl: updated.photoMimeType ? buildStaffPhotoUrl(role, updated.email) : "",
       createdAt: updated.createdAt.toISOString(),
     };
@@ -271,7 +313,7 @@ export async function verifyStaffCredentials(
   if (shouldUseDb() && prisma) {
     try {
       const account = await prisma.user.findFirst({
-        where: { role, email: normalizedEmail },
+        where: { role, email: normalizedEmail, deletedAt: null, isActive: true },
         select: {
           passwordHash: true,
           displayName: true,
@@ -296,7 +338,9 @@ export async function verifyStaffCredentials(
   }
 
   const accounts = await listStaffAccounts();
-  const account = accounts.find((item) => item.role === role && item.email === normalizedEmail);
+  const account = accounts.find(
+    (item) => item.role === role && item.email === normalizedEmail && item.isActive && !item.deletedAt,
+  );
   if (!account) {
     return { ok: false };
   }
@@ -307,4 +351,115 @@ export async function verifyStaffCredentials(
   }
 
   return { ok: true, displayName: account.displayName, photoUrl: account.photoUrl };
+}
+
+export async function setStaffAccountActivation(input: {
+  role: Exclude<AppRole, "patient">;
+  email: string;
+  isActive: boolean;
+}) {
+  const role = input.role;
+  const email = input.email.trim().toLowerCase();
+
+  if (shouldUseDb() && prisma) {
+    const existing = await prisma.user.findFirst({
+      where: { role, email, deletedAt: null },
+      select: { email: true },
+    });
+
+    if (!existing) {
+      throw new Error("Staff user not found");
+    }
+
+    const updated = await prisma.user.update({
+      where: { email },
+      data: {
+        isActive: input.isActive,
+        deactivatedAt: input.isActive ? null : new Date(),
+      },
+      select: {
+        role: true,
+        email: true,
+        passwordHash: true,
+        displayName: true,
+        isActive: true,
+        deactivatedAt: true,
+        deletedAt: true,
+        photoMimeType: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      role,
+      email: updated.email,
+      passwordHash: updated.passwordHash,
+      displayName: updated.displayName,
+      isActive: updated.isActive,
+      deactivatedAt: updated.deactivatedAt?.toISOString() ?? null,
+      deletedAt: updated.deletedAt?.toISOString() ?? null,
+      photoUrl: updated.photoMimeType ? buildStaffPhotoUrl(role, updated.email) : "",
+      createdAt: updated.createdAt.toISOString(),
+    } satisfies StaffAccount;
+  }
+
+  const stored = await readStoredStaffAccounts();
+  const index = stored.findIndex((item) => item.role === role && item.email === email && !item.deletedAt);
+
+  if (index < 0) {
+    throw new Error("Staff user not found");
+  }
+
+  stored[index] = {
+    ...stored[index],
+    isActive: input.isActive,
+    deactivatedAt: input.isActive ? null : new Date().toISOString(),
+  };
+  await writeStoredStaffAccounts(stored);
+  return stored[index];
+}
+
+export async function softDeleteStaffAccount(input: {
+  role: Exclude<AppRole, "patient">;
+  email: string;
+}) {
+  const role = input.role;
+  const email = input.email.trim().toLowerCase();
+
+  if (shouldUseDb() && prisma) {
+    const existing = await prisma.user.findFirst({
+      where: { role, email, deletedAt: null },
+      select: { email: true },
+    });
+
+    if (!existing) {
+      throw new Error("Staff user not found");
+    }
+
+    await prisma.user.update({
+      where: { email },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deletedAt: new Date(),
+      },
+    });
+    return { ok: true };
+  }
+
+  const stored = await readStoredStaffAccounts();
+  const index = stored.findIndex((item) => item.role === role && item.email === email && !item.deletedAt);
+
+  if (index < 0) {
+    throw new Error("Staff user not found");
+  }
+
+  stored[index] = {
+    ...stored[index],
+    isActive: false,
+    deactivatedAt: new Date().toISOString(),
+    deletedAt: new Date().toISOString(),
+  };
+  await writeStoredStaffAccounts(stored);
+  return { ok: true };
 }

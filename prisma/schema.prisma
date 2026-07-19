@@ -28,6 +28,9 @@ model User {
   passwordHash        String
   role                RoleName
   displayName         String
+  isActive            Boolean  @default(true)
+  deactivatedAt       DateTime?
+  deletedAt           DateTime?
   photoUrl            String?
   photoMimeType       String?
   photoBlob           Bytes?

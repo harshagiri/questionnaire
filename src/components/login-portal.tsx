@@ -40,6 +40,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   const [staffRole, setStaffRole] = useState<StaffRole>(requestedRole === "patient" ? "doctor" : (requestedRole as StaffRole));
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [staffMessage, setStaffMessage] = useState("");
   const [staffSubmitting, setStaffSubmitting] = useState(false);
 
@@ -361,13 +362,30 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     placeholder="Staff email"
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
-                  <input
-                    type="password"
-                    value={staffPassword}
-                    onChange={(event) => setStaffPassword(event.target.value)}
-                    placeholder="Password"
-                    className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showStaffPassword ? "text" : "password"}
+                      value={staffPassword}
+                      onChange={(event) => setStaffPassword(event.target.value)}
+                      placeholder="Password"
+                      className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 pr-11 outline-none"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Press and hold to show password"
+                      onPointerDown={() => setShowStaffPassword(true)}
+                      onPointerUp={() => setShowStaffPassword(false)}
+                      onPointerLeave={() => setShowStaffPassword(false)}
+                      onPointerCancel={() => setShowStaffPassword(false)}
+                      onBlur={() => setShowStaffPassword(false)}
+                      className="focus-ring absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[color:var(--muted)] hover:bg-[rgba(21,32,43,0.06)]"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  </div>
                   <p className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.8)] px-3 py-2 text-xs text-[color:var(--muted)]">
                     Use the email and password configured for your account by the admin.
                   </p>
