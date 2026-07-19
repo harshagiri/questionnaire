@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { generateConsultId, findPatientRecordByPhone, saveAppointment } from "@/lib/portal-storage";
+import { formatDoctorDisplayName, formatDoctorOptionLabel } from "@/lib/doctor-display";
 
 type DoctorSlot = {
   id: string;
@@ -64,7 +65,7 @@ function ConfirmationScreen({ result, onDone }: { result: BookedResult; onDone: 
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Appointment booked!</h1>
-          <p className="text-gray-500 mt-1 text-sm">{result.doctorName} · {result.date} at {result.time}</p>
+          <p className="text-gray-500 mt-1 text-sm">{formatDoctorDisplayName(result.doctorName)} · {result.date} at {result.time}</p>
         </div>
 
         {/* Consult ID */}
@@ -191,7 +192,7 @@ export function PatientBookAppointment({ phone }: { phone: string }) {
         if (res.ok && data.ok) {
           setDoctorOptions(
             (data.doctors ?? []).map((d) => ({
-              label: d.registrationNumber ? `${d.name} (${d.registrationNumber})` : d.name,
+              label: formatDoctorOptionLabel(d.name, d.registrationNumber),
               value: d.id,
               name: d.name,
               registrationNumber: d.registrationNumber,
@@ -391,7 +392,7 @@ export function PatientBookAppointment({ phone }: { phone: string }) {
                 </div>
               ) : (
                 <p className="rounded-xl border border-dashed border-gray-200 px-4 py-3 text-sm text-gray-500">
-                  No slots are configured for {selectedDoctor?.name ?? "this doctor"} on {DAY_NAMES[selectedDateDay ?? 0]}.
+                  No slots are configured for {formatDoctorDisplayName(selectedDoctor?.name ?? "") || "this doctor"} on {DAY_NAMES[selectedDateDay ?? 0]}.
                 </p>
               )
             ) : (

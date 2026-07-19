@@ -5,6 +5,7 @@ import { z } from "zod";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { buildStaffPhotoUrl } from "@/lib/staff-auth";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type DbDoctorRecord = {
   id: string;
@@ -139,7 +140,7 @@ export async function GET(request: Request) {
           const resolvedPhoto = hasDbPhoto ? buildStaffPhotoUrl("doctor", d.user.email) : "";
           return {
             id: doctor.id,
-            name: doctor.name,
+            name: formatDoctorDisplayName(doctor.name),
             email: d.user.email,
             phone: doctor.phone,
             registrationNumber: doctor.registrationNumber,
@@ -245,7 +246,7 @@ export async function POST(request: Request) {
         ok: true,
         doctor: {
           id: created.id,
-          name: created.name,
+          name: formatDoctorDisplayName(created.name),
           email: created.user.email,
           phone: created.phone,
           registrationNumber: created.registrationNumber,
@@ -357,7 +358,7 @@ export async function PUT(request: Request) {
         ok: true,
         doctor: {
           id: updated.doctor.id,
-          name: updated.doctor.name,
+          name: formatDoctorDisplayName(updated.doctor.name),
           email: updated.user.email,
           phone: updated.doctor.phone,
           registrationNumber: updated.doctor.registrationNumber,

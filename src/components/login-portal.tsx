@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { demoOtpCode, registeredPatientProfiles } from "@/lib/workflow-data";
 import type { AppRole } from "@/lib/rbac";
 
 type StaffRole = Exclude<AppRole, "patient">;
@@ -43,7 +42,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   const [staffPassword, setStaffPassword] = useState("");
   const [staffMessage, setStaffMessage] = useState("");
   const [staffSubmitting, setStaffSubmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"patient" | "staff">(
     requestedRole === "patient" ? "patient" : "staff",
@@ -52,11 +50,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   const [statsLoading, setStatsLoading] = useState(true);
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
-
-  const demoPatientPhones = useMemo(() => {
-    const unique = new Set(registeredPatientProfiles.map((item) => item.phone));
-    return Array.from(unique);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -274,7 +267,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
           <section className="order-2 bg-[linear-gradient(180deg,#fffdf8_0%,#f7f4ee_100%)] p-4 sm:p-6 lg:order-1 lg:p-10">
             <div className="mb-5">
               <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Login</h2>
-              <p className="mt-2 text-sm text-[color:var(--muted)]">Patient login uses phone + OTP. Doctor, receptionist, and admin use staff login.</p>
             </div>
 
             <div className="mb-4">
@@ -323,20 +315,8 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     placeholder="OTP"
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
-                  <p className="text-xs text-[color:var(--muted)]">Registered demo phones: {demoPatientPhones.join(", ")}</p>
                   <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                    Demo OTP: <span className="font-semibold tracking-[0.15em] text-[var(--accent)]">{demoOtpCode}</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(demoOtpCode);
-                        setCopied(true);
-                        window.setTimeout(() => setCopied(false), 1200);
-                      }}
-                      className="ml-3 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-2.5 py-1 font-semibold"
-                    >
-                      {copied ? "Copied" : "Copy"}
-                    </button>
+                    Access code is provided by reception for your phone number and expires automatically.
                   </div>
                   {patientMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{patientMessage}</p> : null}
                   <button
@@ -390,7 +370,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   />
                   <p className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.8)] px-3 py-2 text-xs text-[color:var(--muted)]">
                     Use the email and password configured for your account by the admin.
-                    {staffRole === "admin" && " First-time fallback: admin@spinexpert.local / Admin@123."}
                   </p>
                   {staffMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{staffMessage}</p> : null}
                   <button
@@ -412,15 +391,13 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
             <div className="relative z-10">
               <div className="inline-flex items-center gap-3 rounded-full border border-white/30 bg-white/10 px-3 py-2 backdrop-blur">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-bold text-[#0b5568]">SE</div>
-                <div className="text-xs font-semibold tracking-[0.12em] text-white/90">SPINEXPERT HEALTH SCREENING</div>
+                <div className="text-xs font-semibold tracking-[0.12em] text-white/90">SPINEXPERT ADVANCED SPINE CARE NETWORK</div>
               </div>
 
               <h1 className="headline mt-4 text-2xl font-semibold leading-tight sm:text-3xl lg:text-[2.45rem]">
-                One login gateway for patients and care teams.
+                <span className="sm:hidden">India-wide spine triage and treatment planning, built for faster right-care.</span>
+                <span className="hidden sm:inline">India-wide spine triage and treatment planning, built for faster right-care pathways.</span>
               </h1>
-              <p className="mt-2 max-w-xl text-sm leading-7 text-white/90 sm:text-base">
-                Secure intake, clinical review, and operational coordination in one connected workflow.
-              </p>
 
               <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
                 {statsLoading
@@ -431,14 +408,16 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                       </div>
                     ))
                   : platformStats.slice(0, 3).map((item) => (
-                      <article key={item.label} className="rounded-2xl border border-white/20 bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/85 sm:text-[11px] sm:tracking-[0.12em]">{item.label}</div>
-                        <div className="mt-1 text-lg font-semibold text-white sm:text-2xl">{item.value}</div>
+                      <article key={item.label} className="rounded-2xl border border-white/20 bg-white/15 p-2.5 text-center backdrop-blur-sm sm:p-3">
+                        <div className="flex h-9 items-center justify-center text-[10px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/85 sm:h-10 sm:text-[11px] sm:tracking-[0.12em]">
+                          {item.label}
+                        </div>
+                        <div className="mt-1 text-lg font-semibold leading-none text-white sm:mt-1.5 sm:text-2xl">{item.value}</div>
                       </article>
                     ))}
               </div>
 
-              {statsLoading ? <div className="mt-4 text-sm text-white/85">Loading live metrics...</div> : null}
+              {statsLoading ? <div className="mt-4 text-sm text-white/85">Loading live spine-care network metrics...</div> : null}
             </div>
           </section>
         </div>

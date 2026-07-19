@@ -88,7 +88,7 @@ export const usageMetrics = [
   {
     label: "Weekly submissions",
     value: "500+",
-    note: "MVP target at the start",
+    note: "Expected baseline throughput",
   },
   {
     label: "Autosave resume rate",

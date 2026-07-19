@@ -1,0 +1,34 @@
+{
+  "entries": {
+    "1111111111": {
+      "phone": "1111111111",
+      "code": "470395",
+      "issuedAt": "2026-07-19T15:29:43.659Z",
+      "expiresAt": "2026-07-19T15:59:43.659Z",
+      "attempts": 0
+    },
+    "9876543210": {
+      "phone": "9876543210",
+      "code": "200632",
+      "issuedAt": "2026-07-19T15:29:43.630Z",
+      "expiresAt": "2026-07-19T15:59:43.630Z",
+      "attempts": 0
+    }
+  },
+  "audit": [
+    {
+      "at": "2026-07-19T15:29:43.630Z",
+      "action": "issued",
+      "phone": "9876543210",
+      "actorRole": "receptionist",
+      "actorName": "Frontdesk One"
+    },
+    {
+      "at": "2026-07-19T15:29:43.659Z",
+      "action": "issued",
+      "phone": "1111111111",
+      "actorRole": "receptionist",
+      "actorName": "Frontdesk One"
+    }
+  ]
+}

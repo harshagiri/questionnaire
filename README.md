@@ -87,12 +87,14 @@ To auto-configure HTTPS + firewall during deploy, set in .deploy.secrets:
 
 ```bash
 DEPLOY_CONFIGURE_HTTPS='true'
-DEPLOY_HTTPS_DOMAIN=''
+DEPLOY_HTTPS_DOMAIN='spinexperts.in'
+DEPLOY_HTTPS_DOMAIN_ALIASES='www.spinexperts.in'
 ```
 
 Notes:
 - Empty DEPLOY_HTTPS_DOMAIN means self-signed HTTPS on droplet IP.
 - Set DEPLOY_HTTPS_DOMAIN to your real domain for Let's Encrypt TLS.
+- If DNS is still propagating, deploy continues and you can re-run HTTPS setup later.
 
 ## 6. Useful operational commands
 

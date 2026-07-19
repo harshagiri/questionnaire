@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { isAllowedDemoOtp, roleHomePath } from "@/lib/auth";
+import { roleHomePath } from "@/lib/auth";
+import { verifyPatientAccessCode } from "@/lib/patient-access-code";
 import { verifyStaffCredentials } from "@/lib/staff-auth";
-import { demoOtpCode } from "@/lib/workflow-data";
+import { prisma } from "@/lib/prisma";
 
 type SessionBody = {
   role?: string;
@@ -18,30 +19,32 @@ function hasValidPatientPhone(phone: string | undefined) {
   return normalized.length >= 10;
 }
 
+function normalizePhone(phone: string | undefined) {
+  return (phone ?? "").replace(/\D/g, "");
+}
+
+async function patientExistsByPhone(phone: string | undefined) {
+  const normalizedPhone = normalizePhone(phone);
+
+  if (!normalizedPhone || !prisma) {
+    return false;
+  }
+
+  try {
+    const patientRecord = await prisma.patientRecord.findUnique({
+      where: { phone: normalizedPhone },
+      select: { id: true },
+    });
+
+    return Boolean(patientRecord);
+  } catch {
+    return false;
+  }
+}
+
 function hasValidStaffCredentials(email: string | undefined, password: string | undefined) {
   const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email ?? "").trim());
   return looksLikeEmail && (password ?? "").trim().length >= 6;
-}
-
-function normalizeDoctorEmailAlias(email: string) {
-  const normalized = email.trim().toLowerCase();
-  if (normalized.endsWith("@spinerxpert.local")) {
-    return normalized.replace("@spinerxpert.local", "@spinexpert.local");
-  }
-  return normalized;
-}
-
-function normalizeDisplayName(name: string | undefined, role: string) {
-  const value = (name ?? "").trim();
-  if (!value) {
-    return value;
-  }
-
-  if (role === "doctor" && /^demo\s*d+c+o+t+r+o+$/i.test(value.replace(/[^a-z]/gi, ""))) {
-    return "Demo Doctor";
-  }
-
-  return value;
 }
 
 export async function POST(request: Request) {
@@ -60,15 +63,22 @@ export async function POST(request: Request) {
     if (!hasValidPatientPhone(body.phone)) {
       return NextResponse.json({ ok: false, message: "Invalid phone number" }, { status: 400 });
     }
-    if (!isAllowedDemoOtp(body.otp ?? "")) {
-      return NextResponse.json({ ok: false, message: "Invalid OTP" }, { status: 401 });
+    if (!(await patientExistsByPhone(body.phone))) {
+      return NextResponse.json({ ok: false, message: "Patient not registered. Please complete registration first." }, { status: 401 });
+    }
+    const verification = await verifyPatientAccessCode({
+      phone: body.phone ?? "",
+      otp: body.otp ?? "",
+    });
+    if (!verification.ok) {
+      return NextResponse.json({ ok: false, message: verification.message ?? "Invalid access code" }, { status: 401 });
     }
   } else {
     if (!hasValidStaffCredentials(body.email, body.password)) {
       return NextResponse.json({ ok: false, message: "Invalid staff credentials" }, { status: 401 });
     }
 
-    const normalizedEmail = normalizeDoctorEmailAlias(body.email ?? "");
+    const normalizedEmail = (body.email ?? "").trim().toLowerCase();
     const authResult = await verifyStaffCredentials(
       body.role as "doctor" | "receptionist" | "admin",
       normalizedEmail,
@@ -79,7 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Invalid staff credentials" }, { status: 401 });
     }
 
-    resolvedStaffDisplayName = normalizeDisplayName(authResult.displayName, body.role);
+    resolvedStaffDisplayName = authResult.displayName.trim();
     resolvedStaffPhotoUrl = authResult.photoUrl;
     body.email = normalizedEmail;
   }
@@ -96,8 +106,8 @@ export async function POST(request: Request) {
   response.cookies.set("se_role", body.role, cookieOptions);
   const sessionName =
     body.role === "patient"
-      ? body.name?.trim() || body.phone || "patient-demo"
-      : resolvedStaffDisplayName ?? body.email ?? body.name ?? `${body.role}-demo`;
+      ? body.name?.trim() || body.phone || "patient"
+      : resolvedStaffDisplayName || body.email?.trim().toLowerCase() || body.name?.trim() || body.role;
   response.cookies.set("se_name", sessionName, cookieOptions);
   // Store email for staff so doctor/receptionist pages can look up their profile
   if (body.role !== "patient" && body.email) {
@@ -112,15 +122,6 @@ export async function POST(request: Request) {
     } else {
       response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
     }
-  }
-  if (body.role === "patient") {
-    response.cookies.set("se_demo_otp", demoOtpCode, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24,
-      secure: isSecureRequest,
-    });
   }
   return response;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type StaffRole = "receptionist" | "admin";
 
@@ -85,7 +86,7 @@ function ReceptionistAssignments({ receptionistEmail }: { receptionistEmail: str
                 onChange={() => toggle(doc.id)}
                 className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
               />
-              <span className="text-sm text-gray-700">{doc.name}</span>
+              <span className="text-sm text-gray-700">{formatDoctorDisplayName(doc.name)}</span>
               {doc.registrationNumber && <span className="text-xs text-gray-400 ml-auto">{doc.registrationNumber}</span>}
             </label>
           );
@@ -146,7 +147,7 @@ function DoctorPicker({
               onChange={() => onChange(checked ? selected.filter((id) => id !== doc.id) : [...selected, doc.id])}
               className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
             />
-            <span className="text-sm text-gray-700 flex-1">{doc.name}</span>
+            <span className="text-sm text-gray-700 flex-1">{formatDoctorDisplayName(doc.name)}</span>
             {doc.registrationNumber && <span className="text-xs text-gray-400">{doc.registrationNumber}</span>}
           </label>
         );

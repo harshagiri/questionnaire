@@ -31,7 +31,7 @@ export default async function AdminPage() {
           <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h2 className="headline text-2xl font-semibold">Usage metrics</h2>
-              <span className="text-sm text-[color:var(--muted)]">MVP instrument panel</span>
+              <span className="text-sm text-[color:var(--muted)]">Operations panel</span>
             </div>
             <div className="mt-5 space-y-4">
               {usageMetrics.map((metric) => (

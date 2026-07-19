@@ -28,7 +28,7 @@ export const permissionCatalog: Record<Permission, string> = {
   "appointment:create": "Create or update consult bookings",
   "appointment:assign": "Associate patients with doctors",
   "appointment:view": "View appointment queue and timings",
-  "access:issue": "Issue and display demo access codes",
+  "access:issue": "Issue and display patient access codes",
   "metrics:view": "Monitor completion and operational metrics",
   "patient:view": "Open patient journey and current state",
   "doctor:view": "Review doctor profile and roster",
@@ -68,7 +68,7 @@ export const roleCapabilities: RoleCapability[] = [
     highlights: [
       "Book the appointment and issue the consultation session",
       "Build questionnaires with question types, branches, and linked question info",
-      "Copy the demo OTP into the patient login flow during onboarding",
+      "Issue temporary patient access codes at the front desk",
     ],
       permissions: ["appointment:create", "appointment:view", "access:issue", "patient:view"],
   },

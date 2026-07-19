@@ -24,6 +24,7 @@ set -euo pipefail
 #   DEPLOY_APP_IMAGE=localhost:5000/questionnaire:latest
 #   DEPLOY_CONFIGURE_HTTPS=false
 #   DEPLOY_HTTPS_DOMAIN=
+#   DEPLOY_HTTPS_DOMAIN_ALIASES=
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT_DIR"
@@ -42,6 +43,7 @@ DEPLOY_RUN_DOCTOR_MIGRATION=${DEPLOY_RUN_DOCTOR_MIGRATION:-false}
 DEPLOY_RESET_DATABASE=${DEPLOY_RESET_DATABASE:-false}
 DEPLOY_CONFIGURE_HTTPS=${DEPLOY_CONFIGURE_HTTPS:-false}
 DEPLOY_HTTPS_DOMAIN=${DEPLOY_HTTPS_DOMAIN:-}
+DEPLOY_HTTPS_DOMAIN_ALIASES=${DEPLOY_HTTPS_DOMAIN_ALIASES:-}
 
 IMAGE_TAG=${DEPLOY_IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo latest)-$(date +%Y%m%d%H%M%S)}
 DEPLOY_LOCAL_IMAGE=${DEPLOY_LOCAL_IMAGE:-questionnaire:${IMAGE_TAG}}
@@ -111,7 +113,7 @@ echo "[local] Deploying application stack"
 
 if [[ "$DEPLOY_CONFIGURE_HTTPS" == "true" ]]; then
   echo "[local] Configuring HTTPS/firewall"
-  ./scripts/configure-https-firewall.sh "$DEPLOY_REMOTE" "$DEPLOY_SSH_PASSWORD" "$DEPLOY_HTTPS_DOMAIN"
+  ./scripts/configure-https-firewall.sh "$DEPLOY_REMOTE" "$DEPLOY_SSH_PASSWORD" "$DEPLOY_HTTPS_DOMAIN" "$DEPLOY_HTTPS_DOMAIN_ALIASES"
 fi
 
 echo "[local] Done."

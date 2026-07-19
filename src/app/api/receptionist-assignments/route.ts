@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { defaultStaffAccounts } from "@/lib/staff-auth";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 // GET  ?receptionistId=   → list doctor assignments for a receptionist
 // GET  ?doctorProfileId=  → list receptionists for a doctor
@@ -48,7 +47,18 @@ export async function GET(request: Request) {
         },
         orderBy: { createdAt: "asc" },
       });
-      return NextResponse.json({ ok: true, assignments });
+      return NextResponse.json({
+        ok: true,
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          doctorProfile: assignment.doctorProfile
+            ? {
+                ...assignment.doctorProfile,
+                name: formatDoctorDisplayName(assignment.doctorProfile.name),
+              }
+            : assignment.doctorProfile,
+        })),
+      });
     }
 
     if (doctorProfileId) {
@@ -86,30 +96,10 @@ export async function POST(request: Request) {
     let resolvedReceptionistId = parsed.data.receptionistId;
     if (!resolvedReceptionistId && parsed.data.receptionistEmail) {
       const normalizedEmail = parsed.data.receptionistEmail.toLowerCase();
-      let user = await prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { email: normalizedEmail },
         select: { id: true },
       });
-
-      if (!user) {
-        // Auto-provision demo account into DB if it exists in defaults
-        const demoAccount = defaultStaffAccounts.find(
-          (a) => a.email === normalizedEmail && a.role === "receptionist",
-        );
-        if (demoAccount) {
-          const created = await prisma.user.create({
-            data: {
-              email: normalizedEmail,
-              passwordHash: demoAccount.passwordHash,
-              role: "receptionist",
-              displayName: demoAccount.displayName,
-              photoUrl: demoAccount.photoUrl ?? "",
-            },
-            select: { id: true },
-          });
-          user = created;
-        }
-      }
 
       if (!user) {
         return NextResponse.json({ ok: false, message: "Receptionist not found" }, { status: 404 });

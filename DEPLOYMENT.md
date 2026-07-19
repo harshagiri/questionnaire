@@ -34,6 +34,7 @@ Required:
 Important optional values:
 - DEPLOY_CONFIGURE_HTTPS='true' to run HTTPS setup each deploy
 - DEPLOY_HTTPS_DOMAIN='your.domain.com' for Let's Encrypt
+- DEPLOY_HTTPS_DOMAIN_ALIASES='www.your.domain.com' for additional hostnames
 
 ## 3. Repeat deploy
 
@@ -55,7 +56,7 @@ Low-level deploy (image-based):
 HTTPS/firewall setup:
 
 ```bash
-./scripts/configure-https-firewall.sh user@ip 'password' [domain]
+./scripts/configure-https-firewall.sh user@ip 'password' [domain] [domain_aliases]
 ```
 
 ## 5. Verification
@@ -100,3 +101,44 @@ Password-based SSH is supported for quick setup. For production, move to SSH key
 - doctor@spinexpert.local / Doctor@123
 - reception@spinexpert.local / Reception@123
 - admin@spinexpert.local / Admin@123
+
+## 9. Domain cutover checklist (spinexperts.in)
+
+Use this when DNS may still be propagating and you want to continue droplet setup now.
+
+1. In `.deploy.secrets`, set:
+
+```bash
+DEPLOY_REMOTE='root@YOUR_DROPLET_IP'
+DEPLOY_SSH_PASSWORD='your_password'
+DEPLOY_CONFIGURE_HTTPS='true'
+DEPLOY_HTTPS_DOMAIN='spinexperts.in'
+DEPLOY_HTTPS_DOMAIN_ALIASES='www.spinexperts.in'
+```
+
+2. Deploy app + droplet config in one run:
+
+```bash
+./scripts/deploy-one-command.sh
+```
+
+3. If DNS is not live yet, HTTPS provisioning may warn and continue. Re-run only HTTPS setup once records resolve:
+
+```bash
+./scripts/configure-https-firewall.sh "$DEPLOY_REMOTE" "$DEPLOY_SSH_PASSWORD" "$DEPLOY_HTTPS_DOMAIN" "$DEPLOY_HTTPS_DOMAIN_ALIASES"
+```
+
+4. Verify DNS and cutover:
+
+```bash
+dig +short spinexperts.in
+dig +short www.spinexperts.in
+```
+
+5. Verify web + TLS:
+
+```bash
+curl -I http://spinexperts.in
+curl -I https://spinexperts.in
+curl -I https://www.spinexperts.in
+```

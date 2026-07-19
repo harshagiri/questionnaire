@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { demoOtpCode, roleLandingCopy } from "@/lib/workflow-data";
+import { roleLandingCopy } from "@/lib/workflow-data";
 import type { AppRole } from "@/lib/rbac";
 
 const roleCards: Array<{ role: AppRole; label: string; note: string }> = [
-  { role: "patient", label: "Patient", note: "Intake, OTP copy, and questionnaire start" },
+  { role: "patient", label: "Patient", note: "Intake, secure access code, and questionnaire start" },
   { role: "doctor", label: "Doctor", note: "Consult review and sectioned validation" },
   { role: "receptionist", label: "Receptionist", note: "Appointment booking only" },
   { role: "admin", label: "Admin", note: "Usage metrics and RBAC controls" },
@@ -18,13 +18,12 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
   const nextPath = searchParams.next ?? "/";
   const presetRole = (searchParams.role as AppRole | undefined) ?? "patient";
   const [selectedRole, setSelectedRole] = useState<AppRole>(presetRole);
-  const [patientOtp, setPatientOtp] = useState(demoOtpCode);
+  const [patientOtp, setPatientOtp] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-  const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const patientCopy = useMemo(() => demoOtpCode, []);
+  const patientCopy = useMemo(() => "Ask reception for the temporary access code", []);
 
   async function continueAccess(role: AppRole) {
     setSubmitting(true);
@@ -33,7 +32,7 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, name: name || `${role} demo`, otp: role === "patient" ? patientOtp : undefined, nextPath }),
+        body: JSON.stringify({ role, name: name || `${role} user`, otp: role === "patient" ? patientOtp : undefined, nextPath }),
       });
 
       const payload = (await response.json()) as { ok: boolean; message?: string; nextPath?: string };
@@ -77,12 +76,12 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Enter your name for this demo session"
+              placeholder="Enter your name"
               className="focus-ring w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none"
             />
             <label className="block text-sm font-semibold text-[color:var(--foreground)]">Session note</label>
             <div className="rounded-2xl bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-7 text-[color:var(--muted)]">
-              Role access is enforced by cookie-backed route guards. The demo account is meant for local review and workflow validation.
+              Role access is enforced by cookie-backed route guards.
             </div>
           </div>
 
@@ -102,28 +101,17 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
           <div className="glass-panel rounded-[2rem] p-6 lg:p-8">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Patient OTP popup</div>
-                <h2 className="headline mt-2 text-3xl font-semibold">Copy this code into the patient login box</h2>
+                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Patient Access</div>
+                <h2 className="headline mt-2 text-3xl font-semibold">Request code from reception desk</h2>
               </div>
               <span className="rounded-full bg-[rgba(15,118,110,0.08)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">No SMS / WhatsApp required</span>
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-[rgba(15,118,110,0.16)] bg-[linear-gradient(180deg,rgba(15,118,110,0.08),rgba(255,255,255,0.88))] p-5">
-              <div className="text-sm text-[color:var(--muted)]">Demo OTP for local testing</div>
-              <div className="mt-2 text-4xl font-semibold tracking-[0.25em] text-[var(--accent)]">{patientCopy}</div>
-              <div className="mt-2 text-sm text-[color:var(--muted)]">Use this popup code on the patient access screen, then continue to the questionnaire.</div>
+              <div className="text-sm text-[color:var(--muted)]">Temporary access code</div>
+              <div className="mt-2 text-xl font-semibold text-[var(--accent)]">{patientCopy}</div>
+              <div className="mt-2 text-sm text-[color:var(--muted)]">Reception can view and rotate your code for your registered phone number. Codes expire automatically.</div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="focus-ring rounded-full bg-white px-4 py-2 text-sm font-semibold"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(patientCopy);
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1500);
-                  }}
-                >
-                  {copied ? "Copied" : "Copy OTP"}
-                </button>
                 <button type="button" className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2 text-sm font-semibold" onClick={() => setSelectedRole("patient")}>
                   Open patient login
                 </button>
@@ -134,9 +122,9 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
           {selectedRole === "patient" ? (
             <div className="glass-panel rounded-[2rem] p-6 lg:p-8">
               <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Patient login</div>
-              <div className="mt-2 text-2xl font-semibold">Enter the OTP you copied above</div>
+              <div className="mt-2 text-2xl font-semibold">Enter the access code from reception</div>
               <div className="mt-4 space-y-3">
-                <input value={patientOtp} onChange={(event) => setPatientOtp(event.target.value)} className="focus-ring w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none" placeholder="Paste OTP" />
+                <input value={patientOtp} onChange={(event) => setPatientOtp(event.target.value)} className="focus-ring w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none" placeholder="Enter access code" />
                 <button type="button" onClick={() => continueAccess("patient")} disabled={submitting} className="focus-ring w-full rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">
                   Verify and continue
                 </button>

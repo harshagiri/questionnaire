@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type DoctorRecord = {
   id?: string;
@@ -125,7 +126,7 @@ function SlotManager({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
-            Weekly availability — {doctor.name}
+            Weekly availability — {formatDoctorDisplayName(doctor.name)}
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
             Up to {MAX_SLOTS} slots per week. Slots can be on any combination of days.
@@ -541,7 +542,7 @@ export function AdminDoctorManagement() {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold truncate">{doctor.name}</div>
+                            <div className="text-sm font-semibold truncate">{formatDoctorDisplayName(doctor.name)}</div>
                             <div className="text-xs text-[color:var(--muted)] truncate">{doctor.registrationNumber}</div>
                           </div>
                           <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${slotCount > 0 ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"}`}>

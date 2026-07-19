@@ -26,30 +26,6 @@ function isStaffRole(role: string): role is Exclude<AppRole, "patient"> {
   return role === "doctor" || role === "receptionist" || role === "admin";
 }
 
-export const defaultStaffAccounts: StaffAccount[] = [
-  {
-    role: "doctor",
-    email: "doctor@spinexpert.local",
-    passwordHash: "$2b$10$JQoQxzVod.xZUd1vzxh3BecFQd.GLw.Vsj7LkuGfe8hqT1SjQKw1e",
-    displayName: "Demo Doctor",
-    createdAt: new Date(0).toISOString(),
-  },
-  {
-    role: "receptionist",
-    email: "reception@spinexpert.local",
-    passwordHash: "$2b$10$0/WPyzP8FHMZot5H/qlUROFpMWlTZOtWTVze4lsg9Ly/1vV8SK7km",
-    displayName: "Demo Receptionist",
-    createdAt: new Date(0).toISOString(),
-  },
-  {
-    role: "admin",
-    email: "admin@spinexpert.local",
-    passwordHash: "$2b$10$NugqTAKmZXzNabf56tK92uRhOFojdlEM.9FuL2ttha.Rx52Eb9A.y",
-    displayName: "Demo Admin",
-    createdAt: new Date(0).toISOString(),
-  },
-];
-
 const staffStorePath = join(process.cwd(), "data", "staff-users.json");
 const storageMode = process.env.STAFF_USERS_STORAGE_MODE?.toLowerCase() ?? "auto";
 
@@ -107,13 +83,8 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
         createdAt: item.createdAt.toISOString(),
       }));
 
-    // Roles that have at least one real DB account — hide demo defaults for those
-    const rolesWithDbAccounts = new Set(dbAccounts.map((a) => a.role));
-    // For roles with NO DB accounts, keep showing the demo defaults
-    const defaultsForEmptyRoles = defaultStaffAccounts.filter((d) => !rolesWithDbAccounts.has(d.role));
-
     const dedupedByRoleEmail = new Map<string, StaffAccount>();
-    for (const item of [...defaultsForEmptyRoles, ...dbAccounts]) {
+    for (const item of dbAccounts) {
       dedupedByRoleEmail.set(`${item.role}:${item.email.toLowerCase()}`, item);
     }
 
@@ -121,10 +92,8 @@ export async function listStaffAccounts(): Promise<StaffAccount[]> {
   }
 
   const stored = await readStoredStaffAccounts();
-  const merged = [...defaultStaffAccounts, ...stored];
-
   const dedupedByRoleEmail = new Map<string, StaffAccount>();
-  for (const item of merged) {
+  for (const item of stored) {
     dedupedByRoleEmail.set(`${item.role}:${item.email.toLowerCase()}`, item);
   }
 
@@ -292,12 +261,6 @@ export async function updateStaffAccount(input: {
   return updated;
 }
 
-export const mvpStaffCredentials = {
-  doctor: "doctor@spinexpert.local / Doctor@123",
-  receptionist: "reception@spinexpert.local / Reception@123",
-  admin: "admin@spinexpert.local / Admin@123",
-} as const;
-
 export async function verifyStaffCredentials(
   role: Exclude<AppRole, "patient">,
   email: string,
@@ -317,17 +280,7 @@ export async function verifyStaffCredentials(
       });
 
       if (!account) {
-        const fallback = defaultStaffAccounts.find((item) => item.role === role && item.email === normalizedEmail);
-        if (!fallback) {
-          return { ok: false };
-        }
-
-        const fallbackValid = await compare(password, fallback.passwordHash);
-        if (!fallbackValid) {
-          return { ok: false };
-        }
-
-        return { ok: true, displayName: fallback.displayName, photoUrl: fallback.photoUrl };
+        return { ok: false };
       }
 
       const valid = await compare(password, account.passwordHash);
@@ -338,19 +291,7 @@ export async function verifyStaffCredentials(
       const resolvedPhotoUrl = account.photoMimeType ? buildStaffPhotoUrl(role, normalizedEmail) : "";
       return { ok: true, displayName: account.displayName, photoUrl: resolvedPhotoUrl };
     } catch {
-      const fallbackAccounts = [...defaultStaffAccounts, ...(await readStoredStaffAccounts())];
-      const fallback = fallbackAccounts.find((item) => item.role === role && item.email === normalizedEmail);
-
-      if (!fallback) {
-        return { ok: false };
-      }
-
-      const fallbackValid = await compare(password, fallback.passwordHash);
-      if (!fallbackValid) {
-        return { ok: false };
-      }
-
-      return { ok: true, displayName: fallback.displayName, photoUrl: fallback.photoUrl };
+      return { ok: false };
     }
   }
 

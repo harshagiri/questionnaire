@@ -7,6 +7,7 @@ import {
   summarizeAnswer,
   type QuestionnaireDefinition,
 } from "@/lib/questionnaire";
+import type { PromDisplaySummary } from "@/lib/prom-scoring";
 import { QuestionnaireFlow } from "@/components/questionnaire-flow";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import { findPatientRecordByPhone, listAppointments, loadPatientQuestionnaire, type PatientRecord } from "@/lib/portal-storage";
@@ -22,6 +23,7 @@ type AppointmentRecord = {
   appointmentType: string;
   status: string;
   notes: string;
+  promSummary?: PromDisplaySummary;
 };
 
 type ApiAppointmentsPayload = {
@@ -63,6 +65,7 @@ type DoctorPatient = {
   region: string;
   mriAvailable: string;
   status: string;
+  promSummary?: PromDisplaySummary;
 };
 
 const appointmentTypeLabels: Record<string, string> = {
@@ -125,6 +128,69 @@ function formatPainScore(value: unknown) {
   }
 
   return "Not captured";
+}
+
+function formatPromSummary(summary?: PromDisplaySummary) {
+  if (!summary) {
+    return "Not scored";
+  }
+
+  const percentLabel = Number.isFinite(summary.percent) ? `${summary.percent.toFixed(1)}%` : "Not scored";
+  return `${summary.instrument} ${percentLabel} (${summary.severity})`;
+}
+
+function getPromSeverityTone(summary?: PromDisplaySummary) {
+  if (!summary) {
+    return {
+      badgeClass: "border-slate-300 bg-slate-50 text-slate-700",
+      panelClass: "border-slate-300 bg-slate-50 text-slate-800",
+      focusLabel: "PROM pending",
+    };
+  }
+
+  const percent = Number.isFinite(summary.percent) ? summary.percent : 0;
+
+  if (percent >= 61) {
+    return {
+      badgeClass: "border-red-300 bg-red-50 text-red-800",
+      panelClass: "border-red-300 bg-red-50 text-red-900",
+      focusLabel: "High disability",
+    };
+  }
+
+  if (percent >= 41) {
+    return {
+      badgeClass: "border-orange-300 bg-orange-50 text-orange-800",
+      panelClass: "border-orange-300 bg-orange-50 text-orange-900",
+      focusLabel: "Severe disability",
+    };
+  }
+
+  if (percent >= 21) {
+    return {
+      badgeClass: "border-amber-300 bg-amber-50 text-amber-800",
+      panelClass: "border-amber-300 bg-amber-50 text-amber-900",
+      focusLabel: "Moderate disability",
+    };
+  }
+
+  return {
+    badgeClass: "border-emerald-300 bg-emerald-50 text-emerald-800",
+    panelClass: "border-emerald-300 bg-emerald-50 text-emerald-900",
+    focusLabel: "Minimal disability",
+  };
+}
+
+function getPromUrgencyRank(summary?: PromDisplaySummary) {
+  if (!summary || !Number.isFinite(summary.percent)) {
+    return -1;
+  }
+
+  const percent = summary.percent;
+  if (percent >= 61) return 3;
+  if (percent >= 41) return 2;
+  if (percent >= 21) return 1;
+  return 0;
 }
 
 function genderSymbol(value: string) {
@@ -293,7 +359,7 @@ async function loadAppointments(date?: string, doctorEmail?: string) {
   }
 
   const apiAppointments = payload.appointments ?? [];
-  const localAppointments = listAppointments().map((item) => ({
+  const localAppointments: AppointmentRecord[] = listAppointments().map((item) => ({
     id: item.consultId ?? item.sessionId,
     consultSessionId: item.sessionId,
     patientName: item.patientName,
@@ -304,6 +370,7 @@ async function loadAppointments(date?: string, doctorEmail?: string) {
     appointmentType: item.appointmentType,
     status: item.status,
     notes: item.notes,
+    promSummary: undefined,
   }));
 
   if (doctorEmail && localAppointments.length > 0) {
@@ -365,11 +432,7 @@ async function loadIntakeBySession(sessionId: string) {
 }
 
 async function loadDoctorQueue(doctorEmail?: string) {
-  let appointments = await loadAppointments(undefined, doctorEmail);
-  if (doctorEmail && appointments.length === 0) {
-    // Fallback for demo/stale account mapping: show queue instead of empty screen.
-    appointments = await loadAppointments(undefined, undefined);
-  }
+  const appointments = await loadAppointments(undefined, doctorEmail);
 
   const patientProfileByPhone = new Map<string, Promise<PatientProfileSnapshot | null>>();
 
@@ -427,6 +490,7 @@ async function loadDoctorQueue(doctorEmail?: string) {
         region: formatMaybeLabel(resolvedRegion),
         mriAvailable: formatMriValue(answers),
         status: queueStatus,
+        promSummary: appointment.promSummary,
       } satisfies DoctorPatient;
     }),
   );
@@ -456,24 +520,40 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [patientDocuments, setPatientDocuments] = useState<PatientDocument[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [expandedPatientSectionId, setExpandedPatientSectionId] = useState<string | null>(null);
+  const [mobileSort, setMobileSort] = useState<"severity" | "time">("severity");
 
   const selectedPatient = useMemo(
     () => (selectedPatientId ? todayPatients.find((item) => item.id === selectedPatientId) ?? null : null),
     [selectedPatientId, todayPatients],
   );
 
-  const groupedQueue = useMemo(() => {
-    const groups = new Map<string, DoctorPatient[]>();
+  const desktopQueueRows = useMemo(() => {
+    return [...todayPatients].sort((a, b) => {
+      const urgencyDelta = getPromUrgencyRank(b.promSummary) - getPromUrgencyRank(a.promSummary);
+      if (urgencyDelta !== 0) {
+        return urgencyDelta;
+      }
 
-    for (const patient of todayPatients) {
-      const key = statusLabel(patient.status);
-      const list = groups.get(key) ?? [];
-      list.push(patient);
-      groups.set(key, list);
-    }
-
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+      return a.appointmentTime.localeCompare(b.appointmentTime);
+    });
   }, [todayPatients]);
+
+  const mobileQueueRows = useMemo(() => {
+    return [...todayPatients].sort((a, b) => {
+      if (mobileSort === "time") {
+        return a.appointmentTime.localeCompare(b.appointmentTime);
+      }
+
+      const urgencyDelta = getPromUrgencyRank(b.promSummary) - getPromUrgencyRank(a.promSummary);
+      if (urgencyDelta !== 0) {
+        return urgencyDelta;
+      }
+
+      const bProm = b.promSummary?.percent ?? -1;
+      const aProm = a.promSummary?.percent ?? -1;
+      return bProm - aProm;
+    });
+  }, [todayPatients, mobileSort]);
 
   const activePatientSections = useMemo(() => {
     if (!selectedPatient) {
@@ -754,8 +834,11 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     : undefined;
   const canEditDoctorForm = selectedPatient ? selectedPatient.appointmentDate === getCurrentDateKey() : false;
 
+  const selectedPromTone = getPromSeverityTone(selectedPatient?.promSummary);
+
   const demographicPairs = selectedPatient
     ? [
+        { key: "PROM", value: formatPromSummary(selectedPatient.promSummary), isProm: true },
         { key: "Patient ID", value: selectedPatient.patientId },
         { key: "Language", value: selectedPatient.language },
         { key: "Region", value: selectedPatient.region },
@@ -766,11 +849,36 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     : [];
 
   if (!selectedPatientId) {
+    const queueTotal = todayPatients.length;
+    const highDisabilityCount = todayPatients.filter((patient) => getPromUrgencyRank(patient.promSummary) >= 2).length;
+
     return (
       <section className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
         <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-[0_10px_24px_rgba(21,32,43,0.08)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Doctor queue</div>
-          <h2 className="headline mt-1 text-2xl font-semibold">Current patients grouped by state</h2>
+          <h2 className="headline mt-1 text-2xl font-semibold">Patient list</h2>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full border border-[rgba(21,32,43,0.12)] bg-[rgba(248,245,240,0.65)] px-2.5 py-1 font-semibold text-[color:var(--foreground)]">
+              Total {queueTotal}
+            </span>
+            <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-semibold text-red-700">
+              High disability {highDisabilityCount}
+            </span>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.45)] p-3 lg:hidden">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+              Sort (mobile/tablet)
+              <select
+                value={mobileSort}
+                onChange={(event) => setMobileSort(event.target.value as "severity" | "time")}
+                className="mt-1 w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-2 text-sm font-medium text-[color:var(--foreground)]"
+              >
+                <option value="severity">Severity</option>
+                <option value="time">Time</option>
+              </select>
+            </label>
+          </div>
 
           {isLoadingPatients ? (
             <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">Loading current queue...</p>
@@ -780,20 +888,25 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             <p className="mt-3 text-sm leading-7 text-[color:#a34722]">{patientsError}</p>
           ) : null}
 
-          {!isLoadingPatients && !patientsError && groupedQueue.length === 0 ? (
+          {!isLoadingPatients && !patientsError && todayPatients.length === 0 ? (
             <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">No patients in queue right now.</p>
           ) : null}
 
-          {!isLoadingPatients && !patientsError && groupedQueue.length > 0 ? (
-            <div className="mt-5 space-y-5">
-              {groupedQueue.map(([state, patients]) => (
-                <section key={state} className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.5)] p-3 sm:p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">{state}</h3>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[color:var(--muted)]">{patients.length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {patients.map((patient) => (
+          {!isLoadingPatients && !patientsError && todayPatients.length > 0 ? (
+            <>
+              <div className="mt-4 hidden overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] lg:block">
+                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_110px_120px_130px_minmax(0,1fr)] bg-[rgba(248,245,240,0.7)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                  <div>Patient</div>
+                  <div>PROM</div>
+                  <div>Status</div>
+                  <div>Time</div>
+                  <div>Visit</div>
+                  <div>Summary</div>
+                </div>
+                <div className="divide-y divide-[rgba(21,32,43,0.08)] bg-white">
+                  {desktopQueueRows.map((patient) => {
+                    const promTone = getPromSeverityTone(patient.promSummary);
+                    return (
                       <button
                         key={patient.id}
                         type="button"
@@ -801,22 +914,64 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                           setSelectedPatientId(patient.id);
                           setActiveDetailTab("patient-details");
                         }}
-                        className="focus-ring grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-3 text-left shadow-sm"
+                        className="focus-ring grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_110px_120px_130px_minmax(0,1fr)] items-center gap-3 px-4 py-3 text-left transition hover:bg-[rgba(21,32,43,0.03)]"
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-[color:var(--foreground)]">{patient.name}</div>
-                          <div className="truncate text-xs text-[color:var(--muted)]">{patient.summary || "No summary"}</div>
+                          <div className="truncate text-xs text-[color:var(--muted)]">{patient.phone}</div>
+                        </div>
+                        <div>
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${promTone.badgeClass}`}>
+                            {formatPromSummary(patient.promSummary)}
+                          </span>
+                        </div>
+                        <div className="text-xs font-medium text-[color:var(--muted)]">{patient.status}</div>
+                        <div className="text-xs font-medium text-[color:var(--foreground)]">{patient.appointmentTime}</div>
+                        <div className="text-xs font-medium text-[color:var(--muted)]">{patient.consultationType}</div>
+                        <div className="truncate text-xs text-[color:var(--muted)]">{patient.summary || "No summary"}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 lg:hidden">
+                {mobileQueueRows.map((patient) => {
+                  const promTone = getPromSeverityTone(patient.promSummary);
+                  return (
+                    <button
+                      key={patient.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPatientId(patient.id);
+                        setActiveDetailTab("patient-details");
+                      }}
+                      className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-3 text-left shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-[color:var(--foreground)]">{patient.name}</div>
+                          <div className="truncate text-xs text-[color:var(--muted)]">{patient.phone}</div>
                         </div>
                         <div className="text-right text-xs font-medium text-[color:var(--muted)]">
                           <div>{patient.appointmentTime}</div>
                           <div>{patient.consultationType}</div>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${promTone.badgeClass}`}>
+                          {formatPromSummary(patient.promSummary)}
+                        </span>
+                        <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-[rgba(248,245,240,0.6)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]">
+                          {patient.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 truncate text-xs text-[color:var(--muted)]">{patient.summary || "No summary"}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           ) : null}
         </div>
       </section>
@@ -855,11 +1010,30 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         </div>
 
         <div className="mt-2 hidden sm:block">
+          <div className={`mb-2 rounded-xl border px-3 py-2 ${selectedPromTone.panelClass}`}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em]">Clinical Disability Index</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold">{formatPromSummary(selectedPatient.promSummary)}</span>
+              <span className="rounded-full border border-current/30 bg-white/70 px-2 py-0.5 text-[11px] font-semibold">
+                {selectedPromTone.focusLabel}
+              </span>
+            </div>
+          </div>
+
           <dl className="grid grid-cols-1 gap-2 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white/90 p-3 sm:grid-cols-2">
             {demographicPairs.map((item) => (
-              <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.55)] px-2.5 py-2">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{item.key}</dt>
-                <dd className="text-sm font-semibold text-[color:var(--foreground)]">{item.value}</dd>
+              <div
+                key={item.key}
+                className={`flex items-center justify-between gap-3 rounded-lg border px-2.5 py-2 ${
+                  item.isProm
+                    ? `${selectedPromTone.panelClass} border-current/25`
+                    : "border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.55)]"
+                }`}
+              >
+                <dt className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${item.isProm ? "text-current" : "text-[color:var(--muted)]"}`}>
+                  {item.key}
+                </dt>
+                <dd className={`text-sm font-semibold ${item.isProm ? "text-current" : "text-[color:var(--foreground)]"}`}>{item.value}</dd>
               </div>
             ))}
           </dl>

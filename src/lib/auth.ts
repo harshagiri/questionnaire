@@ -1,9 +1,3 @@
-import { demoOtpCode } from "@/lib/workflow-data";
-
-export function isAllowedDemoOtp(input: string) {
-  return input.trim() === demoOtpCode;
-}
-
 export const roleHomePath: Record<string, string> = {
   patient: "/patient",
   doctor: "/doctor",

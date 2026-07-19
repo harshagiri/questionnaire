@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type { ReceptionDraftRecord } from "@/lib/portal-storage";
+import type { PromDisplaySummary } from "@/lib/prom-scoring";
 import { createSessionId, loadReceptionDraft, saveReceptionDraft } from "@/lib/portal-storage";
+import { formatDoctorDisplayName, formatDoctorOptionLabel } from "@/lib/doctor-display";
 
 type BookingDraft = Omit<ReceptionDraftRecord, "sessionId" | "updatedAt"> & Record<string, string>;
 
@@ -18,6 +20,7 @@ type QueueAppointment = {
   appointmentType: string;
   status: string;
   notes: string;
+  promSummary?: PromDisplaySummary;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,6 +30,12 @@ type DoctorWithSlots = {
   name: string;
   registrationNumber?: string;
   slots: Array<{ id: string; dayOfWeek: number; startTime: string; slotDurationMinutes: number }>;
+};
+
+type AccessCodePreview = {
+  code: string;
+  expiresAt: string;
+  minutesRemaining: number;
 };
 
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -45,6 +54,14 @@ const appointmentTypeOptions = [
   { label: "Teleconsult (video)", value: "teleconsult" },
   { label: "Walk-in", value: "walk-in" },
 ];
+
+function formatPromSummary(summary?: PromDisplaySummary) {
+  if (!summary) {
+    return "PROM: Not scored";
+  }
+
+  return `PROM: ${summary.instrument} ${summary.percent.toFixed(1)}% (${summary.severity})`;
+}
 
 export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?: string }) {
   const [doctors, setDoctors] = useState<DoctorWithSlots[]>([]);
@@ -65,6 +82,10 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
   const [saveMessage, setSaveMessage] = useState("");
   const [issuedLink, setIssuedLink] = useState("");
   const [savedQueue, setSavedQueue] = useState<QueueAppointment[]>([]);
+  const [accessCodesByPhone, setAccessCodesByPhone] = useState<Record<string, AccessCodePreview>>({});
+  const [accessCodeLoading, setAccessCodeLoading] = useState<Record<string, boolean>>({});
+  const [accessCodeMessageByPhone, setAccessCodeMessageByPhone] = useState<Record<string, string>>({});
+  const [selectedQueueCardId, setSelectedQueueCardId] = useState<string | null>(null);
 
   const selectedDoctor = doctors.find((d) => d.id === bookingDraft.doctorName);
 
@@ -132,6 +153,30 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
       updatedAt: new Date().toISOString(),
     });
   }, [bookingDraft]);
+
+  useEffect(() => {
+    const phones = Array.from(
+      new Set(savedQueue.map((item) => item.patientPhone.replace(/\D/g, "")).filter((value) => value.length > 0)),
+    );
+
+    phones.forEach((phone) => {
+      if (accessCodesByPhone[phone] || accessCodeLoading[phone]) {
+        return;
+      }
+
+      void loadAccessCode(phone, false);
+    });
+  }, [savedQueue, accessCodesByPhone, accessCodeLoading]);
+
+  useEffect(() => {
+    if (!selectedQueueCardId) {
+      return;
+    }
+
+    if (!savedQueue.some((item) => item.id === selectedQueueCardId)) {
+      setSelectedQueueCardId(null);
+    }
+  }, [savedQueue, selectedQueueCardId]);
 
   const updateField = (field: string, value: string) => {
     setBookingDraft((c) => ({ ...c, [field]: value }));
@@ -222,6 +267,84 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
     }
   };
 
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, "");
+
+  const loadAccessCode = async (phone: string, rotate = false) => {
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return;
+    }
+
+    setAccessCodeLoading((current) => ({ ...current, [normalizedPhone]: true }));
+    setAccessCodeMessageByPhone((current) => ({ ...current, [normalizedPhone]: "" }));
+
+    try {
+      const response = await fetch(
+        rotate ? "/api/patient-access-code" : `/api/patient-access-code?phone=${encodeURIComponent(normalizedPhone)}`,
+        rotate
+          ? {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: normalizedPhone, rotate: true }),
+            }
+          : { cache: "no-store" },
+      );
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        code?: string;
+        expiresAt?: string;
+        minutesRemaining?: number;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.ok || !payload.code || !payload.expiresAt) {
+        setAccessCodeMessageByPhone((current) => ({
+          ...current,
+          [normalizedPhone]: payload.message ?? "Could not load access code.",
+        }));
+        return;
+      }
+
+      setAccessCodesByPhone((current) => ({
+        ...current,
+        [normalizedPhone]: {
+          code: payload.code as string,
+          expiresAt: payload.expiresAt as string,
+          minutesRemaining: Number(payload.minutesRemaining ?? 0),
+        },
+      }));
+      setAccessCodeMessageByPhone((current) => ({
+        ...current,
+        [normalizedPhone]: rotate ? "Access code rotated." : "Access code ready.",
+      }));
+    } catch {
+      setAccessCodeMessageByPhone((current) => ({
+        ...current,
+        [normalizedPhone]: "Network error while loading access code.",
+      }));
+    } finally {
+      setAccessCodeLoading((current) => ({ ...current, [normalizedPhone]: false }));
+    }
+  };
+
+  const selectedQueueItem = selectedQueueCardId
+    ? savedQueue.find((item) => item.id === selectedQueueCardId) ?? null
+    : null;
+  const selectedPhone = selectedQueueItem ? normalizePhone(selectedQueueItem.patientPhone) : "";
+  const selectedAccessCode = selectedPhone ? accessCodesByPhone[selectedPhone] : undefined;
+  const selectedAccessCodeLoading = selectedPhone ? accessCodeLoading[selectedPhone] : false;
+  const selectedAccessCodeMessage = selectedPhone ? accessCodeMessageByPhone[selectedPhone] : "";
+
+  const handleQueueCardSelection = (event: MouseEvent<HTMLDivElement>, id: string) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("button,select,a,input,textarea,label")) {
+      return;
+    }
+
+    setSelectedQueueCardId(id);
+  };
+
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
@@ -249,7 +372,7 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
               <select value={bookingDraft.doctorName} onChange={(e) => { updateField("doctorName", e.target.value); updateField("appointmentTime", ""); }} className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3">
                 <option value="">Select a doctor…</option>
                 {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}{d.registrationNumber ? ` (${d.registrationNumber})` : ""}</option>
+                  <option key={d.id} value={d.id}>{formatDoctorOptionLabel(d.name, d.registrationNumber)}</option>
                 ))}
               </select>
             </label>
@@ -327,10 +450,25 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
           <h2 className="headline text-3xl font-semibold">Today's queue</h2>
           <div className="mt-4 space-y-3">
             {savedQueue.length ? savedQueue.map((item) => (
-              <div key={item.id} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3">
+              <div
+                key={item.id}
+                className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 cursor-pointer sm:cursor-default"
+                onClick={(event) => handleQueueCardSelection(event, item.id)}
+              >
+                {(() => {
+                  const normalizedPhone = normalizePhone(item.patientPhone);
+                  const accessCode = accessCodesByPhone[normalizedPhone];
+                  const isLoadingCode = accessCodeLoading[normalizedPhone];
+                  const codeMessage = accessCodeMessageByPhone[normalizedPhone];
+
+                  return (
+                    <>
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <span className="font-semibold">{item.patientName} · {item.patientPhone}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1 text-[11px] font-semibold text-[color:var(--muted)] sm:hidden">
+                    Tap for actions
+                  </div>
+                  <div className="hidden items-center gap-2 sm:flex">
                     <button
                       type="button"
                       onClick={() => window.open(`/print/consult/${encodeURIComponent(item.consultSessionId)}`, "_blank", "noopener,noreferrer")}
@@ -343,7 +481,41 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
                     </select>
                   </div>
                 </div>
-                <div className="mt-1 text-sm text-[color:var(--muted)]">{item.doctorName} · {`${item.appointmentDate || "today"} ${item.appointmentTime || ""}`.trim()}</div>
+                <div className="mt-1 text-sm text-[color:var(--muted)]">{formatDoctorDisplayName(item.doctorName)} · {`${item.appointmentDate || "today"} ${item.appointmentTime || ""}`.trim()}</div>
+                <div className="mt-1 text-xs font-semibold text-[color:var(--accent)]">{formatPromSummary(item.promSummary)}</div>
+                <div className="mt-2 hidden rounded-xl border border-[rgba(21,32,43,0.1)] bg-white px-3 py-2 sm:block">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs text-[color:var(--muted)]">Patient access code</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loadAccessCode(item.patientPhone, false)}
+                        disabled={Boolean(isLoadingCode)}
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold"
+                      >
+                        {isLoadingCode ? "Loading..." : accessCode ? "Refresh" : "Reveal"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadAccessCode(item.patientPhone, true)}
+                        disabled={Boolean(isLoadingCode)}
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold"
+                      >
+                        Regenerate
+                      </button>
+                    </div>
+                  </div>
+                  {accessCode ? (
+                    <div className="mt-1 text-xs">
+                      <span className="font-semibold tracking-[0.2em] text-[var(--accent)]">{accessCode.code}</span>
+                      <span className="ml-2 text-[color:var(--muted)]">expires in {accessCode.minutesRemaining} min</span>
+                    </div>
+                  ) : null}
+                  {codeMessage ? <div className="mt-1 text-[11px] text-[color:var(--muted)]">{codeMessage}</div> : null}
+                </div>
+                    </>
+                  );
+                })()}
               </div>
             )) : (
               <div className="rounded-2xl border border-dashed border-[rgba(21,32,43,0.14)] px-4 py-6 text-sm text-[color:var(--muted)]">
@@ -353,6 +525,85 @@ export function ReceptionistWorkflow({ receptionistEmail }: { receptionistEmail?
           </div>
         </div>
       </section>
+
+      {selectedQueueItem ? (
+        <div className="fixed inset-0 z-40 sm:hidden" role="dialog" aria-modal="true" aria-label="Queue actions">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setSelectedQueueCardId(null)}
+            aria-label="Close actions"
+          />
+          <div className="absolute inset-x-0 bottom-0 z-10 rounded-t-3xl bg-white p-4 shadow-[0_-12px_40px_rgba(0,0,0,0.2)]">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-[rgba(21,32,43,0.18)]" />
+            <div className="text-sm font-semibold">{selectedQueueItem.patientName} · {selectedQueueItem.patientPhone}</div>
+            <div className="mt-1 text-xs text-[color:var(--muted)]">{formatDoctorDisplayName(selectedQueueItem.doctorName)} · {`${selectedQueueItem.appointmentDate || "today"} ${selectedQueueItem.appointmentTime || ""}`.trim()}</div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => window.open(`/print/consult/${encodeURIComponent(selectedQueueItem.consultSessionId)}`, "_blank", "noopener,noreferrer")}
+                className="focus-ring rounded-xl border border-[rgba(21,32,43,0.14)] bg-white px-3 py-2 text-sm font-semibold text-[var(--accent)]"
+              >
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedQueueCardId(null)}
+                className="focus-ring rounded-xl border border-[rgba(21,32,43,0.14)] bg-white px-3 py-2 text-sm font-semibold"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-xs font-semibold text-[color:var(--muted)]">Status</label>
+              <select
+                value={selectedQueueItem.status}
+                onChange={(event) => updateQueueStatus(selectedQueueItem.id, event.target.value)}
+                className="mt-1 w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm font-semibold outline-none"
+              >
+                {queueStatusOptions.map((statusOption) => (
+                  <option key={statusOption.value} value={statusOption.value}>
+                    {statusOption.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-[rgba(21,32,43,0.1)] bg-[rgba(21,32,43,0.02)] px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-[color:var(--muted)]">Patient access code</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => loadAccessCode(selectedQueueItem.patientPhone, false)}
+                    disabled={Boolean(selectedAccessCodeLoading)}
+                    className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold"
+                  >
+                    {selectedAccessCodeLoading ? "Loading..." : selectedAccessCode ? "Refresh" : "Reveal"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => loadAccessCode(selectedQueueItem.patientPhone, true)}
+                    disabled={Boolean(selectedAccessCodeLoading)}
+                    className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold"
+                  >
+                    Regenerate
+                  </button>
+                </div>
+              </div>
+              {selectedAccessCode ? (
+                <div className="mt-1 text-xs">
+                  <span className="font-semibold tracking-[0.2em] text-[var(--accent)]">{selectedAccessCode.code}</span>
+                  <span className="ml-2 text-[color:var(--muted)]">expires in {selectedAccessCode.minutesRemaining} min</span>
+                </div>
+              ) : null}
+              {selectedAccessCodeMessage ? <div className="mt-1 text-[11px] text-[color:var(--muted)]">{selectedAccessCodeMessage}</div> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

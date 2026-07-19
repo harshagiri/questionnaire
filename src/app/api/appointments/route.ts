@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { computePromScore, extractDoctorPromSummary, getPromSummaryFromAudit, type PromDisplaySummary } from "@/lib/prom-scoring";
 import { prisma } from "@/lib/prisma";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 const appointmentStatuses = ["draft", "booked", "waiting", "submitted", "cancelled", "follow_up"] as const;
 
@@ -39,9 +41,12 @@ type AppointmentPayload = {
   notes: string;
   videoConsultLink?: string;
   preConsultLink?: string;
+  promSummary?: PromDisplaySummary;
   createdAt: string;
   updatedAt: string;
 };
+
+type StoredAnswerValue = string | number | boolean | string[];
 
 type AppointmentTx = Parameters<NonNullable<typeof prisma>['$transaction']>[0] extends (transaction: infer Transaction, ...args: never[]) => unknown
   ? Transaction
@@ -62,6 +67,7 @@ function toAppointmentPayload(appointment: {
   notes: string | null;
   videoConsultLink?: string | null;
   preConsultLink?: string | null;
+  promSummary?: PromDisplaySummary;
   createdAt: Date;
   updatedAt: Date;
 }): AppointmentPayload {
@@ -73,7 +79,7 @@ function toAppointmentPayload(appointment: {
     patientName: appointment.patientName,
     patientPhone: appointment.patientPhone,
     doctorId: appointment.doctorId,
-    doctorName: appointment.doctorName,
+    doctorName: formatDoctorDisplayName(appointment.doctorName),
     appointmentDate: appointment.appointmentDate.toISOString().slice(0, 10),
     appointmentTime: appointment.appointmentTime,
     appointmentType: appointment.appointmentType,
@@ -81,9 +87,90 @@ function toAppointmentPayload(appointment: {
     notes: appointment.notes ?? "",
     videoConsultLink: appointment.videoConsultLink ?? undefined,
     preConsultLink: appointment.preConsultLink ?? undefined,
+    promSummary: appointment.promSummary,
     createdAt: appointment.createdAt.toISOString(),
     updatedAt: appointment.updatedAt.toISOString(),
   };
+}
+
+async function loadPromSummaryBySessionId(sessionIds: string[]) {
+  if (!prisma || sessionIds.length === 0) {
+    return new Map<string, PromDisplaySummary>();
+  }
+
+  const uniqueSessionIds = Array.from(new Set(sessionIds.filter((value) => value.trim().length > 0)));
+  const doctorSessionIds = uniqueSessionIds.map((sessionId) => `${sessionId}:doctor`);
+
+  const submissions = await prisma.questionnaireSubmission.findMany({
+    where: { sessionId: { in: [...uniqueSessionIds, ...doctorSessionIds] } },
+    include: { answers: true },
+  });
+
+  const patientBySession = new Map<string, Record<string, unknown>>();
+  const doctorBySession = new Map<string, Record<string, StoredAnswerValue>>();
+
+  for (const submission of submissions) {
+    const isDoctor = submission.sessionId.endsWith(":doctor");
+    const baseSessionId = isDoctor ? submission.sessionId.slice(0, -7) : submission.sessionId;
+    const answers = submission.answers;
+
+    if (isDoctor) {
+      doctorBySession.set(
+        baseSessionId,
+        Object.fromEntries(
+          answers
+            .filter((item) => !item.key.startsWith("__"))
+            .map((item) => [item.key, item.value as StoredAnswerValue]),
+        ),
+      );
+      continue;
+    }
+
+    const auditValue = answers.find((item) => item.key === "__promAutoAudit")?.value;
+    const auditSummary = getPromSummaryFromAudit(auditValue);
+    if (auditSummary) {
+      patientBySession.set(baseSessionId, {
+        __summary: auditSummary,
+      });
+      continue;
+    }
+
+    const rawAnswers = Object.fromEntries(
+      answers
+        .filter((item) => !item.key.startsWith("__"))
+        .map((item) => [item.key, item.value as unknown]),
+    );
+
+    const computed = computePromScore(rawAnswers);
+    if (computed.percent !== null) {
+      patientBySession.set(baseSessionId, {
+        __summary: {
+          instrument: computed.instrument,
+          percent: computed.percent,
+          severity: computed.severity,
+          source: "patient-auto",
+        } satisfies PromDisplaySummary,
+      });
+    }
+  }
+
+  const summaryBySession = new Map<string, PromDisplaySummary>();
+
+  for (const sessionId of uniqueSessionIds) {
+    const patientSummary = patientBySession.get(sessionId)?.__summary as PromDisplaySummary | undefined;
+    const doctorAnswers = doctorBySession.get(sessionId);
+    const doctorSummary = doctorAnswers
+      ? extractDoctorPromSummary(doctorAnswers, patientSummary?.instrument)
+      : null;
+
+    if (doctorSummary) {
+      summaryBySession.set(sessionId, doctorSummary);
+    } else if (patientSummary) {
+      summaryBySession.set(sessionId, patientSummary);
+    }
+  }
+
+  return summaryBySession;
 }
 
 function toConsultLink(consultSessionId: string | null, appointmentId: string) {
@@ -192,6 +279,10 @@ async function listDatabaseAppointments(phone?: string | null, date?: string | n
     return matchesPhone && matchesDate;
   });
 
+  const promBySession = await loadPromSummaryBySessionId(
+    filteredAppointments.map((appointment) => appointment.consultSessionId ?? appointment.id),
+  );
+
   return filteredAppointments.map((appointment) =>
     toAppointmentPayload({
       id: appointment.id,
@@ -205,6 +296,7 @@ async function listDatabaseAppointments(phone?: string | null, date?: string | n
       appointmentType: appointment.appointmentType,
       status: appointment.status,
       notes: appointment.notes,
+      promSummary: promBySession.get(appointment.consultSessionId ?? appointment.id),
       createdAt: appointment.createdAt,
       updatedAt: appointment.updatedAt,
     }),
@@ -275,7 +367,18 @@ export async function GET(request: Request) {
       appointments = await listDatabaseAppointments(phone, date);
     }
 
-    return NextResponse.json({ ok: true, appointments, storage: "database" });
+    const promBySession = await loadPromSummaryBySessionId(
+      appointments.map((appointment) => appointment.consultSessionId || appointment.id),
+    );
+
+    return NextResponse.json({
+      ok: true,
+      appointments: appointments.map((appointment) => ({
+        ...appointment,
+        promSummary: promBySession.get(appointment.consultSessionId || appointment.id),
+      })),
+      storage: "database",
+    });
   } catch {
     return NextResponse.json({ ok: true, appointments: [], storage: "error" });
   }

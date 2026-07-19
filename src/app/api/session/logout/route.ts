@@ -21,7 +21,6 @@ function clearAuthCookies(response: NextResponse, request: Request) {
   response.cookies.set("se_role", "", clearOptions);
   response.cookies.set("se_name", "", clearOptions);
   response.cookies.set("se_avatar", "", clearOptions);
-  response.cookies.set("se_demo_otp", "", clearOptions);
 }
 
 export async function POST(request: Request) {

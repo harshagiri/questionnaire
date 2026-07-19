@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { doctorQuestionnaireDefinition, summarizeAnswer } from "@/lib/questionnaire";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type QuestionnaireAnswer = string | number | boolean | string[];
 type AnswerMap = Record<string, QuestionnaireAnswer>;
@@ -323,7 +324,7 @@ export function ConsultPrintView({ consultSessionId, role }: { consultSessionId:
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Patient name:</span> {data.appointment?.patientName || "Not captured"}</div>
                 <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Phone:</span> {data.appointment?.patientPhone || "Not captured"}</div>
-                <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Doctor:</span> {data.appointment?.doctorName || "Not captured"}</div>
+                <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Doctor:</span> {formatDoctorDisplayName(data.appointment?.doctorName) || "Not captured"}</div>
                 <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Appointment:</span> {(data.appointment?.appointmentDate || "") + " " + (data.appointment?.appointmentTime || "")}</div>
                 <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Type:</span> {titleize(data.appointment?.appointmentType || "Not captured")}</div>
                 <div className="rounded-lg border border-[rgba(21,32,43,0.08)] px-3 py-2 text-sm"><span className="font-semibold">Status:</span> {titleize(data.appointment?.status || "Not captured")}</div>

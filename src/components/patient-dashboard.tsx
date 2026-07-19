@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { findPatientRecordByPhone, generateConsultId, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
+import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type ConsultModal = {
   consultId: string;
@@ -64,7 +65,7 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
           <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 mb-4">
             <p className="text-xs font-semibold text-teal-600 mb-1">Consult ID</p>
             <p className="text-xl font-mono font-bold text-teal-800">{modal.consultId}</p>
-            <p className="text-xs text-teal-600 mt-1">{modal.doctorName} · {modal.date} at {modal.time}</p>
+            <p className="text-xs text-teal-600 mt-1">{formatDoctorDisplayName(modal.doctorName)} · {modal.date} at {modal.time}</p>
           </div>
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
@@ -300,7 +301,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
                   <div key={`${appt.sessionId}-${consultId}-${index}`} className="bg-white border border-gray-200 rounded-xl p-4">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{appt.doctorName || "Doctor TBD"}</p>
+                        <p className="text-sm font-semibold text-gray-800">{formatDoctorDisplayName(appt.doctorName) || "Doctor TBD"}</p>
                         <p className="text-xs text-gray-500">{appt.appointmentDate} at {appt.appointmentTime}</p>
                         {consultId && <p className="text-xs font-mono text-gray-400 mt-0.5">{consultId}</p>}
                       </div>
@@ -338,7 +339,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
                   className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between"
                 >
                   <div>
-                    <p className="text-sm font-medium text-gray-700">{appt.doctorName || "Doctor"}</p>
+                    <p className="text-sm font-medium text-gray-700">{formatDoctorDisplayName(appt.doctorName) || "Doctor"}</p>
                     <p className="text-xs text-gray-400">{appt.appointmentDate}</p>
                   </div>
                   <div className="flex items-center gap-2">
