@@ -7,12 +7,18 @@ type MagicLinkEntry = {
   phone: string;
   createdAt: string;
   expiresAt: string;
+  smsStatus?: "pending" | "sent" | "failed" | "skipped";
+  smsError?: string;
+  smsSentAt?: string;
+  smsFailedAt?: string;
+  smsSkippedAt?: string;
+  revokedAt?: string;
   usedAt?: string;
 };
 
 type MagicLinkAuditEvent = {
   at: string;
-  action: "issued" | "consumed" | "revoked" | "consume_failed";
+  action: "issued" | "sms_sent" | "sms_failed" | "sms_skipped" | "consumed" | "revoked" | "consume_failed";
   phone?: string;
   tokenHash: string;
   note?: string;
@@ -31,6 +37,14 @@ type IssueMagicLinkResult = {
 type ConsumeMagicLinkResult =
   | { ok: true; phone: string; expiresAt: string }
   | { ok: false; message: string };
+
+export type MagicLinkDeliveryStatus = {
+  phone: string;
+  createdAt: string;
+  expiresAt: string;
+  status: "pending" | "sent" | "failed" | "skipped" | "used" | "revoked" | "expired";
+  note?: string;
+};
 
 const storePath = join(process.cwd(), "data", "patient-magic-links.json");
 const MAGIC_LINK_TTL_HOURS = 24;
@@ -55,13 +69,7 @@ function isExpired(expiresAt: string, now = Date.now()) {
 
 function sanitizeStore(store: MagicLinkStore) {
   const now = Date.now();
-  store.entries = store.entries.filter((entry) => {
-    if (entry.usedAt) {
-      return false;
-    }
-
-    return !isExpired(entry.expiresAt, now);
-  });
+  store.entries = store.entries.filter((entry) => !isExpired(entry.expiresAt, now));
 
   if (store.audit.length > MAX_AUDIT_EVENTS) {
     store.audit = store.audit.slice(store.audit.length - MAX_AUDIT_EVENTS);
@@ -115,6 +123,7 @@ export async function issuePatientMagicLink(input: { phone: string }): Promise<I
     phone: normalizedPhone,
     createdAt: createdAt.toISOString(),
     expiresAt,
+    smsStatus: "pending",
   });
 
   pushAudit(store, {
@@ -141,7 +150,10 @@ export async function revokePatientMagicLink(token: string, note = "SMS dispatch
     return;
   }
 
-  match.usedAt = nowIso();
+  match.revokedAt = nowIso();
+  match.smsStatus = "failed";
+  match.smsError = note;
+  match.smsFailedAt = nowIso();
   pushAudit(store, {
     action: "revoked",
     phone: match.phone,
@@ -167,6 +179,17 @@ export async function consumePatientMagicLink(token: string): Promise<ConsumeMag
       action: "consume_failed",
       tokenHash,
       note: "Not found",
+    });
+    await writeStore(store);
+    return { ok: false, message: "Magic link is invalid or expired" };
+  }
+
+  if (match.revokedAt) {
+    pushAudit(store, {
+      action: "consume_failed",
+      phone: match.phone,
+      tokenHash,
+      note: "Revoked",
     });
     await writeStore(store);
     return { ok: false, message: "Magic link is invalid or expired" };
@@ -207,6 +230,101 @@ export async function consumePatientMagicLink(token: string): Promise<ConsumeMag
     phone: match.phone,
     expiresAt: match.expiresAt,
   };
+}
+
+async function markMagicLinkSmsStatus(input: {
+  token: string;
+  status: "sent" | "failed" | "skipped";
+  note?: string;
+}) {
+  const store = await readStore();
+  sanitizeStore(store);
+  const tokenHash = hashToken(input.token);
+  const match = store.entries.find((entry) => entry.tokenHash === tokenHash);
+  if (!match) {
+    return;
+  }
+
+  if (input.status === "sent") {
+    match.smsStatus = "sent";
+    match.smsSentAt = nowIso();
+    match.smsError = undefined;
+    pushAudit(store, {
+      action: "sms_sent",
+      phone: match.phone,
+      tokenHash,
+    });
+  } else if (input.status === "failed") {
+    match.smsStatus = "failed";
+    match.smsFailedAt = nowIso();
+    match.smsError = input.note;
+    pushAudit(store, {
+      action: "sms_failed",
+      phone: match.phone,
+      tokenHash,
+      note: input.note,
+    });
+  } else {
+    match.smsStatus = "skipped";
+    match.smsSkippedAt = nowIso();
+    pushAudit(store, {
+      action: "sms_skipped",
+      phone: match.phone,
+      tokenHash,
+      note: input.note,
+    });
+  }
+
+  await writeStore(store);
+}
+
+export async function markMagicLinkSmsSent(token: string) {
+  await markMagicLinkSmsStatus({ token, status: "sent" });
+}
+
+export async function markMagicLinkSmsFailed(token: string, note: string) {
+  await markMagicLinkSmsStatus({ token, status: "failed", note });
+}
+
+export async function markMagicLinkSmsSkipped(token: string, note = "SMS skipped for testing") {
+  await markMagicLinkSmsStatus({ token, status: "skipped", note });
+}
+
+function entryStatus(entry: MagicLinkEntry): MagicLinkDeliveryStatus["status"] {
+  if (isExpired(entry.expiresAt)) {
+    return "expired";
+  }
+  if (entry.usedAt) {
+    return "used";
+  }
+  if (entry.revokedAt) {
+    return "revoked";
+  }
+  if (entry.smsStatus === "sent") {
+    return "sent";
+  }
+  if (entry.smsStatus === "failed") {
+    return "failed";
+  }
+  if (entry.smsStatus === "skipped") {
+    return "skipped";
+  }
+  return "pending";
+}
+
+export async function listRecentMagicLinkStatuses(limit = 20): Promise<MagicLinkDeliveryStatus[]> {
+  const store = await readStore();
+  sanitizeStore(store);
+  const sorted = [...store.entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const sliced = sorted.slice(0, Math.max(1, limit));
+
+  return sliced.map((entry) => ({
+    phone: entry.phone,
+    createdAt: entry.createdAt,
+    expiresAt: entry.expiresAt,
+    status: entryStatus(entry),
+    note: entry.smsError,
+  }));
 }
 
 function asIndianMobile(phone: string) {

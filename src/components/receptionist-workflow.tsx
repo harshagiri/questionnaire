@@ -27,6 +27,14 @@ type AccessCodePreview = {
   minutesRemaining: number;
 };
 
+type MagicLinkStatusEntry = {
+  phone: string;
+  createdAt: string;
+  expiresAt: string;
+  status: "pending" | "sent" | "failed" | "skipped" | "used" | "revoked" | "expired";
+  note?: string;
+};
+
 const queueStatusOptions = [
   { label: "Booked", value: "booked" },
   { label: "Waiting", value: "waiting" },
@@ -58,8 +66,13 @@ export function ReceptionistWorkflow() {
   const [magicLinkMessage, setMagicLinkMessage] = useState("");
   const [magicLinkSending, setMagicLinkSending] = useState(false);
   const [magicLinkPreviewUrl, setMagicLinkPreviewUrl] = useState("");
+  const [magicLinkEntries, setMagicLinkEntries] = useState<MagicLinkStatusEntry[]>([]);
 
   const normalizePhone = (phone: string) => phone.replace(/\D/g, "");
+  const isValidIndianMobile = (phone: string) => {
+    const digits = normalizePhone(phone);
+    return /^[6-9]\d{9}$/.test(digits) || /^91[6-9]\d{9}$/.test(digits);
+  };
 
   useEffect(() => {
     let active = true;
@@ -146,6 +159,24 @@ export function ReceptionistWorkflow() {
     }
   }, []);
 
+  const loadMagicLinkEntries = useCallback(async () => {
+    try {
+      const response = await fetch("/api/patient-magic-link", { cache: "no-store" });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        entries?: MagicLinkStatusEntry[];
+      };
+
+      if (!response.ok || !payload.ok) {
+        return;
+      }
+
+      setMagicLinkEntries(payload.entries ?? []);
+    } catch {
+      // Do not block the dashboard if status list fetch fails.
+    }
+  }, []);
+
   useEffect(() => {
     const phones = Array.from(
       new Set(savedQueue.map((item) => item.patientPhone.replace(/\D/g, "")).filter((value) => value.length > 0)),
@@ -202,8 +233,8 @@ export function ReceptionistWorkflow() {
     setMagicLinkMessage("");
     setMagicLinkPreviewUrl("");
 
-    if (normalizedPhone.length < 10) {
-      setMagicLinkMessage("Enter a valid phone number.");
+    if (!isValidIndianMobile(magicLinkPhone)) {
+      setMagicLinkMessage("Enter a valid Indian mobile number.");
       return;
     }
 
@@ -236,11 +267,33 @@ export function ReceptionistWorkflow() {
       } else {
         setMagicLinkMessage(`Magic link sent by SMS. Valid until ${expiresLocal}.`);
       }
+
+      setMagicLinkEntries((current) => [
+        {
+          phone: normalizedPhone,
+          createdAt: new Date().toISOString(),
+          expiresAt: payload.expiresAt,
+          status: payload.sent ? "sent" : "skipped",
+          note: payload.sent ? undefined : payload.message,
+        },
+        ...current,
+      ]);
     } catch {
       setMagicLinkMessage("Network error while generating magic link.");
     } finally {
       setMagicLinkSending(false);
+      void loadMagicLinkEntries();
     }
+  };
+
+  const magicStatusClass: Record<MagicLinkStatusEntry["status"], string> = {
+    pending: "bg-slate-100 text-slate-700",
+    sent: "bg-emerald-100 text-emerald-700",
+    failed: "bg-rose-100 text-rose-700",
+    skipped: "bg-amber-100 text-amber-700",
+    used: "bg-indigo-100 text-indigo-700",
+    revoked: "bg-zinc-100 text-zinc-700",
+    expired: "bg-zinc-100 text-zinc-700",
   };
 
   return (
@@ -258,7 +311,7 @@ export function ReceptionistWorkflow() {
               type="tel"
               value={magicLinkPhone}
               onChange={(event) => setMagicLinkPhone(event.target.value)}
-              placeholder="Enter registered mobile number"
+              placeholder="Enter Indian mobile number"
               className="mt-2 w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none"
             />
           </label>
@@ -284,6 +337,39 @@ export function ReceptionistWorkflow() {
             {magicLinkPreviewUrl}
           </a>
         ) : null}
+
+        <div className="mt-5 rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">Recent magic links</p>
+            <button
+              type="button"
+              onClick={() => void loadMagicLinkEntries()}
+              className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-3 py-1 text-xs font-semibold"
+            >
+              Refresh
+            </button>
+          </div>
+          {magicLinkEntries.length === 0 ? (
+            <p className="text-xs text-[color:var(--muted)]">No links generated yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {magicLinkEntries.slice(0, 10).map((entry, index) => (
+                <div key={`${entry.phone}-${entry.createdAt}-${index}`} className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">{entry.phone}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${magicStatusClass[entry.status]}`}>
+                      {entry.status}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--muted)]">
+                    Created {new Date(entry.createdAt).toLocaleString()} • Expires {new Date(entry.expiresAt).toLocaleString()}
+                  </div>
+                  {entry.note ? <div className="mt-1 text-[11px] text-rose-600">{entry.note}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-sm">

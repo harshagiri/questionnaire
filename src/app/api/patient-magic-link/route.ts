@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
 import {
   issuePatientMagicLink,
+  listRecentMagicLinkStatuses,
+  markMagicLinkSmsFailed,
+  markMagicLinkSmsSent,
+  markMagicLinkSmsSkipped,
   revokePatientMagicLink,
   sendMagicLinkViaMsg91,
 } from "@/lib/patient-magic-link";
@@ -14,6 +17,20 @@ type MagicLinkRequestBody = {
 
 function normalizePhone(phone: string | undefined) {
   return (phone ?? "").replace(/\D/g, "");
+}
+
+function normalizeIndianMobile(phone: string | undefined) {
+  const digits = normalizePhone(phone);
+
+  if (/^[6-9]\d{9}$/.test(digits)) {
+    return digits;
+  }
+
+  if (/^91[6-9]\d{9}$/.test(digits)) {
+    return digits.slice(2);
+  }
+
+  return null;
 }
 
 function resolveAppUrl(request: Request) {
@@ -36,17 +53,14 @@ async function assertReceptionist() {
   return role === "receptionist";
 }
 
-async function ensurePatientExistsByPhone(phone: string) {
-  if (!prisma) {
-    return true;
+export async function GET() {
+  const isReceptionist = await assertReceptionist();
+  if (!isReceptionist) {
+    return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 403 });
   }
 
-  const record = await prisma.patientRecord.findUnique({
-    where: { phone },
-    select: { id: true },
-  });
-
-  return Boolean(record);
+  const recent = await listRecentMagicLinkStatuses(30);
+  return NextResponse.json({ ok: true, entries: recent });
 }
 
 export async function POST(request: Request) {
@@ -56,16 +70,11 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as MagicLinkRequestBody | null;
-  const phone = normalizePhone(body?.phone);
+  const phone = normalizeIndianMobile(body?.phone);
   const skipSms = Boolean(body?.skipSms);
 
-  if (phone.length < 10) {
-    return NextResponse.json({ ok: false, message: "Invalid phone number" }, { status: 400 });
-  }
-
-  const patientExists = await ensurePatientExistsByPhone(phone);
-  if (!patientExists) {
-    return NextResponse.json({ ok: false, message: "Patient not registered" }, { status: 404 });
+  if (!phone) {
+    return NextResponse.json({ ok: false, message: "Enter a valid Indian mobile number" }, { status: 400 });
   }
 
   try {
@@ -74,6 +83,7 @@ export async function POST(request: Request) {
     const magicLink = `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(issued.token)}`;
 
     if (skipSms && canExposeMagicLinkForTesting()) {
+      await markMagicLinkSmsSkipped(issued.token);
       return NextResponse.json({
         ok: true,
         phone,
@@ -89,9 +99,12 @@ export async function POST(request: Request) {
         phone,
         magicLink,
       });
+      await markMagicLinkSmsSent(issued.token);
     } catch (smsError) {
+      const smsMessage = smsError instanceof Error ? smsError.message : "SMS dispatch failed";
+      await markMagicLinkSmsFailed(issued.token, smsMessage);
+
       if (canExposeMagicLinkForTesting()) {
-        const smsMessage = smsError instanceof Error ? smsError.message : "SMS dispatch failed";
         return NextResponse.json({
           ok: true,
           phone,
@@ -103,7 +116,6 @@ export async function POST(request: Request) {
       }
 
       await revokePatientMagicLink(issued.token, "SMS dispatch failed");
-      const smsMessage = smsError instanceof Error ? smsError.message : "SMS dispatch failed";
       return NextResponse.json({ ok: false, message: smsMessage }, { status: 502 });
     }
 
