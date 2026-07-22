@@ -260,7 +260,8 @@ export function ReceptionistWorkflow() {
         return;
       }
 
-      const expiresLocal = new Date(payload.expiresAt).toLocaleString();
+      const expiresAt = payload.expiresAt;
+      const expiresLocal = new Date(expiresAt).toLocaleString();
       if (payload.sent === false && payload.magicLink) {
         setMagicLinkMessage(`SMS unavailable in local test. Use this direct link. Valid until ${expiresLocal}.`);
         setMagicLinkPreviewUrl(payload.magicLink);
@@ -272,7 +273,7 @@ export function ReceptionistWorkflow() {
         {
           phone: normalizedPhone,
           createdAt: new Date().toISOString(),
-          expiresAt: payload.expiresAt,
+          expiresAt,
           status: payload.sent ? "sent" : "skipped",
           note: payload.sent ? undefined : payload.message,
         },
