@@ -10,6 +10,7 @@ import {
   sendMagicLinkViaMsg91,
 } from "@/lib/patient-magic-link";
 import { ensurePatientRecordForPhone } from "@/lib/patient-record";
+import { resolveAppUrl } from "@/lib/app-url";
 
 type MagicLinkRequestBody = {
   phone?: string;
@@ -32,16 +33,6 @@ function normalizeIndianMobile(phone: string | undefined) {
   }
 
   return null;
-}
-
-function resolveAppUrl(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/$/, "");
-  }
-
-  const incoming = new URL(request.url);
-  return `${incoming.protocol}//${incoming.host}`;
 }
 
 function canExposeMagicLinkForTesting() {
