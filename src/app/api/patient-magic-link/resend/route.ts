@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
-  issuePatientMagicLink,
-  listRecentMagicLinkStatuses,
   markMagicLinkSmsFailed,
   markMagicLinkSmsSent,
   markMagicLinkSmsSkipped,
-  revokePatientMagicLink,
+  resolveMagicLinkForPhone,
   sendMagicLinkViaMsg91,
 } from "@/lib/patient-magic-link";
 
-type MagicLinkRequestBody = {
+type ResendBody = {
   phone?: string;
+  entryId?: string;
   skipSms?: boolean;
 };
 
@@ -53,26 +52,13 @@ async function assertReceptionist() {
   return role === "receptionist";
 }
 
-export async function GET(request: Request) {
-  const isReceptionist = await assertReceptionist();
-  if (!isReceptionist) {
-    return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 403 });
-  }
-
-  const limitParam = new URL(request.url).searchParams.get("limit");
-  const parsedLimit = Number(limitParam);
-  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(200, parsedLimit) : 100;
-  const recent = await listRecentMagicLinkStatuses(limit);
-  return NextResponse.json({ ok: true, entries: recent });
-}
-
 export async function POST(request: Request) {
   const isReceptionist = await assertReceptionist();
   if (!isReceptionist) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => null)) as MagicLinkRequestBody | null;
+  const body = (await request.json().catch(() => null)) as ResendBody | null;
   const phone = normalizeIndianMobile(body?.phone);
   const skipSms = Boolean(body?.skipSms);
 
@@ -81,17 +67,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const issued = await issuePatientMagicLink({ phone });
-    const baseUrl = resolveAppUrl(request);
-    const magicLink = `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(issued.token)}`;
+    const resolved = await resolveMagicLinkForPhone({
+      phone,
+      preferredEntryId: body?.entryId,
+    });
+
+    const magicLink = `${resolveAppUrl(request)}/api/patient-magic-link/consume?token=${encodeURIComponent(resolved.token)}`;
 
     if (skipSms && canExposeMagicLinkForTesting()) {
-      await markMagicLinkSmsSkipped(issued.token);
+      await markMagicLinkSmsSkipped(resolved.token, "SMS skipped during resend for local testing.");
       return NextResponse.json({
         ok: true,
         phone,
-        expiresAt: issued.expiresAt,
+        expiresAt: resolved.expiresAt,
         sent: false,
+        reusedExisting: resolved.reusedExisting,
         magicLink,
         message: "SMS skipped for local testing.",
       });
@@ -102,34 +92,35 @@ export async function POST(request: Request) {
         phone,
         magicLink,
       });
-      await markMagicLinkSmsSent(issued.token);
+      await markMagicLinkSmsSent(resolved.token);
     } catch (smsError) {
       const smsMessage = smsError instanceof Error ? smsError.message : "SMS dispatch failed";
-      await markMagicLinkSmsFailed(issued.token, smsMessage);
+      await markMagicLinkSmsFailed(resolved.token, smsMessage);
 
       if (canExposeMagicLinkForTesting()) {
         return NextResponse.json({
           ok: true,
           phone,
-          expiresAt: issued.expiresAt,
+          expiresAt: resolved.expiresAt,
           sent: false,
+          reusedExisting: resolved.reusedExisting,
           magicLink,
           message: `SMS failed: ${smsMessage}`,
         });
       }
 
-      await revokePatientMagicLink(issued.token, "SMS dispatch failed");
       return NextResponse.json({ ok: false, message: smsMessage }, { status: 502 });
     }
 
     return NextResponse.json({
       ok: true,
       phone,
-      expiresAt: issued.expiresAt,
+      expiresAt: resolved.expiresAt,
       sent: true,
+      reusedExisting: resolved.reusedExisting,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not generate magic link";
+    const message = error instanceof Error ? error.message : "Could not resend magic link";
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

@@ -28,6 +28,7 @@ type AccessCodePreview = {
 };
 
 type MagicLinkStatusEntry = {
+  id: string;
   phone: string;
   createdAt: string;
   expiresAt: string;
@@ -67,6 +68,9 @@ export function ReceptionistWorkflow() {
   const [magicLinkSending, setMagicLinkSending] = useState(false);
   const [magicLinkPreviewUrl, setMagicLinkPreviewUrl] = useState("");
   const [magicLinkEntries, setMagicLinkEntries] = useState<MagicLinkStatusEntry[]>([]);
+  const [magicLinkDate, setMagicLinkDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [magicLinkSearchPhone, setMagicLinkSearchPhone] = useState("");
+  const [resendingEntryId, setResendingEntryId] = useState<string | null>(null);
 
   const normalizePhone = (phone: string) => phone.replace(/\D/g, "");
   const isValidIndianMobile = (phone: string) => {
@@ -178,6 +182,33 @@ export function ReceptionistWorkflow() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    async function loadInitialMagicLinks() {
+      try {
+        const response = await fetch("/api/patient-magic-link", { cache: "no-store" });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          entries?: MagicLinkStatusEntry[];
+        };
+
+        if (!active || !response.ok || !payload.ok) {
+          return;
+        }
+
+        setMagicLinkEntries(payload.entries ?? []);
+      } catch {
+        // Ignore status list load failures.
+      }
+    }
+
+    void loadInitialMagicLinks();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const phones = Array.from(
       new Set(savedQueue.map((item) => item.patientPhone.replace(/\D/g, "")).filter((value) => value.length > 0)),
     );
@@ -271,6 +302,7 @@ export function ReceptionistWorkflow() {
 
       setMagicLinkEntries((current) => [
         {
+          id: `${normalizedPhone}-${Date.now()}`,
           phone: normalizedPhone,
           createdAt: new Date().toISOString(),
           expiresAt,
@@ -287,6 +319,54 @@ export function ReceptionistWorkflow() {
     }
   };
 
+  const resendMagicLink = async (entry: MagicLinkStatusEntry) => {
+    const normalizedPhone = normalizePhone(entry.phone);
+    setMagicLinkMessage("");
+    setMagicLinkPreviewUrl("");
+    setResendingEntryId(entry.id);
+
+    try {
+      const skipSms = typeof window !== "undefined" && window.location.hostname === "localhost";
+      const response = await fetch("/api/patient-magic-link/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizedPhone, entryId: entry.id, skipSms }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        expiresAt?: string;
+        sent?: boolean;
+        reusedExisting?: boolean;
+        message?: string;
+        magicLink?: string;
+      };
+
+      if (!response.ok || !payload.ok || !payload.expiresAt) {
+        setMagicLinkMessage(payload.message ?? "Could not resend magic link.");
+        return;
+      }
+
+      const action = payload.reusedExisting ? "resent existing link" : "generated new link";
+      const validity = new Date(payload.expiresAt).toLocaleString();
+      if (payload.sent) {
+        setMagicLinkMessage(`SMS ${action} successfully. Valid until ${validity}.`);
+      } else {
+        setMagicLinkMessage(`SMS unavailable, ${action} for testing. Valid until ${validity}.`);
+      }
+
+      if (payload.magicLink) {
+        setMagicLinkPreviewUrl(payload.magicLink);
+      }
+
+      void loadMagicLinkEntries();
+    } catch {
+      setMagicLinkMessage("Network error while resending magic link.");
+    } finally {
+      setResendingEntryId(null);
+    }
+  };
+
   const magicStatusClass: Record<MagicLinkStatusEntry["status"], string> = {
     pending: "bg-slate-100 text-slate-700",
     sent: "bg-emerald-100 text-emerald-700",
@@ -296,6 +376,14 @@ export function ReceptionistWorkflow() {
     revoked: "bg-zinc-100 text-zinc-700",
     expired: "bg-zinc-100 text-zinc-700",
   };
+
+  const filteredMagicLinkEntries = magicLinkEntries.filter((entry) => {
+    const entryDate = new Date(entry.createdAt).toISOString().slice(0, 10);
+    const dateMatch = !magicLinkDate || entryDate === magicLinkDate;
+    const searchDigits = normalizePhone(magicLinkSearchPhone);
+    const phoneMatch = !searchDigits || normalizePhone(entry.phone).includes(searchDigits);
+    return dateMatch && phoneMatch;
+  });
 
   return (
     <div className="space-y-6">
@@ -340,6 +428,28 @@ export function ReceptionistWorkflow() {
         ) : null}
 
         <div className="mt-5 rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
+          <div className="mb-3 grid gap-3 sm:grid-cols-[170px_1fr]">
+            <label>
+              <span className="text-xs font-semibold text-[color:var(--muted)]">Date</span>
+              <input
+                type="date"
+                value={magicLinkDate}
+                onChange={(event) => setMagicLinkDate(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm outline-none"
+              />
+            </label>
+            <label>
+              <span className="text-xs font-semibold text-[color:var(--muted)]">Search phone</span>
+              <input
+                type="text"
+                value={magicLinkSearchPhone}
+                onChange={(event) => setMagicLinkSearchPhone(event.target.value)}
+                placeholder="Search by phone number"
+                className="mt-1 w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm outline-none"
+              />
+            </label>
+          </div>
+
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">Recent magic links</p>
             <button
@@ -350,17 +460,27 @@ export function ReceptionistWorkflow() {
               Refresh
             </button>
           </div>
-          {magicLinkEntries.length === 0 ? (
+          {filteredMagicLinkEntries.length === 0 ? (
             <p className="text-xs text-[color:var(--muted)]">No links generated yet.</p>
           ) : (
             <div className="space-y-2">
-              {magicLinkEntries.slice(0, 10).map((entry, index) => (
-                <div key={`${entry.phone}-${entry.createdAt}-${index}`} className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2">
+              {filteredMagicLinkEntries.slice(0, 30).map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold">{entry.phone}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${magicStatusClass[entry.status]}`}>
-                      {entry.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${magicStatusClass[entry.status]}`}>
+                        {entry.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void resendMagicLink(entry)}
+                        disabled={resendingEntryId === entry.id}
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60"
+                      >
+                        {resendingEntryId === entry.id ? "Sending..." : "Resend"}
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-1 text-[11px] text-[color:var(--muted)]">
                     Created {new Date(entry.createdAt).toLocaleString()} • Expires {new Date(entry.expiresAt).toLocaleString()}

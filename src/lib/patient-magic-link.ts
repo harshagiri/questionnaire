@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 
 type MagicLinkEntry = {
   tokenHash: string;
+  token?: string;
   phone: string;
   createdAt: string;
   expiresAt: string;
@@ -39,11 +40,20 @@ type ConsumeMagicLinkResult =
   | { ok: false; message: string };
 
 export type MagicLinkDeliveryStatus = {
+  id: string;
   phone: string;
   createdAt: string;
   expiresAt: string;
   status: "pending" | "sent" | "failed" | "skipped" | "used" | "revoked" | "expired";
   note?: string;
+};
+
+export type MagicLinkResolutionResult = {
+  phone: string;
+  token: string;
+  expiresAt: string;
+  reusedExisting: boolean;
+  tokenHash: string;
 };
 
 const storePath = join(process.cwd(), "data", "patient-magic-links.json");
@@ -120,6 +130,7 @@ export async function issuePatientMagicLink(input: { phone: string }): Promise<I
 
   store.entries.push({
     tokenHash,
+    token,
     phone: normalizedPhone,
     createdAt: createdAt.toISOString(),
     expiresAt,
@@ -319,12 +330,84 @@ export async function listRecentMagicLinkStatuses(limit = 20): Promise<MagicLink
   const sliced = sorted.slice(0, Math.max(1, limit));
 
   return sliced.map((entry) => ({
+    id: entry.tokenHash,
     phone: entry.phone,
     createdAt: entry.createdAt,
     expiresAt: entry.expiresAt,
     status: entryStatus(entry),
     note: entry.smsError,
   }));
+}
+
+function isReusable(entry: MagicLinkEntry, now = Date.now()) {
+  return !entry.revokedAt && !entry.usedAt && !isExpired(entry.expiresAt, now);
+}
+
+export async function resolveMagicLinkForPhone(input: {
+  phone: string;
+  preferredEntryId?: string;
+}): Promise<MagicLinkResolutionResult> {
+  const normalizedPhone = normalizePhone(input.phone);
+  if (normalizedPhone.length < 10) {
+    throw new Error("Invalid phone number");
+  }
+
+  const store = await readStore();
+  sanitizeStore(store);
+  const now = Date.now();
+
+  const forPhone = store.entries
+    .filter((entry) => entry.phone === normalizedPhone)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const preferred = input.preferredEntryId
+    ? forPhone.find((entry) => entry.tokenHash === input.preferredEntryId)
+    : undefined;
+
+  const chosen =
+    (preferred && isReusable(preferred, now) && preferred.token ? preferred : undefined) ??
+    forPhone.find((entry) => isReusable(entry, now) && Boolean(entry.token));
+
+  if (chosen?.token) {
+    return {
+      phone: normalizedPhone,
+      token: chosen.token,
+      expiresAt: chosen.expiresAt,
+      reusedExisting: true,
+      tokenHash: chosen.tokenHash,
+    };
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = hashToken(token);
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + MAGIC_LINK_TTL_HOURS * 60 * 60 * 1000).toISOString();
+
+  store.entries.push({
+    tokenHash,
+    token,
+    phone: normalizedPhone,
+    createdAt: createdAt.toISOString(),
+    expiresAt,
+    smsStatus: "pending",
+  });
+
+  pushAudit(store, {
+    action: "issued",
+    phone: normalizedPhone,
+    tokenHash,
+    note: "Issued during resend",
+  });
+
+  await writeStore(store);
+
+  return {
+    phone: normalizedPhone,
+    token,
+    expiresAt,
+    reusedExisting: false,
+    tokenHash,
+  };
 }
 
 function asIndianMobile(phone: string) {
