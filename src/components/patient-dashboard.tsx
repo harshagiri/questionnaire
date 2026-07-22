@@ -188,6 +188,10 @@ export function PatientDashboard({ phone }: { phone: string }) {
   const upcomingAppointments = appointments.filter((a) => a.status !== "cancelled" && a.status !== "submitted");
   const pastAppointments = appointments.filter((a) => a.status === "submitted" || a.status === "cancelled");
   const canProceed = Boolean(patientRecord?.patientId);
+  const questionnaireSessionId = patientRecord?.patientId ? `self-${patientRecord.patientId}` : "";
+  const questionnaireHref = canProceed
+    ? `/patient/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(phone)}`
+    : "/register";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -236,6 +240,19 @@ export function PatientDashboard({ phone }: { phone: string }) {
         {/* Quick actions */}
         <div className="grid grid-cols-1 gap-3 mb-6">
           <button
+            onClick={() => canProceed && router.push(questionnaireHref)}
+            disabled={!canProceed}
+            className={`bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
+          >
+            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
+              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-800">Start questionnaire</p>
+            <p className="text-xs text-gray-400 mt-0.5">Fill or continue your patient questionnaire without booking</p>
+          </button>
+          <button
             onClick={() => router.push("/register")}
             className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-gray-400 transition-colors"
           >
@@ -270,6 +287,14 @@ export function PatientDashboard({ phone }: { phone: string }) {
           ) : upcomingAppointments.length === 0 ? (
             <div className="bg-white border border-dashed border-gray-200 rounded-xl p-6 text-center">
               <p className="text-sm text-gray-400">No upcoming appointments</p>
+              {canProceed ? (
+                <a
+                  href={questionnaireHref}
+                  className="mt-3 inline-flex rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-100"
+                >
+                  Start questionnaire
+                </a>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3">
