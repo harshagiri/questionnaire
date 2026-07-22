@@ -372,16 +372,19 @@ async function loadAppointments(date?: string, doctorEmail?: string) {
     notes: item.notes,
     promSummary: undefined,
   }));
+  const dateFilteredLocalAppointments = date
+    ? localAppointments.filter((item) => item.appointmentDate === date)
+    : localAppointments;
 
-  if (doctorEmail && localAppointments.length > 0) {
+  if (doctorEmail && dateFilteredLocalAppointments.length > 0) {
     // local fallback does not have doctor email mapping; include only when API is empty or unavailable
     if (apiAppointments.length === 0) {
-      return localAppointments;
+      return dateFilteredLocalAppointments;
     }
   }
 
   const dedupedBySession = new Map<string, AppointmentRecord>();
-  for (const item of [...localAppointments, ...apiAppointments]) {
+  for (const item of [...dateFilteredLocalAppointments, ...apiAppointments]) {
     dedupedBySession.set(item.consultSessionId || item.id, item);
   }
 
@@ -431,8 +434,8 @@ async function loadIntakeBySession(sessionId: string) {
   }
 }
 
-async function loadDoctorQueue(doctorEmail?: string) {
-  const appointments = await loadAppointments(undefined, doctorEmail);
+async function loadDoctorQueue(date?: string, doctorEmail?: string) {
+  const appointments = await loadAppointments(date, doctorEmail);
 
   const patientProfileByPhone = new Map<string, Promise<PatientProfileSnapshot | null>>();
 
@@ -515,6 +518,8 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<"patient-details" | "doctor">("patient-details");
   const [doctorDefinition, setDoctorDefinition] = useState<QuestionnaireDefinition>(doctorQuestionnaireDefinition);
+  const [queueDate, setQueueDate] = useState(() => getCurrentDateKey());
+  const [queueSearchPhone, setQueueSearchPhone] = useState("");
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState("");
   const [patientDocuments, setPatientDocuments] = useState<PatientDocument[]>([]);
@@ -522,13 +527,24 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [expandedPatientSectionId, setExpandedPatientSectionId] = useState<string | null>(null);
   const [mobileSort, setMobileSort] = useState<"severity" | "time">("severity");
 
+  const normalizedQueueSearchPhone = queueSearchPhone.replace(/\D/g, "");
+
+  const filteredPatients = useMemo(() => {
+    return todayPatients.filter((patient) => {
+      const dateMatch = !queueDate || patient.appointmentDate === queueDate;
+      const patientPhoneDigits = String(patient.phone ?? "").replace(/\D/g, "");
+      const phoneMatch = !normalizedQueueSearchPhone || patientPhoneDigits.includes(normalizedQueueSearchPhone);
+      return dateMatch && phoneMatch;
+    });
+  }, [normalizedQueueSearchPhone, queueDate, todayPatients]);
+
   const selectedPatient = useMemo(
     () => (selectedPatientId ? todayPatients.find((item) => item.id === selectedPatientId) ?? null : null),
     [selectedPatientId, todayPatients],
   );
 
   const desktopQueueRows = useMemo(() => {
-    return [...todayPatients].sort((a, b) => {
+    return [...filteredPatients].sort((a, b) => {
       const urgencyDelta = getPromUrgencyRank(b.promSummary) - getPromUrgencyRank(a.promSummary);
       if (urgencyDelta !== 0) {
         return urgencyDelta;
@@ -536,10 +552,10 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
 
       return a.appointmentTime.localeCompare(b.appointmentTime);
     });
-  }, [todayPatients]);
+  }, [filteredPatients]);
 
   const mobileQueueRows = useMemo(() => {
-    return [...todayPatients].sort((a, b) => {
+    return [...filteredPatients].sort((a, b) => {
       if (mobileSort === "time") {
         return a.appointmentTime.localeCompare(b.appointmentTime);
       }
@@ -553,7 +569,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       const aProm = a.promSummary?.percent ?? -1;
       return bProm - aProm;
     });
-  }, [todayPatients, mobileSort]);
+  }, [filteredPatients, mobileSort]);
 
   const activePatientSections = useMemo(() => {
     if (!selectedPatient) {
@@ -705,7 +721,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       setPatientsError("");
 
       try {
-        const patients = await loadDoctorQueue(doctorEmail);
+        const patients = await loadDoctorQueue(queueDate, doctorEmail);
 
         if (!active) {
           return;
@@ -726,7 +742,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         }
 
         setTodayPatients([]);
-        setPatientsError(error instanceof Error ? error.message : "Could not load today's patients");
+        setPatientsError(error instanceof Error ? error.message : "Could not load doctor queue");
       } finally {
         if (active) {
           setIsLoadingPatients(false);
@@ -739,7 +755,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     return () => {
       active = false;
     };
-  }, [doctorEmail]);
+  }, [doctorEmail, queueDate]);
 
   useEffect(() => {
     let active = true;
@@ -849,8 +865,8 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     : [];
 
   if (!selectedPatientId) {
-    const queueTotal = todayPatients.length;
-    const highDisabilityCount = todayPatients.filter((patient) => getPromUrgencyRank(patient.promSummary) >= 2).length;
+    const queueTotal = filteredPatients.length;
+    const highDisabilityCount = filteredPatients.filter((patient) => getPromUrgencyRank(patient.promSummary) >= 2).length;
 
     return (
       <section className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
@@ -864,6 +880,28 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-semibold text-red-700">
               High disability {highDisabilityCount}
             </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-[170px_1fr]">
+            <label>
+              <span className="text-xs font-semibold text-[color:var(--muted)]">Date</span>
+              <input
+                type="date"
+                value={queueDate}
+                onChange={(event) => setQueueDate(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm outline-none"
+              />
+            </label>
+            <label>
+              <span className="text-xs font-semibold text-[color:var(--muted)]">Search phone</span>
+              <input
+                type="text"
+                value={queueSearchPhone}
+                onChange={(event) => setQueueSearchPhone(event.target.value)}
+                placeholder="Search by phone number"
+                className="mt-1 w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2 text-sm outline-none"
+              />
+            </label>
           </div>
 
           <div className="mt-4 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.45)] p-3 lg:hidden">
@@ -888,11 +926,13 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             <p className="mt-3 text-sm leading-7 text-[color:#a34722]">{patientsError}</p>
           ) : null}
 
-          {!isLoadingPatients && !patientsError && todayPatients.length === 0 ? (
-            <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">No patients in queue right now.</p>
+          {!isLoadingPatients && !patientsError && filteredPatients.length === 0 ? (
+            <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">
+              {todayPatients.length === 0 ? "No patients in queue for this date." : "No patients match this phone search."}
+            </p>
           ) : null}
 
-          {!isLoadingPatients && !patientsError && todayPatients.length > 0 ? (
+          {!isLoadingPatients && !patientsError && filteredPatients.length > 0 ? (
             <>
               <div className="mt-4 hidden overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] lg:block">
                 <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_110px_120px_130px_minmax(0,1fr)] bg-[rgba(248,245,240,0.7)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">

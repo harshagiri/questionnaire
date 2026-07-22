@@ -44,6 +44,7 @@ export type MagicLinkDeliveryStatus = {
   phone: string;
   createdAt: string;
   expiresAt: string;
+  token?: string;
   status: "pending" | "sent" | "failed" | "skipped" | "used" | "revoked" | "expired";
   note?: string;
 };
@@ -334,6 +335,7 @@ export async function listRecentMagicLinkStatuses(limit = 20): Promise<MagicLink
     phone: entry.phone,
     createdAt: entry.createdAt,
     expiresAt: entry.expiresAt,
+    token: entry.token,
     status: entryStatus(entry),
     note: entry.smsError,
   }));

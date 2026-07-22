@@ -63,7 +63,15 @@ export async function GET(request: Request) {
   const parsedLimit = Number(limitParam);
   const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(200, parsedLimit) : 100;
   const recent = await listRecentMagicLinkStatuses(limit);
-  return NextResponse.json({ ok: true, entries: recent });
+  const baseUrl = resolveAppUrl(request);
+  const entries = recent.map((entry) => ({
+    ...entry,
+    magicLink: entry.token
+      ? `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(entry.token)}`
+      : undefined,
+    token: undefined,
+  }));
+  return NextResponse.json({ ok: true, entries });
 }
 
 export async function POST(request: Request) {

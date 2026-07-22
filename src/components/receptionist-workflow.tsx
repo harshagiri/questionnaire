@@ -32,6 +32,7 @@ type MagicLinkStatusEntry = {
   phone: string;
   createdAt: string;
   expiresAt: string;
+  magicLink?: string;
   status: "pending" | "sent" | "failed" | "skipped" | "used" | "revoked" | "expired";
   note?: string;
 };
@@ -367,6 +368,29 @@ export function ReceptionistWorkflow() {
     }
   };
 
+  const copyMagicLink = async (entry: MagicLinkStatusEntry) => {
+    if (!entry.magicLink) {
+      setMagicLinkMessage("Magic link is unavailable for this entry.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(entry.magicLink);
+      setMagicLinkMessage(`Magic link copied for ${entry.phone}.`);
+    } catch {
+      setMagicLinkMessage("Could not copy magic link. Please copy manually.");
+    }
+  };
+
+  const openMagicLink = (entry: MagicLinkStatusEntry) => {
+    if (!entry.magicLink) {
+      setMagicLinkMessage("Magic link is unavailable for this entry.");
+      return;
+    }
+
+    window.open(entry.magicLink, "_blank", "noopener,noreferrer");
+  };
+
   const magicStatusClass: Record<MagicLinkStatusEntry["status"], string> = {
     pending: "bg-slate-100 text-slate-700",
     sent: "bg-emerald-100 text-emerald-700",
@@ -480,8 +504,27 @@ export function ReceptionistWorkflow() {
                       >
                         {resendingEntryId === entry.id ? "Sending..." : "Resend"}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyMagicLink(entry)}
+                        disabled={!entry.magicLink}
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openMagicLink(entry)}
+                        disabled={!entry.magicLink}
+                        className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60"
+                      >
+                        Open
+                      </button>
                     </div>
                   </div>
+                  {entry.magicLink ? (
+                    <div className="mt-1 break-all text-[11px] font-medium text-[var(--accent)]">{entry.magicLink}</div>
+                  ) : null}
                   <div className="mt-1 text-[11px] text-[color:var(--muted)]">
                     Created {new Date(entry.createdAt).toLocaleString()} • Expires {new Date(entry.expiresAt).toLocaleString()}
                   </div>
