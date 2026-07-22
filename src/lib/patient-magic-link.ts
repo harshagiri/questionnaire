@@ -445,6 +445,7 @@ export async function sendMagicLinkViaMsg91(input: {
 
   const templateId = process.env.MSG91_TEMPLATE_ID?.trim() || "6a5e46663de7e5b4370dc5e5";
   const dltTemplateId = process.env.MSG91_DLT_TEMPLATE_ID?.trim();
+  const senderId = process.env.MSG91_SENDER_ID?.trim();
   const linkVariableName = process.env.MSG91_LINK_VARIABLE?.trim() || "link";
   const shortUrlFlag = process.env.MSG91_SHORT_URL?.trim() || "1";
   const endpoint = process.env.MSG91_FLOW_ENDPOINT?.trim() || "https://control.msg91.com/api/v5/flow/";
@@ -455,6 +456,9 @@ export async function sendMagicLinkViaMsg91(input: {
     url: input.magicLink,
     VAR1: input.magicLink,
   };
+  if (senderId) {
+    recipient.sender = senderId;
+  }
   recipient[linkVariableName] = input.magicLink;
 
   const payload: {
@@ -462,6 +466,7 @@ export async function sendMagicLinkViaMsg91(input: {
     short_url: string;
     recipients: Record<string, string>[];
     dlt_template_id?: string;
+    sender?: string;
   } = {
     template_id: templateId,
     short_url: shortUrlFlag,
@@ -470,6 +475,9 @@ export async function sendMagicLinkViaMsg91(input: {
 
   if (dltTemplateId) {
     payload.dlt_template_id = dltTemplateId;
+  }
+  if (senderId) {
+    payload.sender = senderId;
   }
 
   const response = await fetch(endpoint, {
