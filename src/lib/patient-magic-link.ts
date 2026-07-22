@@ -60,6 +60,7 @@ export type MagicLinkResolutionResult = {
 const storePath = join(process.cwd(), "data", "patient-magic-links.json");
 const MAGIC_LINK_TTL_HOURS = 24;
 const MAX_AUDIT_EVENTS = 5000;
+const MAX_MAGIC_LINK_URL_LENGTH = 160;
 
 function nowIso() {
   return new Date().toISOString();
@@ -71,6 +72,20 @@ function normalizePhone(phone: string) {
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function createMagicToken() {
+  // Compact base64url token keeps URL short while preserving high entropy.
+  return randomBytes(16).toString("base64url");
+}
+
+export function buildPatientMagicLink(baseUrl: string, token: string) {
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const link = `${normalizedBaseUrl}/m?t=${encodeURIComponent(token)}`;
+  if (link.length > MAX_MAGIC_LINK_URL_LENGTH) {
+    throw new Error(`Magic link URL exceeds ${MAX_MAGIC_LINK_URL_LENGTH} characters`);
+  }
+  return link;
 }
 
 function isExpired(expiresAt: string, now = Date.now()) {
@@ -124,7 +139,7 @@ export async function issuePatientMagicLink(input: { phone: string }): Promise<I
   const store = await readStore();
   sanitizeStore(store);
 
-  const token = randomBytes(32).toString("hex");
+  const token = createMagicToken();
   const tokenHash = hashToken(token);
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + MAGIC_LINK_TTL_HOURS * 60 * 60 * 1000).toISOString();
@@ -177,7 +192,7 @@ export async function revokePatientMagicLink(token: string, note = "SMS dispatch
 }
 
 export async function consumePatientMagicLink(token: string): Promise<ConsumeMagicLinkResult> {
-  if (!token || token.length < 20) {
+  if (!token || token.length < 12) {
     return { ok: false, message: "Invalid magic link" };
   }
 
@@ -380,7 +395,7 @@ export async function resolveMagicLinkForPhone(input: {
     };
   }
 
-  const token = randomBytes(32).toString("hex");
+  const token = createMagicToken();
   const tokenHash = hashToken(token);
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + MAGIC_LINK_TTL_HOURS * 60 * 60 * 1000).toISOString();
@@ -429,18 +444,33 @@ export async function sendMagicLinkViaMsg91(input: {
   }
 
   const templateId = process.env.MSG91_TEMPLATE_ID?.trim() || "6a5e46663de7e5b4370dc5e5";
+  const dltTemplateId = process.env.MSG91_DLT_TEMPLATE_ID?.trim();
+  const linkVariableName = process.env.MSG91_LINK_VARIABLE?.trim() || "link";
+  const shortUrlFlag = process.env.MSG91_SHORT_URL?.trim() || "1";
   const endpoint = process.env.MSG91_FLOW_ENDPOINT?.trim() || "https://control.msg91.com/api/v5/flow/";
 
-  const payload = {
-    template_id: templateId,
-    short_url: "0",
-    recipients: [
-      {
-        mobiles: asIndianMobile(input.phone),
-        link: input.magicLink,
-      },
-    ],
+  const recipient: Record<string, string> = {
+    mobiles: asIndianMobile(input.phone),
+    link: input.magicLink,
+    url: input.magicLink,
+    VAR1: input.magicLink,
   };
+  recipient[linkVariableName] = input.magicLink;
+
+  const payload: {
+    template_id: string;
+    short_url: string;
+    recipients: Record<string, string>[];
+    dlt_template_id?: string;
+  } = {
+    template_id: templateId,
+    short_url: shortUrlFlag,
+    recipients: [recipient],
+  };
+
+  if (dltTemplateId) {
+    payload.dlt_template_id = dltTemplateId;
+  }
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -451,8 +481,15 @@ export async function sendMagicLinkViaMsg91(input: {
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const details = await response.text().catch(() => "MSG91 error");
+  const details = await response.text().catch(() => "MSG91 error");
+  let parsed: { type?: string; message?: string } | null = null;
+  try {
+    parsed = JSON.parse(details) as { type?: string; message?: string };
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok || parsed?.type === "error") {
     throw new Error(`MSG91 request failed (${response.status}): ${details}`);
   }
 }

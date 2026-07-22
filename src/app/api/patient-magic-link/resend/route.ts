@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
+  buildPatientMagicLink,
   markMagicLinkSmsFailed,
   markMagicLinkSmsSent,
   markMagicLinkSmsSkipped,
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
       preferredEntryId: body?.entryId,
     });
 
-    const magicLink = `${resolveAppUrl(request)}/api/patient-magic-link/consume?token=${encodeURIComponent(resolved.token)}`;
+    const magicLink = buildPatientMagicLink(resolveAppUrl(request), resolved.token);
 
     if (skipSms && canExposeMagicLinkForTesting()) {
       await markMagicLinkSmsSkipped(resolved.token, "SMS skipped during resend for local testing.");

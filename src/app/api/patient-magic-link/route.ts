@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
+  buildPatientMagicLink,
   issuePatientMagicLink,
   listRecentMagicLinkStatuses,
   markMagicLinkSmsFailed,
@@ -58,9 +59,7 @@ export async function GET(request: Request) {
   const baseUrl = resolveAppUrl(request);
   const entries = recent.map((entry) => ({
     ...entry,
-    magicLink: entry.token
-      ? `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(entry.token)}`
-      : undefined,
+    magicLink: entry.token ? buildPatientMagicLink(baseUrl, entry.token) : undefined,
     token: undefined,
   }));
   return NextResponse.json({ ok: true, entries });
@@ -84,7 +83,7 @@ export async function POST(request: Request) {
     const patientRecord = await ensurePatientRecordForPhone(phone);
     const issued = await issuePatientMagicLink({ phone });
     const baseUrl = resolveAppUrl(request);
-    const magicLink = `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(issued.token)}`;
+    const magicLink = buildPatientMagicLink(baseUrl, issued.token);
 
     if (skipSms && canExposeMagicLinkForTesting()) {
       await markMagicLinkSmsSkipped(issued.token);
