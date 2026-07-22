@@ -3,12 +3,11 @@ import { AppShell } from "@/components/app-shell";
 import { ReceptionistWorkflow } from "@/components/receptionist-workflow";
 
 export default async function ReceptionistPage() {
-  const cookieStore = await cookies();
-  const email = cookieStore.get("se_email")?.value ?? "";
+  await cookies();
 
   return (
     <AppShell role="receptionist">
-      <ReceptionistWorkflow receptionistEmail={email} />
+      <ReceptionistWorkflow />
     </AppShell>
   );
 }

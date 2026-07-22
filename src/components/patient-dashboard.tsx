@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { findPatientRecordByPhone, generateConsultId, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
+import { findPatientRecordByPhone, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
 type ConsultModal = {
@@ -234,20 +234,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
         )}
 
         {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <button
-            onClick={() => canProceed && router.push("/patient/book")}
-            disabled={!canProceed}
-            className={`bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
-          >
-            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
-              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <p className="text-sm font-semibold text-gray-800">Book appointment</p>
-            <p className="text-xs text-gray-400 mt-0.5">{canProceed ? "Pick a doctor and time slot" : "Complete profile to enable"}</p>
-          </button>
+        <div className="grid grid-cols-1 gap-3 mb-6">
           <button
             onClick={() => router.push("/register")}
             className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-gray-400 transition-colors"
@@ -263,7 +250,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
           <button
             onClick={() => canProceed && router.push("/patient/upload")}
             disabled={!canProceed}
-            className={`col-span-2 bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
+            className={`bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
           >
             <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
               <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -283,20 +270,11 @@ export function PatientDashboard({ phone }: { phone: string }) {
           ) : upcomingAppointments.length === 0 ? (
             <div className="bg-white border border-dashed border-gray-200 rounded-xl p-6 text-center">
               <p className="text-sm text-gray-400">No upcoming appointments</p>
-              <button
-                onClick={() => canProceed && router.push("/patient/book")}
-                disabled={!canProceed}
-                className={`mt-2 text-sm font-medium underline ${canProceed ? "text-teal-600" : "text-gray-400 cursor-not-allowed"}`}
-              >
-                Book one now
-              </button>
             </div>
           ) : (
             <div className="space-y-3">
               {upcomingAppointments.map((appt, index) => {
                 const consultId = appt.consultId ?? appt.sessionId;
-                const preConsultLink = `${typeof window !== "undefined" ? window.location.origin : ""}/patient/consult/${consultId}`;
-                const videoConsultLink = `https://meet.spinexpert.ai/consult/${consultId}`;
                 return (
                   <div key={`${appt.sessionId}-${consultId}-${index}`} className="bg-white border border-gray-200 rounded-xl p-4">
                     <div className="flex items-start justify-between gap-2 mb-3">
