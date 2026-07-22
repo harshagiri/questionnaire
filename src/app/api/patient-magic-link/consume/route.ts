@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { consumePatientMagicLink } from "@/lib/patient-magic-link";
+import { resolveAppUrl } from "@/lib/app-url";
 
 async function resolvePatientDisplayName(phone: string) {
   if (!prisma) {
@@ -21,18 +22,19 @@ async function resolvePatientDisplayName(phone: string) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const appUrl = resolveAppUrl(request);
   const token = url.searchParams.get("token") ?? "";
   const consumed = await consumePatientMagicLink(token);
 
   if (!consumed.ok) {
-    const errorUrl = new URL("/", request.url);
+    const errorUrl = new URL("/", appUrl);
     errorUrl.searchParams.set("role", "patient");
     errorUrl.searchParams.set("error", consumed.message);
     return NextResponse.redirect(errorUrl);
   }
 
   const patientDisplayName = await resolvePatientDisplayName(consumed.phone);
-  const redirectUrl = new URL("/patient", request.url);
+  const redirectUrl = new URL("/patient", appUrl);
   const response = NextResponse.redirect(redirectUrl);
 
   const protoHeader = request.headers.get("x-forwarded-proto")?.toLowerCase();
