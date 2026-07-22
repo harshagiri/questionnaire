@@ -1,0 +1,56 @@
+{
+  "entries": [
+    {
+      "tokenHash": "bc192af62e412ba58b851120b58f738d3570f0cc08e5dc9e667a0c394d8b38f1",
+      "phone": "9876543210",
+      "createdAt": "2026-07-22T11:30:05.727Z",
+      "expiresAt": "2026-07-23T11:30:05.727Z"
+    },
+    {
+      "tokenHash": "9688fbbe00a6dddd1a671cae7e86625612f1b4daa2f4fcab518eaf3d41d8df21",
+      "phone": "9876543210",
+      "createdAt": "2026-07-22T11:38:40.065Z",
+      "expiresAt": "2026-07-23T11:38:40.065Z",
+      "usedAt": "2026-07-22T11:39:14.613Z"
+    }
+  ],
+  "audit": [
+    {
+      "at": "2026-07-20T16:36:10.900Z",
+      "action": "issued",
+      "phone": "9876543210",
+      "tokenHash": "7e13e548d95b5633c02e5347e2be779c48e542cbcc0906eacf721e6069f928d2"
+    },
+    {
+      "at": "2026-07-20T16:36:42.867Z",
+      "action": "issued",
+      "phone": "9876543210",
+      "tokenHash": "720ec93e46665c2d5a8c09967f2eb0aa7eb4dc0e827219bfcc5f9c6ca78ce423",
+      "note": "manual local test token"
+    },
+    {
+      "at": "2026-07-22T11:30:05.727Z",
+      "action": "issued",
+      "phone": "9876543210",
+      "tokenHash": "bc192af62e412ba58b851120b58f738d3570f0cc08e5dc9e667a0c394d8b38f1"
+    },
+    {
+      "at": "2026-07-22T11:38:40.065Z",
+      "action": "issued",
+      "phone": "9876543210",
+      "tokenHash": "9688fbbe00a6dddd1a671cae7e86625612f1b4daa2f4fcab518eaf3d41d8df21"
+    },
+    {
+      "at": "2026-07-22T11:39:14.613Z",
+      "action": "consumed",
+      "phone": "9876543210",
+      "tokenHash": "9688fbbe00a6dddd1a671cae7e86625612f1b4daa2f4fcab518eaf3d41d8df21"
+    },
+    {
+      "at": "2026-07-22T13:17:06.475Z",
+      "action": "consume_failed",
+      "tokenHash": "5684f2e84f6c31020ce3c7078fdadcd9910869701f4d9bfbb86e5027ce5f1dda",
+      "note": "Not found"
+    }
+  ]
+}

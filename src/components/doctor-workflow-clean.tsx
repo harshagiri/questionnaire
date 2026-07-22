@@ -46,6 +46,157 @@ type PatientDocument = {
   uploadedAt: string;
 };
 
+type DoctorSummaryAnswer = string | number | boolean | string[];
+
+type SummaryModalMode = "patient-preconsult" | "doctor-postconsult";
+
+type SummaryCacheEntry = {
+  signature: string;
+  summary: string;
+  generatedAt: string;
+};
+
+type SummaryMeta = {
+  source: "cache" | "fresh" | "unknown";
+  generatedAt?: string;
+};
+
+type ParsedSummarySection = {
+  title: string;
+  items: string[];
+};
+
+const SUMMARY_CACHE_PREFIX = "sei-ai-summary";
+const SUMMARY_CACHE_VERSION = 2;
+
+const AI_ESTIMATED_READING_SPEED_WPM = 190;
+
+function countWords(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function formatDurationLabel(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "0s";
+  }
+
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+
+  return `${(seconds / 60).toFixed(1)} min`;
+}
+
+function formatRelativeTimeLabel(isoTimestamp?: string) {
+  if (!isoTimestamp) {
+    return "now";
+  }
+
+  const parsed = new Date(isoTimestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return "now";
+  }
+
+  const deltaMs = Date.now() - parsed.getTime();
+  const deltaMinutes = Math.max(0, Math.round(deltaMs / 60000));
+
+  if (deltaMinutes < 1) {
+    return "just now";
+  }
+
+  if (deltaMinutes < 60) {
+    return `${deltaMinutes}m ago`;
+  }
+
+  const deltaHours = Math.round(deltaMinutes / 60);
+  if (deltaHours < 24) {
+    return `${deltaHours}h ago`;
+  }
+
+  const deltaDays = Math.round(deltaHours / 24);
+  return `${deltaDays}d ago`;
+}
+
+function parseAiSummaryText(summary: string) {
+  const lines = summary
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let snapshot = "";
+  const sections: ParsedSummarySection[] = [];
+  let currentSection: ParsedSummarySection | null = null;
+
+  for (const line of lines) {
+    const isSnapshotLine =
+      line.toLowerCase().startsWith("patient snapshot:") ||
+      line.toLowerCase().startsWith("doctor submission snapshot:");
+
+    if (isSnapshotLine) {
+      const [, afterColon = ""] = line.split(/:(.*)/, 2);
+      snapshot = afterColon.trim();
+      continue;
+    }
+
+    const isHeading = line.endsWith(":") && !line.startsWith("-");
+    if (isHeading) {
+      currentSection = {
+        title: line.slice(0, -1).trim(),
+        items: [],
+      };
+      sections.push(currentSection);
+      continue;
+    }
+
+    const normalizedLine = line.replace(/^[-•]\s*/, "").trim();
+    if (!normalizedLine) {
+      continue;
+    }
+
+    if (!currentSection) {
+      currentSection = { title: "Highlights", items: [] };
+      sections.push(currentSection);
+    }
+
+    currentSection.items.push(normalizedLine);
+  }
+
+  if (!snapshot && sections[0]?.items[0]) {
+    snapshot = sections[0].items[0];
+    sections[0].items = sections[0].items.slice(1);
+  }
+
+  return {
+    snapshot,
+    sections: sections.filter((section) => section.items.length > 0),
+  };
+}
+
+function stableSerialize(value: unknown): string {
+  const normalize = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map(normalize);
+    }
+
+    if (input && typeof input === "object") {
+      const record = input as Record<string, unknown>;
+      const keys = Object.keys(record).sort((a, b) => a.localeCompare(b));
+      const normalized: Record<string, unknown> = {};
+      for (const key of keys) {
+        normalized[key] = normalize(record[key]);
+      }
+      return normalized;
+    }
+
+    return input;
+  };
+
+  return JSON.stringify(normalize(value));
+}
+
 type DoctorPatient = {
   id: string;
   consultSessionId: string;
@@ -349,7 +500,6 @@ async function loadPatientProfileByPhone(phone: string): Promise<PatientProfileS
 async function loadAppointments(date?: string, doctorEmail?: string) {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
-  if (doctorEmail) params.set("doctorEmail", doctorEmail);
   const url = `/api/appointments${params.toString() ? `?${params.toString()}` : ""}`;
   const response = await fetch(url, { cache: "no-store" });
   const payload = (await response.json()) as ApiAppointmentsPayload;
@@ -375,13 +525,6 @@ async function loadAppointments(date?: string, doctorEmail?: string) {
   const dateFilteredLocalAppointments = date
     ? localAppointments.filter((item) => item.appointmentDate === date)
     : localAppointments;
-
-  if (doctorEmail && dateFilteredLocalAppointments.length > 0) {
-    // local fallback does not have doctor email mapping; include only when API is empty or unavailable
-    if (apiAppointments.length === 0) {
-      return dateFilteredLocalAppointments;
-    }
-  }
 
   const dedupedBySession = new Map<string, AppointmentRecord>();
   for (const item of [...dateFilteredLocalAppointments, ...apiAppointments]) {
@@ -526,6 +669,17 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [expandedPatientSectionId, setExpandedPatientSectionId] = useState<string | null>(null);
   const [mobileSort, setMobileSort] = useState<"severity" | "time">("severity");
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiModalMode, setAiModalMode] = useState<SummaryModalMode>("patient-preconsult");
+  const [aiSummary, setAiSummary] = useState("");
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState("");
+  const [aiSummaryMeta, setAiSummaryMeta] = useState<SummaryMeta>({ source: "unknown" });
+  const [doctorPostConsultSummary, setDoctorPostConsultSummary] = useState("");
+  const [doctorPostConsultMeta, setDoctorPostConsultMeta] = useState<SummaryMeta>({ source: "unknown" });
+  const [doctorSummaryGenerating, setDoctorSummaryGenerating] = useState(false);
+  const [doctorSummaryCompletionPercent, setDoctorSummaryCompletionPercent] = useState<number | null>(null);
+  const [doctorSummaryAnswerCount, setDoctorSummaryAnswerCount] = useState(0);
 
   const normalizedQueueSearchPhone = queueSearchPhone.replace(/\D/g, "");
 
@@ -664,6 +818,19 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       })
       .filter((row): row is { key: string; label: string; value: string } => row !== null);
   }, [patientQuestionMap, selectedPatient]);
+
+  const doctorQuestionMap = useMemo(() => {
+    const map = new Map<string, { label: string; optionLabelByValue: Map<string, string> }>();
+
+    for (const question of doctorDefinition.questions) {
+      map.set(question.id, {
+        label: question.label,
+        optionLabelByValue: new Map((question.options ?? []).map((option) => [option.value, option.label])),
+      });
+    }
+
+    return map;
+  }, [doctorDefinition.questions]);
 
   const patientReadOnlySections = useMemo(() => {
     if (!selectedPatient || patientReadOnlyRows.length === 0) {
@@ -864,6 +1031,319 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       ]
     : [];
 
+  useEffect(() => {
+    setDoctorPostConsultSummary("");
+    setDoctorSummaryGenerating(false);
+    setDoctorSummaryCompletionPercent(null);
+    setDoctorSummaryAnswerCount(0);
+    setDoctorPostConsultMeta({ source: "unknown" });
+  }, [selectedPatient?.consultSessionId]);
+
+  function getSummaryCacheKey(summaryType: SummaryModalMode) {
+    if (!selectedPatient?.consultSessionId) {
+      return null;
+    }
+
+    return `${SUMMARY_CACHE_PREFIX}:${selectedPatient.consultSessionId}:${summaryType}`;
+  }
+
+  function readCachedSummary(summaryType: SummaryModalMode, signature: string) {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const key = getSummaryCacheKey(summaryType);
+    if (!key) {
+      return null;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        return null;
+      }
+
+      const parsed = JSON.parse(raw) as SummaryCacheEntry;
+      if (parsed.signature !== signature || !parsed.summary) {
+        return null;
+      }
+
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeCachedSummary(summaryType: SummaryModalMode, signature: string, summary: string) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const key = getSummaryCacheKey(summaryType);
+    if (!key) {
+      return;
+    }
+
+    const entry: SummaryCacheEntry = {
+      signature,
+      summary,
+      generatedAt: new Date().toISOString(),
+    };
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(entry));
+    } catch {
+      // Ignore storage quota / browser storage errors.
+    }
+  }
+
+  function formatDoctorAnswerFact(key: string, value: DoctorSummaryAnswer) {
+    const questionMeta = doctorQuestionMap.get(key);
+    const label = questionMeta?.label ?? titleize(key);
+
+    if (Array.isArray(value)) {
+      const mapped = value.map((entry) => questionMeta?.optionLabelByValue.get(entry) ?? entry).join(", ");
+      return { label, value: mapped || "Not filled" };
+    }
+
+    if (typeof value === "string") {
+      return { label, value: questionMeta?.optionLabelByValue.get(value) ?? value };
+    }
+
+    return { label, value: summarizeAnswer(value) };
+  }
+
+  const patientSummaryFacts = useMemo(() => {
+    if (!selectedPatient) {
+      return [] as Array<{ label: string; value: string }>;
+    }
+
+    const demographicFacts = demographicPairs
+      .map((item) => ({ label: item.key, value: String(item.value ?? "").trim() }))
+      .filter((item) => item.value.length > 0);
+
+    const answerFacts = patientReadOnlyRows
+      .map((row) => ({ label: row.label, value: row.value }))
+      .filter((row) => row.value && row.value !== "Not filled")
+      .slice(0, 40);
+
+    return [...demographicFacts, ...answerFacts];
+  }, [demographicPairs, patientReadOnlyRows, selectedPatient]);
+
+  function buildSummaryRequestBody(input: {
+    summaryType: SummaryModalMode;
+    doctorAnswers?: Record<string, DoctorSummaryAnswer>;
+    completionPercent?: number;
+  }) {
+    if (!selectedPatient) {
+      return null;
+    }
+
+    return {
+      summaryType: input.summaryType,
+      patient: {
+        consultSessionId: selectedPatient.consultSessionId,
+        name: selectedPatient.name,
+        phone: selectedPatient.phone,
+        age: selectedPatient.age,
+        sex: selectedPatient.sex,
+        region: selectedPatient.region,
+        language: selectedPatient.language,
+        bmi: selectedPatient.bmi,
+        painScore: selectedPatient.painScore,
+        consultationType: selectedPatient.consultationType,
+        promSummary: formatPromSummary(selectedPatient.promSummary),
+        questionnaireAnswers: selectedPatient.answers,
+        facts: patientSummaryFacts,
+      },
+      doctor: input.doctorAnswers
+        ? {
+            answers: input.doctorAnswers,
+            facts: Object.entries(input.doctorAnswers).map(([key, value]) => formatDoctorAnswerFact(key, value)),
+            completionPercent: input.completionPercent,
+          }
+        : undefined,
+    };
+  }
+
+  async function callAiSummaryApi(requestBody: {
+    summaryType: SummaryModalMode;
+    patient: Record<string, unknown>;
+    doctor?: { answers: Record<string, DoctorSummaryAnswer>; completionPercent?: number };
+  }) {
+    if (!requestBody) {
+      return;
+    }
+
+    const response = await fetch("/api/ai/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; summary?: string; message?: string }
+      | null;
+
+    if (!response.ok || !payload?.ok || !payload.summary) {
+      throw new Error(payload?.message ?? "Unable to generate AI summary");
+    }
+
+    return payload.summary;
+  }
+
+  async function openPatientAiSummary() {
+    setAiModalMode("patient-preconsult");
+    setAiModalOpen(true);
+    setAiSummary("");
+    setAiSummaryError("");
+    setAiSummaryLoading(true);
+    setAiSummaryMeta({ source: "unknown" });
+
+    try {
+      const requestBody = buildSummaryRequestBody({ summaryType: "patient-preconsult" });
+      if (!requestBody) {
+        throw new Error("Patient context not available");
+      }
+
+      const signature = stableSerialize({
+        version: SUMMARY_CACHE_VERSION,
+        requestBody,
+      });
+      const cachedSummary = readCachedSummary("patient-preconsult", signature);
+      if (cachedSummary) {
+        setAiSummary(cachedSummary.summary);
+        setAiSummaryMeta({ source: "cache", generatedAt: cachedSummary.generatedAt });
+        setAiSummaryLoading(false);
+        return;
+      }
+
+      const summary = await callAiSummaryApi(requestBody);
+      const generatedAt = new Date().toISOString();
+      writeCachedSummary("patient-preconsult", signature, summary ?? "");
+      setAiSummary(summary ?? "");
+      setAiSummaryMeta({ source: "fresh", generatedAt });
+    } catch (error) {
+      setAiSummaryError(error instanceof Error ? error.message : "Unable to generate AI summary");
+      setAiSummaryMeta({ source: "unknown" });
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }
+
+  async function generateDoctorPostConsultSummary(input: {
+    answers: Record<string, DoctorSummaryAnswer>;
+    completionPercent?: number;
+  }) {
+    setDoctorSummaryGenerating(true);
+    setDoctorSummaryCompletionPercent(typeof input.completionPercent === "number" ? input.completionPercent : null);
+    setDoctorSummaryAnswerCount(Object.keys(input.answers).length);
+    try {
+      const requestBody = buildSummaryRequestBody({
+        summaryType: "doctor-postconsult",
+        doctorAnswers: input.answers,
+        completionPercent: input.completionPercent,
+      });
+      if (!requestBody) {
+        throw new Error("Patient context not available");
+      }
+
+      const signature = stableSerialize({
+        version: SUMMARY_CACHE_VERSION,
+        requestBody,
+      });
+      const cachedSummary = readCachedSummary("doctor-postconsult", signature);
+      if (cachedSummary) {
+        setDoctorPostConsultSummary(cachedSummary.summary);
+        const cachedMeta: SummaryMeta = { source: "cache", generatedAt: cachedSummary.generatedAt };
+        setDoctorPostConsultMeta(cachedMeta);
+        setAiModalMode("doctor-postconsult");
+        setAiSummary(cachedSummary.summary);
+        setAiSummaryMeta(cachedMeta);
+        setAiSummaryError("");
+        setAiModalOpen(true);
+        return;
+      }
+
+      const summary = await callAiSummaryApi(requestBody);
+
+      const resolvedSummary = summary ?? "";
+      const generatedAt = new Date().toISOString();
+      writeCachedSummary("doctor-postconsult", signature, resolvedSummary);
+      setDoctorPostConsultSummary(resolvedSummary);
+      const freshMeta: SummaryMeta = { source: "fresh", generatedAt };
+      setDoctorPostConsultMeta(freshMeta);
+      setAiModalMode("doctor-postconsult");
+      setAiSummary(resolvedSummary);
+      setAiSummaryMeta(freshMeta);
+      setAiSummaryError("");
+      setAiModalOpen(true);
+    } catch (error) {
+      setAiSummaryError(error instanceof Error ? error.message : "Unable to generate doctor summary");
+      setAiModalMode("doctor-postconsult");
+      setAiSummaryMeta({ source: "unknown" });
+      setAiModalOpen(true);
+    } finally {
+      setAiSummaryLoading(false);
+      setDoctorSummaryGenerating(false);
+    }
+  }
+
+  const aiSummaryParsed = useMemo(() => parseAiSummaryText(aiSummary), [aiSummary]);
+
+  const aiSummaryImpact = useMemo(() => {
+    const summaryWords = countWords(aiSummary);
+    const summaryReadSeconds = summaryWords > 0 ? Math.max(18, Math.round((summaryWords / AI_ESTIMATED_READING_SPEED_WPM) * 60)) : 0;
+
+    const patientRows = patientReadOnlyRows.length;
+    const baselineReadSeconds =
+      aiModalMode === "patient-preconsult"
+        ? Math.max(75, patientRows * 8 + 35)
+        : Math.max(60, doctorSummaryAnswerCount * 9 + 25);
+
+    const timeSavedSeconds = Math.max(0, baselineReadSeconds - summaryReadSeconds);
+
+    const redFlagCount = [
+      "redFlagBladderBowel",
+      "redFlagRapidWeakness",
+      "redFlagFever",
+      "redFlagTrauma",
+      "redFlagCancer",
+      "redFlagWeightLoss",
+    ].filter((key) => selectedPatient?.answers[key] === true).length;
+
+    const motorWeaknessPresent =
+      selectedPatient?.answers.motorWeakness === true ||
+      String(selectedPatient?.answers.motorWeakness ?? "")
+        .toLowerCase()
+        .includes("present");
+
+    const highProm = Number.isFinite(selectedPatient?.promSummary?.percent)
+      ? (selectedPatient?.promSummary?.percent ?? 0) >= 41
+      : false;
+
+    const clinicalSignalCount = redFlagCount + (motorWeaknessPresent ? 1 : 0) + (highProm ? 1 : 0);
+
+    return {
+      summaryWords,
+      summaryReadSeconds,
+      baselineReadSeconds,
+      timeSavedSeconds,
+      dataPointsReviewed: aiModalMode === "patient-preconsult" ? patientSummaryFacts.length : doctorSummaryAnswerCount,
+      clinicalSignalCount,
+      completionPercent: doctorSummaryCompletionPercent,
+    };
+  }, [
+    aiModalMode,
+    aiSummary,
+    doctorSummaryAnswerCount,
+    doctorSummaryCompletionPercent,
+    patientReadOnlyRows.length,
+    patientSummaryFacts.length,
+    selectedPatient?.answers,
+    selectedPatient?.promSummary?.percent,
+  ]);
+
   if (!selectedPatientId) {
     const queueTotal = filteredPatients.length;
     const highDisabilityCount = filteredPatients.filter((patient) => getPromUrgencyRank(patient.promSummary) >= 2).length;
@@ -1047,6 +1527,13 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
           >
             Print
           </button>
+          <button
+            type="button"
+            onClick={openPatientAiSummary}
+            className="focus-ring inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-[rgba(15,118,110,0.12)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+          >
+            AI Summary
+          </button>
         </div>
 
         <div className="mt-2 hidden sm:block">
@@ -1212,6 +1699,34 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         </div>
       ) : (
         <div>
+          {doctorSummaryGenerating ? (
+            <div className="mb-3 rounded-xl border border-[rgba(15,118,110,0.2)] bg-[rgba(15,118,110,0.08)] px-3 py-2 text-xs font-semibold text-[var(--accent)]">
+              Generating doctor AI summary...
+            </div>
+          ) : null}
+
+          {doctorPostConsultSummary ? (
+            <div className="mb-3 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white p-3">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">AI Post-Consult Summary</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiModalMode("doctor-postconsult");
+                    setAiSummary(doctorPostConsultSummary);
+                    setAiSummaryMeta(doctorPostConsultMeta);
+                    setAiSummaryError("");
+                    setAiModalOpen(true);
+                  }}
+                  className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]"
+                >
+                  Open
+                </button>
+              </div>
+              <p className="line-clamp-3 text-sm text-[color:var(--muted)]">{doctorPostConsultSummary}</p>
+            </div>
+          ) : null}
+
           <QuestionnaireFlow
             key={selectedPatient.consultSessionId}
             sessionId={selectedPatient.consultSessionId}
@@ -1225,9 +1740,123 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             saveApiPath="/api/doctor-intake"
             saveApiContext={doctorSaveContext}
             allowSubmittedEdit={canEditDoctorForm}
+            onSubmitted={({ answers, completionPercent }) => {
+              void generateDoctorPostConsultSummary({ answers, completionPercent });
+            }}
           />
         </div>
       )}
+
+      {aiModalOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(10,14,18,0.45)] p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white shadow-[0_20px_80px_rgba(21,32,43,0.25)]">
+            <div className="flex items-center justify-between border-b border-[rgba(21,32,43,0.08)] px-4 py-3">
+              <h3 className="text-base font-semibold text-[color:var(--foreground)]">
+                {aiModalMode === "patient-preconsult" ? "AI Patient Summary" : "AI Doctor Post-Consult Summary"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setAiModalOpen(false)}
+                className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] px-3 py-1 text-xs font-semibold text-[color:var(--muted)]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[72vh] overflow-y-auto px-4 py-4">
+              {aiSummaryLoading ? (
+                <p className="text-sm text-[color:var(--muted)]">Generating summary...</p>
+              ) : null}
+
+              {!aiSummaryLoading && aiSummaryError ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{aiSummaryError}</p>
+              ) : null}
+
+              {!aiSummaryLoading && !aiSummaryError && aiSummary ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-[rgba(15,118,110,0.22)] bg-[linear-gradient(135deg,rgba(15,118,110,0.1),rgba(255,255,255,0.96)_40%,rgba(255,138,91,0.12))] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">AI Briefing</div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[color:var(--foreground)]">
+                          {aiModalMode === "patient-preconsult" ? "Pre-consult" : "Post-consult"}
+                        </span>
+                        <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]">
+                          {aiSummaryMeta.source === "cache" ? `Cached ${formatRelativeTimeLabel(aiSummaryMeta.generatedAt)}` : "Fresh summary"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Estimated time saved</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{formatDurationLabel(aiSummaryImpact.timeSavedSeconds)}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">vs full intake scan</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Data points reviewed</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.dataPointsReviewed}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">patient + consult fields</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Clinical signal count</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.clinicalSignalCount}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">PROM + red flags + weakness</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                          {aiModalMode === "doctor-postconsult" ? "Doctor form completion" : "Summary reading time"}
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">
+                          {aiModalMode === "doctor-postconsult" && aiSummaryImpact.completionPercent !== null
+                            ? `${Math.round(aiSummaryImpact.completionPercent)}%`
+                            : formatDurationLabel(aiSummaryImpact.summaryReadSeconds)}
+                        </div>
+                        <div className="text-[11px] text-[color:var(--muted)]">
+                          {aiModalMode === "doctor-postconsult" ? "documented by doctor" : `${aiSummaryImpact.summaryWords} words`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {aiSummaryParsed.snapshot ? (
+                    <div className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-white px-4 py-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Snapshot</div>
+                      <p className="mt-1 text-base font-semibold leading-7 text-[color:var(--foreground)]">{aiSummaryParsed.snapshot}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {aiSummaryParsed.sections.map((section, index) => (
+                      <section
+                        key={`${section.title}-${index}`}
+                        className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-[rgba(248,245,240,0.48)] px-4 py-3"
+                      >
+                        <h4 className="text-sm font-semibold text-[color:var(--foreground)]">{section.title}</h4>
+                        <ul className="mt-2 space-y-1.5 text-sm text-[color:var(--muted)]">
+                          {section.items.map((item) => (
+                            <li key={item} className="flex gap-2">
+                              <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-[var(--accent)]" aria-hidden="true" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+
+                  <details className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                      Raw summary text
+                    </summary>
+                    <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[color:var(--foreground)]">{aiSummary}</div>
+                  </details>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

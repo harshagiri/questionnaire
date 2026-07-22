@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { consumePatientMagicLink } from "@/lib/patient-magic-link";
 import { resolveAppUrl } from "@/lib/app-url";
+import { sanitizeMagicLinkToken } from "@/lib/magic-link-token";
 
 async function resolvePatientDisplayName(phone: string) {
   if (!prisma) {
@@ -23,7 +24,7 @@ async function resolvePatientDisplayName(phone: string) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const appUrl = resolveAppUrl(request);
-  const token = url.searchParams.get("token") ?? "";
+  const token = sanitizeMagicLinkToken(url.searchParams.get("token"));
   const consumed = await consumePatientMagicLink(token);
 
   if (!consumed.ok) {
@@ -50,6 +51,7 @@ export async function GET(request: Request) {
 
   response.cookies.set("se_role", "patient", cookieOptions);
   response.cookies.set("se_name", consumed.phone, cookieOptions);
+  response.cookies.set("se_phone", consumed.phone, cookieOptions);
   response.cookies.set("se_patient_name", patientDisplayName, cookieOptions);
   response.cookies.set("se_avatar", "", { ...cookieOptions, maxAge: 0 });
 

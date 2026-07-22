@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { findPatientRecordByPhone } from "@/lib/portal-storage";
+import { isPatientProfileComplete } from "@/lib/patient-profile-completion";
 
 type GateState = "checking" | "allowed" | "blocked";
 
@@ -28,7 +29,7 @@ export function PatientProfileGate({
       }
 
       const localRecord = findPatientRecordByPhone(normalizedPhone);
-      if (localRecord?.patientId) {
+      if (isPatientProfileComplete(localRecord)) {
         if (!cancelled) {
           setState("allowed");
         }
@@ -37,10 +38,22 @@ export function PatientProfileGate({
 
       try {
         const response = await fetch(`/api/patient-register?phone=${encodeURIComponent(normalizedPhone)}`, { cache: "no-store" });
-        const payload = (await response.json()) as { ok?: boolean; record?: { patientId?: string } | null };
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          record?: {
+            patientId?: string;
+            fullName?: string;
+            age?: number;
+            gender?: string;
+            region?: string;
+            preferredLanguage?: string;
+            heightCm?: number;
+            weightKg?: number;
+          } | null;
+        };
 
         if (!cancelled) {
-          setState(response.ok && payload.ok && Boolean(payload.record?.patientId) ? "allowed" : "blocked");
+          setState(response.ok && payload.ok && isPatientProfileComplete(payload.record) ? "allowed" : "blocked");
         }
       } catch {
         if (!cancelled) {
@@ -65,7 +78,7 @@ export function PatientProfileGate({
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <p className="text-sm font-semibold text-amber-800">Complete your profile first</p>
         <p className="mt-1 text-sm text-amber-700">
-          Booking appointments, pre-consult questionnaire, and report uploads are available only after your patient ID is created.
+          The questionnaire unlocks only after your full profile is completed and a permanent patient profile is ready.
         </p>
         <div className="mt-4 flex gap-2">
           <a href="/register" className="rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">

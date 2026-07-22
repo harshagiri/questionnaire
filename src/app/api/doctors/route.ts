@@ -109,8 +109,6 @@ export async function GET(request: Request) {
               where: {
                 id: receptionistUser.id,
                 role: "receptionist",
-                isActive: true,
-                deletedAt: null,
               },
               select: { id: true },
             })
@@ -130,10 +128,6 @@ export async function GET(request: Request) {
         doctorProfiles = await prisma.doctorProfile.findMany({
           where: {
             id: { in: assignedIds },
-            user: {
-              deletedAt: null,
-              ...(includeInactive ? {} : { isActive: true }),
-            },
           },
           include: {
             user: true,
@@ -143,12 +137,6 @@ export async function GET(request: Request) {
         });
       } else {
         doctorProfiles = await prisma.doctorProfile.findMany({
-          where: {
-            user: {
-              deletedAt: null,
-              ...(includeInactive ? {} : { isActive: true }),
-            },
-          },
           include: {
             user: true,
             ...(withSlots ? { availabilitySlots: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } } : {}),
@@ -163,12 +151,16 @@ export async function GET(request: Request) {
           const d = doctor as typeof doctor & { user: { email: string; photoUrl?: string | null }; availabilitySlots?: unknown[] };
           const hasDbPhoto = Boolean((d.user as { photoMimeType?: string | null }).photoMimeType);
           const resolvedPhoto = hasDbPhoto ? buildStaffPhotoUrl("doctor", d.user.email) : "";
+          const accountActive = (d.user as { isActive?: boolean }).isActive ?? true;
+          if (!includeInactive && !accountActive) {
+            return null;
+          }
           return {
             id: doctor.id,
             name: formatDoctorDisplayName(doctor.name),
             email: d.user.email,
-              isActive: (d.user as { isActive?: boolean }).isActive ?? true,
-              deactivatedAt: (d.user as { deactivatedAt?: Date | null }).deactivatedAt?.toISOString() ?? null,
+            isActive: accountActive,
+            deactivatedAt: (d.user as { deactivatedAt?: Date | null }).deactivatedAt?.toISOString() ?? null,
             phone: doctor.phone,
             registrationNumber: doctor.registrationNumber,
             licenseNumber: doctor.licenseNumber,
@@ -177,7 +169,7 @@ export async function GET(request: Request) {
             createdAt: doctor.createdAt.toISOString(),
             slots: d.availabilitySlots ?? [],
           };
-        }),
+        }).filter((doctor): doctor is NonNullable<typeof doctor> => Boolean(doctor)),
         storage: "database",
       });
     } catch {

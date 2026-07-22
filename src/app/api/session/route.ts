@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { roleHomePath } from "@/lib/auth";
 import { verifyPatientAccessCode } from "@/lib/patient-access-code";
+import { consumePatientOtpToken } from "@/lib/patient-otp";
 import { verifyStaffCredentials } from "@/lib/staff-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -11,6 +12,7 @@ type SessionBody = {
   email?: string;
   password?: string;
   otp?: string;
+  otpToken?: string;
   nextPath?: string;
 };
 
@@ -66,12 +68,23 @@ export async function POST(request: Request) {
     if (!(await patientExistsByPhone(body.phone))) {
       return NextResponse.json({ ok: false, message: "Patient not registered. Please complete registration first." }, { status: 401 });
     }
-    const verification = await verifyPatientAccessCode({
-      phone: body.phone ?? "",
-      otp: body.otp ?? "",
-    });
-    if (!verification.ok) {
-      return NextResponse.json({ ok: false, message: verification.message ?? "Invalid access code" }, { status: 401 });
+    if (body.otpToken?.trim()) {
+      const tokenVerification = await consumePatientOtpToken({
+        phone: body.phone ?? "",
+        verifyToken: body.otpToken,
+      });
+
+      if (!tokenVerification.ok) {
+        return NextResponse.json({ ok: false, message: tokenVerification.message ?? "Invalid OTP verification" }, { status: 401 });
+      }
+    } else {
+      const verification = await verifyPatientAccessCode({
+        phone: body.phone ?? "",
+        otp: body.otp ?? "",
+      });
+      if (!verification.ok) {
+        return NextResponse.json({ ok: false, message: verification.message ?? "Invalid access code" }, { status: 401 });
+      }
     }
   } else {
     if (!hasValidStaffCredentials(body.email, body.password)) {
@@ -109,6 +122,12 @@ export async function POST(request: Request) {
       ? body.name?.trim() || body.phone || "patient"
       : resolvedStaffDisplayName || body.email?.trim().toLowerCase() || body.name?.trim() || body.role;
   response.cookies.set("se_name", sessionName, cookieOptions);
+  if (body.role === "patient") {
+    const normalizedPhone = normalizePhone(body.phone);
+    if (normalizedPhone) {
+      response.cookies.set("se_phone", normalizedPhone, cookieOptions);
+    }
+  }
   // Store email for staff so doctor/receptionist pages can look up their profile
   if (body.role !== "patient" && body.email) {
     response.cookies.set("se_email", body.email.trim().toLowerCase(), cookieOptions);

@@ -34,14 +34,6 @@ const celebrationConfetti = [
   { left: "92%", delay: "360ms", color: "#15202b", size: "8px", drift: "14px", rotate: "32deg" },
 ] as const;
 
-const painMapAreas = [
-  { label: "Neck", value: "neck", style: { left: "50%", top: "2.8rem", transform: "translateX(-50%)" } },
-  { label: "Upper / mid back", value: "upper-back", style: { left: "50%", top: "7.4rem", transform: "translateX(-50%)" } },
-  { label: "Lower back", value: "lower-back", style: { left: "50%", top: "13.4rem", transform: "translateX(-50%)" } },
-  { label: "Arm / hand", value: "arm", style: { left: "8%", top: "8.8rem" } },
-  { label: "Leg / foot", value: "leg", style: { right: "8%", top: "18rem" } },
-] as const;
-
 const initialAnswers: AnswerMap = {
   onBehalf: false,
   reviewConsent: false,
@@ -1337,101 +1329,102 @@ export function PatientWorkflow({
     const painScoreValue = typeof answers.painScore === "number" ? answers.painScore : 0;
 
     return (
-      <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)] lg:gap-5">
-          <div className="overflow-hidden rounded-[1.4rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(180deg,rgba(15,118,110,0.08),rgba(255,255,255,0.96))] p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Body map</div>
-            <h3 className="mt-1 text-2xl font-semibold text-[color:var(--foreground)]">Where does it hurt most?</h3>
-            <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Tap the area on the neutral body figure. This keeps the form short and still gives the doctor a precise pain location.</p>
+      <div className="section-reveal rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
+          <button
+            type="button"
+            aria-label="Previous question"
+            onClick={prevQuestion}
+            disabled={isFirstQuestion}
+            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            &lt;
+          </button>
 
-            <div className="relative mx-auto mt-5 h-[26rem] w-full max-w-[18rem]">
-              <div className="absolute left-1/2 top-3 h-11 w-11 -translate-x-1/2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
-              <div className="absolute left-1/2 top-14 h-24 w-16 -translate-x-1/2 rounded-[2rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
-              <div className="absolute left-1/2 top-[6.5rem] h-28 w-8 -translate-x-1/2 rounded-full bg-[rgba(21,32,43,0.06)]" aria-hidden="true" />
-              <div className="absolute left-1/2 top-[8.9rem] h-28 w-28 -translate-x-1/2 rounded-[3rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
-              <div className="absolute left-1/2 top-[16rem] h-24 w-16 -translate-x-1/2 rounded-[2rem] border border-[rgba(21,32,43,0.14)] bg-white shadow-sm" aria-hidden="true" />
-              <div className="absolute left-1/2 top-[19.7rem] h-36 w-10 -translate-x-1/2 rounded-full bg-[rgba(21,32,43,0.06)]" aria-hidden="true" />
+          <div className="min-w-0 flex-1 text-center">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
+              Question {currentQuestionIndex + 1} / {sectionQuestionCount}
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              {currentQuestion?.required ? <span className="rounded-full bg-[rgba(255,138,91,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">Required</span> : null}
+            </div>
+          </div>
 
-              {painMapAreas.map((area, index) => {
-                const active = answers.painLocation === area.value;
+          {isLastQuestionOverall ? (
+            <button
+              type="button"
+              aria-label="Submit for clinical review"
+              onClick={submitQuestionnaire}
+              disabled={!requiredComplete}
+              className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
+            >
+              Submit
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Next question"
+              onClick={nextQuestion}
+              className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
+            >
+              &gt;
+            </button>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-4">
+          <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
+            <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Where does it hurt most?</h3>
+            <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Choose the main pain location.</p>
+            <div className="mx-auto mt-3 flex w-full max-w-md flex-col gap-2">
+              {(currentQuestion?.options ?? []).map((option) => {
+                const active = answers.painLocation === option.value;
 
                 return (
                   <button
-                    key={`${area.value}-${index}`}
+                    key={option.value}
                     type="button"
-                    aria-pressed={active}
-                    aria-label={`Select ${area.label}`}
-                    onClick={() => setValue("painLocation", area.value)}
-                    className={`focus-ring absolute rounded-full border px-3 py-2 text-[11px] font-semibold shadow-sm transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.08)]"}`}
-                    style={area.style}
+                    onClick={() => setValue("painLocation", option.value)}
+                    className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
                   >
-                    {area.label}
+                    {option.label}
                   </button>
                 );
               })}
-
-              <div className="absolute left-1/2 top-[10.1rem] h-5 w-5 -translate-x-1/2 rounded-full bg-[rgba(15,118,110,0.16)]" aria-hidden="true" />
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
-              Neutral outline only. No gendered body shape, just a quick visual map to reduce typing.
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain location</div>
-              <div className="mx-auto mt-3 flex w-full max-w-md flex-col gap-2">
-                {(currentQuestion?.options ?? []).map((option) => {
-                  const active = answers.painLocation === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setValue("painLocation", option.value)}
-                      className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+          <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain score</div>
+                <div className="mt-1 text-sm font-medium text-[color:var(--foreground)]">How intense does this feel right now?</div>
               </div>
-              <p className="mt-3 text-xs leading-5 text-[color:var(--muted)]">Choose the main area that hurts the most.</p>
+              <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--accent)]">Selected: {painScoreValue}/10</div>
             </div>
 
-            <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain score</div>
-                  <div className="mt-1 text-sm font-medium text-[color:var(--foreground)]">How intense does this feel right now?</div>
-                </div>
-                <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--accent)]">Selected: {painScoreValue}/10</div>
-              </div>
+            <input
+              className="mt-5 w-full accent-[var(--accent)]"
+              type="range"
+              min={0}
+              max={10}
+              step={1}
+              value={painScoreValue}
+              onChange={(event) => setValue("painScore", Number(event.target.value))}
+              aria-label="Pain score"
+            />
 
-              <input
-                className="mt-5 w-full accent-[var(--accent)]"
-                type="range"
-                min={0}
-                max={10}
-                step={1}
-                value={painScoreValue}
-                onChange={(event) => setValue("painScore", Number(event.target.value))}
-                aria-label="Pain score"
-              />
-
-              <div className="mt-3 flex items-center justify-between text-xs font-medium text-[color:var(--muted)]">
-                <span>0 - mild</span>
-                <span>10 - worst</span>
-              </div>
+            <div className="mt-3 flex items-center justify-between text-xs font-medium text-[color:var(--muted)]">
+              <span>0 - mild</span>
+              <span>10 - worst</span>
             </div>
-
-            {answers.painLocation ? (
-              <div className="rounded-[1.35rem] border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
-                Selected area: <span className="font-semibold">{currentQuestion?.options?.find((option) => option.value === answers.painLocation)?.label ?? answers.painLocation}</span>
-              </div>
-            ) : null}
           </div>
+
+          {answers.painLocation ? (
+            <div className="rounded-[1.35rem] border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
+              Selected area: <span className="font-semibold">{currentQuestion?.options?.find((option) => option.value === answers.painLocation)?.label ?? answers.painLocation}</span>
+            </div>
+          ) : null}
         </div>
 
         {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}

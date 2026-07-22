@@ -117,6 +117,14 @@ elif [ ! -f .env ]; then
   cp .env.example .env
 fi
 
+# Ensure appended keys don't get concatenated to the last line when .env lacks a trailing newline.
+if [ -f .env ] && [ -s .env ]; then
+  LAST_CHAR=$(tail -c 1 .env 2>/dev/null || true)
+  if [ -n "$LAST_CHAR" ]; then
+    echo >> .env
+  fi
+fi
+
 # Ensure SESSION_SECRET is set and random
 if ! grep -q '^SESSION_SECRET=' .env 2>/dev/null || grep -q '^SESSION_SECRET="change-me-before-production"' .env 2>/dev/null; then
   SECRET=$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | base64)

@@ -12,7 +12,7 @@ export default async function PatientSessionPage({
   searchParams?: Promise<{ phone?: string }>;
 }) {
   const cookieStore = await cookies();
-  const cookiePhone = (cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");
+  const cookiePhone = (cookieStore.get("se_phone")?.value ?? cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");
   const { sessionId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const profilePhone = (resolvedSearchParams?.phone ?? cookiePhone).replace(/\D/g, "");

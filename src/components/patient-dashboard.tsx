@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { findPatientRecordByPhone, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
+import { isPatientProfileComplete } from "@/lib/patient-profile-completion";
 
 type ConsultModal = {
   consultId: string;
@@ -136,12 +137,16 @@ export function PatientDashboard({ phone }: { phone: string }) {
       }
 
       const localRecord = findPatientRecordByPhone(normalizedPhone);
-      if (localRecord?.patientId) {
+      if (isPatientProfileComplete(localRecord)) {
         if (!cancelled) {
           setPatientRecord(localRecord);
           setProfileLoading(false);
         }
         return;
+      }
+
+      if (!cancelled && localRecord) {
+        setPatientRecord(localRecord);
       }
 
       try {
@@ -187,7 +192,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
 
   const upcomingAppointments = appointments.filter((a) => a.status !== "cancelled" && a.status !== "submitted");
   const pastAppointments = appointments.filter((a) => a.status === "submitted" || a.status === "cancelled");
-  const canProceed = Boolean(patientRecord?.patientId);
+  const canProceed = isPatientProfileComplete(patientRecord);
   const questionnaireSessionId = patientRecord?.patientId ? `self-${patientRecord.patientId}` : "";
   const questionnaireHref = canProceed
     ? `/patient/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(phone)}`

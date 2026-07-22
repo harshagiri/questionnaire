@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { prisma } from "@/lib/prisma";
 
 type MagicLinkEntry = {
   tokenHash: string;
@@ -76,12 +77,13 @@ function hashToken(token: string) {
 
 function createMagicToken() {
   // Compact base64url token keeps URL short while preserving high entropy.
-  return randomBytes(16).toString("base64url");
+  const token = randomBytes(16).toString("base64url");
+  return /^[A-Za-z0-9]/.test(token) ? token : `a${token.slice(1)}`;
 }
 
 export function buildPatientMagicLink(baseUrl: string, token: string) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
-  const link = `${normalizedBaseUrl}/m?t=${encodeURIComponent(token)}`;
+  const link = `${normalizedBaseUrl}/m/${encodeURIComponent(token)}`;
   if (link.length > MAX_MAGIC_LINK_URL_LENGTH) {
     throw new Error(`Magic link URL exceeds ${MAX_MAGIC_LINK_URL_LENGTH} characters`);
   }
@@ -103,6 +105,51 @@ function sanitizeStore(store: MagicLinkStore) {
 }
 
 async function readStore(): Promise<MagicLinkStore> {
+  if (prisma) {
+    try {
+      const [entries, audit] = await Promise.all([
+        prisma.patientMagicLink.findMany({
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.patientMagicLinkAudit.findMany({
+          orderBy: { at: "desc" },
+          take: MAX_AUDIT_EVENTS,
+        }),
+      ]);
+
+      return {
+        entries: entries.map((entry) => ({
+          tokenHash: entry.tokenHash,
+          token: entry.token ?? undefined,
+          phone: entry.phone,
+          createdAt: entry.createdAt.toISOString(),
+          expiresAt: entry.expiresAt.toISOString(),
+          smsStatus: (entry.smsStatus as MagicLinkEntry["smsStatus"]) ?? undefined,
+          smsError: entry.smsError ?? undefined,
+          smsSentAt: entry.smsSentAt?.toISOString(),
+          smsFailedAt: entry.smsFailedAt?.toISOString(),
+          smsSkippedAt: entry.smsSkippedAt?.toISOString(),
+          revokedAt: entry.revokedAt?.toISOString(),
+          usedAt: entry.usedAt?.toISOString(),
+        })),
+        audit: audit
+          .sort((a, b) => a.at.getTime() - b.at.getTime())
+          .map((event) => ({
+            at: event.at.toISOString(),
+            action: event.action as MagicLinkAuditEvent["action"],
+            phone: event.phone ?? undefined,
+            tokenHash: event.tokenHash,
+            note: event.note ?? undefined,
+          })),
+      };
+    } catch {
+      return {
+        entries: [],
+        audit: [],
+      };
+    }
+  }
+
   try {
     const raw = await readFile(storePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<MagicLinkStore>;
@@ -119,6 +166,45 @@ async function readStore(): Promise<MagicLinkStore> {
 }
 
 async function writeStore(store: MagicLinkStore) {
+  if (prisma) {
+    const entriesData = store.entries.map((entry) => ({
+      tokenHash: entry.tokenHash,
+      token: entry.token ?? null,
+      phone: entry.phone,
+      createdAt: new Date(entry.createdAt),
+      expiresAt: new Date(entry.expiresAt),
+      smsStatus: entry.smsStatus ?? null,
+      smsError: entry.smsError ?? null,
+      smsSentAt: entry.smsSentAt ? new Date(entry.smsSentAt) : null,
+      smsFailedAt: entry.smsFailedAt ? new Date(entry.smsFailedAt) : null,
+      smsSkippedAt: entry.smsSkippedAt ? new Date(entry.smsSkippedAt) : null,
+      revokedAt: entry.revokedAt ? new Date(entry.revokedAt) : null,
+      usedAt: entry.usedAt ? new Date(entry.usedAt) : null,
+    }));
+
+    const auditData = store.audit.map((event) => ({
+      at: new Date(event.at),
+      action: event.action,
+      phone: event.phone ?? null,
+      tokenHash: event.tokenHash,
+      note: event.note ?? null,
+    }));
+
+    await prisma.$transaction(async (tx) => {
+      await tx.patientMagicLink.deleteMany({});
+      if (entriesData.length > 0) {
+        await tx.patientMagicLink.createMany({ data: entriesData });
+      }
+
+      await tx.patientMagicLinkAudit.deleteMany({});
+      if (auditData.length > 0) {
+        await tx.patientMagicLinkAudit.createMany({ data: auditData });
+      }
+    });
+
+    return;
+  }
+
   await mkdir(dirname(storePath), { recursive: true });
   await writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
 }
@@ -223,14 +309,19 @@ export async function consumePatientMagicLink(token: string): Promise<ConsumeMag
   }
 
   if (match.usedAt) {
+    // Allow repeated opens while the link is still within the validity window.
     pushAudit(store, {
-      action: "consume_failed",
+      action: "consumed",
       phone: match.phone,
       tokenHash,
-      note: "Already used",
+      note: "Reused active link",
     });
     await writeStore(store);
-    return { ok: false, message: "Magic link already used" };
+    return {
+      ok: true,
+      phone: match.phone,
+      expiresAt: match.expiresAt,
+    };
   }
 
   if (isExpired(match.expiresAt)) {
@@ -438,66 +529,52 @@ export async function sendMagicLinkViaMsg91(input: {
   phone: string;
   magicLink: string;
 }) {
-  const authKey = process.env.MSG91_AUTH_KEY?.trim();
-  if (!authKey) {
-    throw new Error("MSG91_AUTH_KEY is not configured");
+  const apiKey = process.env.FAST2SMS_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("FAST2SMS_API_KEY is not configured");
   }
 
-  const templateId = process.env.MSG91_TEMPLATE_ID?.trim() || "6a5e46663de7e5b4370dc5e5";
-  const dltTemplateId = process.env.MSG91_DLT_TEMPLATE_ID?.trim();
-  const senderId = process.env.MSG91_SENDER_ID?.trim();
-  const linkVariableName = process.env.MSG91_LINK_VARIABLE?.trim() || "link";
-  const shortUrlFlag = process.env.MSG91_SHORT_URL?.trim() || "1";
-  const endpoint = process.env.MSG91_FLOW_ENDPOINT?.trim() || "https://control.msg91.com/api/v5/flow/";
-
-  const recipient: Record<string, string> = {
-    mobiles: asIndianMobile(input.phone),
-    link: input.magicLink,
-    url: input.magicLink,
-    VAR1: input.magicLink,
-  };
-  if (senderId) {
-    recipient.sender = senderId;
-  }
-  recipient[linkVariableName] = input.magicLink;
+  const endpoint = process.env.FAST2SMS_ENDPOINT?.trim() || "https://www.fast2sms.com/dev/bulkV2";
+  const senderId = process.env.FAST2SMS_SENDER_ID?.trim();
+  const route = process.env.FAST2SMS_ROUTE?.trim() || "q";
 
   const payload: {
-    template_id: string;
-    short_url: string;
-    recipients: Record<string, string>[];
-    dlt_template_id?: string;
-    sender?: string;
+    route: string;
+    sender_id?: string;
+    message: string;
+    language: string;
+    flash: number;
+    numbers: string;
   } = {
-    template_id: templateId,
-    short_url: shortUrlFlag,
-    recipients: [recipient],
+    route,
+    message: `SpinExperts pre-consult form:\n${input.magicLink}`,
+    language: "english",
+    flash: 0,
+    numbers: asIndianMobile(input.phone),
   };
 
-  if (dltTemplateId) {
-    payload.dlt_template_id = dltTemplateId;
-  }
   if (senderId) {
-    payload.sender = senderId;
+    payload.sender_id = senderId;
   }
 
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      authkey: authKey,
+      authorization: apiKey,
     },
     body: JSON.stringify(payload),
   });
 
-  const details = await response.text().catch(() => "MSG91 error");
-  let parsed: { type?: string; message?: string } | null = null;
+  const details = await response.text().catch(() => "FAST2SMS error");
+  let parsed: { return?: boolean; message?: unknown; request_id?: string } | null = null;
   try {
-    parsed = JSON.parse(details) as { type?: string; message?: string };
+    parsed = JSON.parse(details) as { return?: boolean; message?: unknown; request_id?: string };
   } catch {
     parsed = null;
   }
 
-  if (!response.ok || parsed?.type === "error") {
-    throw new Error(`MSG91 request failed (${response.status}): ${details}`);
+  if (!response.ok || parsed?.return === false) {
+    throw new Error(`FAST2SMS request failed (${response.status}): ${details}`);
   }
 }

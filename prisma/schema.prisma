@@ -261,6 +261,37 @@ model QuestionnaireAnswer {
   submission  QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
 
+model PatientMagicLink {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  token       String?
+  phone       String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  smsStatus   String?
+  smsError    String?
+  smsSentAt   DateTime?
+  smsFailedAt DateTime?
+  smsSkippedAt DateTime?
+  revokedAt   DateTime?
+  usedAt      DateTime?
+
+  @@index([phone, createdAt])
+  @@index([expiresAt])
+}
+
+model PatientMagicLinkAudit {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  action    String
+  phone     String?
+  tokenHash String
+  note      String?
+
+  @@index([tokenHash, at])
+  @@index([phone, at])
+}
+
 model UsageEvent {
   id        String   @id @default(cuid())
   role      RoleName

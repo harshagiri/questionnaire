@@ -34,7 +34,10 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
 
   const [phone, setPhone] = useState("");
   const [patientOtp, setPatientOtp] = useState("");
+  const [patientOtpRequestId, setPatientOtpRequestId] = useState("");
+  const [patientOtpExpiresAt, setPatientOtpExpiresAt] = useState<string | null>(null);
   const [patientMessage, setPatientMessage] = useState("");
+  const [patientSendingOtp, setPatientSendingOtp] = useState(false);
   const [patientSubmitting, setPatientSubmitting] = useState(false);
 
   const [staffRole, setStaffRole] = useState<StaffRole>(requestedRole === "patient" ? "doctor" : (requestedRole as StaffRole));
@@ -51,6 +54,12 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   const [statsLoading, setStatsLoading] = useState(true);
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
+
+  useEffect(() => {
+    setPatientOtp("");
+    setPatientOtpRequestId("");
+    setPatientOtpExpiresAt(null);
+  }, [normalizedPhone]);
 
   useEffect(() => {
     let active = true;
@@ -171,10 +180,51 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
     router.push(payload.nextPath ?? "/");
   }
 
+  async function handlePatientRequestOtp() {
+    setPatientMessage("");
+    if (normalizedPhone.length < 10) {
+      setPatientMessage("Enter a valid registered phone number");
+      return;
+    }
+
+    setPatientSendingOtp(true);
+    try {
+      const response = await fetch("/api/patient-otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizedPhone }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        requestId?: string;
+        expiresAt?: string;
+      };
+
+      if (!response.ok || !payload.ok || !payload.requestId) {
+        setPatientMessage(payload.message ?? "Could not send OTP");
+        return;
+      }
+
+      setPatientOtpRequestId(payload.requestId);
+      setPatientOtpExpiresAt(payload.expiresAt ?? null);
+      setPatientMessage("OTP sent to your registered phone number");
+    } catch {
+      setPatientMessage("Network error while sending OTP");
+    } finally {
+      setPatientSendingOtp(false);
+    }
+  }
+
   async function handlePatientLogin() {
     setPatientMessage("");
     if (normalizedPhone.length < 10) {
       setPatientMessage("Enter a valid phone number");
+      return;
+    }
+    if (!patientOtpRequestId) {
+      setPatientMessage("Request OTP first");
       return;
     }
     if (!patientOtp.trim()) {
@@ -184,6 +234,27 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
 
     setPatientSubmitting(true);
     try {
+      const otpVerificationResponse = await fetch("/api/patient-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          otp: patientOtp,
+          requestId: patientOtpRequestId,
+        }),
+      });
+
+      const otpVerificationPayload = (await otpVerificationResponse.json()) as {
+        ok?: boolean;
+        message?: string;
+        verifyToken?: string;
+      };
+
+      if (!otpVerificationResponse.ok || !otpVerificationPayload.ok || !otpVerificationPayload.verifyToken) {
+        setPatientMessage(otpVerificationPayload.message ?? "OTP verification failed");
+        return;
+      }
+
       const [savedResponse, appointmentMatches] = await Promise.all([
         fetch(`/api/patient-intake?phone=${encodeURIComponent(normalizedPhone)}`),
         loadAppointmentsByPhone(normalizedPhone),
@@ -220,7 +291,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
           role: "patient",
           name: normalizedPhone,  // store phone as name so dashboard can load records
           phone: normalizedPhone,
-          otp: patientOtp,
+          otpToken: otpVerificationPayload.verifyToken,
           nextPath: sessionPath,
         },
         setPatientMessage,
@@ -310,6 +381,14 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     placeholder="Phone number"
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={handlePatientRequestOtp}
+                    disabled={patientSendingOtp}
+                    className="focus-ring w-full rounded-full border border-[rgba(21,32,43,0.16)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)] disabled:opacity-60"
+                  >
+                    {patientSendingOtp ? "Sending OTP..." : "Send OTP"}
+                  </button>
                   <input
                     value={patientOtp}
                     onChange={(event) => setPatientOtp(event.target.value)}
@@ -317,7 +396,8 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
                   <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                    Access code is provided by reception for your phone number and expires automatically.
+                    Enter your registered phone number, request OTP, and login. OTP expires in 5 minutes.
+                    {patientOtpExpiresAt ? ` Last OTP valid until: ${new Date(patientOtpExpiresAt).toLocaleTimeString()}` : ""}
                   </div>
                   {patientMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{patientMessage}</p> : null}
                   <button

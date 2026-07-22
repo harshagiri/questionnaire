@@ -329,6 +329,7 @@ export function QuestionnaireFlow({
   saveApiPath,
   saveApiContext,
   allowSubmittedEdit = false,
+  onSubmitted,
 }: {
   sessionId: string;
   definition?: QuestionnaireDefinition;
@@ -341,6 +342,12 @@ export function QuestionnaireFlow({
   saveApiPath?: string;
   saveApiContext?: Record<string, string | number | boolean | null | undefined>;
   allowSubmittedEdit?: boolean;
+  onSubmitted?: (payload: {
+    sessionId: string;
+    definitionId: string;
+    answers: AnswerMap;
+    completionPercent: number;
+  }) => void | Promise<void>;
 }) {
   const [answers, setAnswers] = useState<AnswerMap>(() => {
     if (typeof window === "undefined") {
@@ -527,6 +534,21 @@ export function QuestionnaireFlow({
     setAnswers((current) => ({ ...current, [questionId]: value }));
   };
 
+  const handleSubmit = () => {
+    setHasSubmittedRecord(true);
+    setSubmittedCompletionSnapshot(completion);
+    setStage("submitted");
+
+    if (onSubmitted) {
+      void onSubmitted({
+        sessionId,
+        definitionId: definition.id,
+        answers,
+        completionPercent: completion,
+      });
+    }
+  };
+
   const goNext = () => {
     if (stage === "intro") {
       setStage("form");
@@ -652,11 +674,7 @@ export function QuestionnaireFlow({
           <button
             type="button"
             className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white"
-            onClick={() => {
-              setHasSubmittedRecord(true);
-              setSubmittedCompletionSnapshot(completion);
-              setStage("submitted");
-            }}
+            onClick={handleSubmit}
           >
             Submit safely
           </button>
@@ -817,11 +835,7 @@ export function QuestionnaireFlow({
             <button
               type="button"
               className="focus-ring rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white"
-              onClick={() => {
-                setHasSubmittedRecord(true);
-                setSubmittedCompletionSnapshot(completion);
-                setStage("submitted");
-              }}
+              onClick={handleSubmit}
             >
               Submit
             </button>

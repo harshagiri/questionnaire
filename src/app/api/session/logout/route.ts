@@ -20,6 +20,7 @@ function clearAuthCookies(response: NextResponse, request: Request) {
   const clearOptions = { httpOnly: true, sameSite: "lax" as const, path: "/", maxAge: 0, secure: isSecureRequest };
   response.cookies.set("se_role", "", clearOptions);
   response.cookies.set("se_name", "", clearOptions);
+  response.cookies.set("se_phone", "", clearOptions);
   response.cookies.set("se_avatar", "", clearOptions);
 }
 

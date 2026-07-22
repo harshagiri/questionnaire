@@ -114,32 +114,11 @@ async function resolveAppointmentForUpload(input: { consultId?: string; patientP
     });
 
     const doctorProfile = await prisma.doctorProfile.findFirst({ include: { user: true }, orderBy: { createdAt: "asc" } });
-
-    let doctorUser = doctorProfile?.user;
-    let doctorName = doctorProfile?.name ?? "Assigned SpinExpert doctor";
-
-    if (!doctorUser) {
-      doctorUser = await prisma.user.upsert({
-        where: { email: "doctor-auto-assigned@spinexpert.local" },
-        create: {
-          email: "doctor-auto-assigned@spinexpert.local",
-          passwordHash: "doctor:auto-assigned",
-          role: "doctor",
-          displayName: "Assigned SpinExpert doctor",
-          doctorProfile: {
-            create: {
-              name: "Assigned SpinExpert doctor",
-              phone: "not-provided",
-              registrationNumber: "auto-assigned",
-              licenseNumber: "auto-assigned",
-              bio: "",
-            },
-          },
-        },
-        update: { displayName: "Assigned SpinExpert doctor" },
-      });
-      doctorName = "Assigned SpinExpert doctor";
+    if (!doctorProfile?.user) {
+      return null;
     }
+    const doctorUser = doctorProfile.user;
+    const doctorName = doctorProfile.name;
 
     const now = new Date();
     const consultSessionId = `DOCS-${normalizedPhone}-${Date.now()}`;

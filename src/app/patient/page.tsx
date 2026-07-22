@@ -11,13 +11,14 @@ export default async function PatientPage() {
   const cookieStore = await cookies();
   const role = cookieStore.get("se_role")?.value;
   const name = cookieStore.get("se_name")?.value;
+  const phoneCookie = cookieStore.get("se_phone")?.value;
 
   if (!role || role !== "patient") {
     redirect("/?role=patient");
   }
 
   // Extract phone from se_name (we store phone as name for patients)
-  const phone = (name ?? "").replace(/\D/g, "");
+  const phone = (phoneCookie ?? name ?? "").replace(/\D/g, "");
 
   return (
     <AppShell role="patient">

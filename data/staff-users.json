@@ -1,0 +1,57 @@
+[
+  {
+    "role": "admin",
+    "email": "admin.local@spinexpert.local",
+    "passwordHash": "$2b$10$tff9FazzpAUebHghElLA6uV7W9zWnz8TMZJUpU/YuBwZwfVmhE1C6",
+    "displayName": "Local Admin",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-07-19T18:34:13.909Z"
+  },
+  {
+    "role": "receptionist",
+    "email": "frontdesk@spinexpert.local",
+    "passwordHash": "$2b$10$NWFW7S3koLLOfFJnIPuNWuxAd9Cl1a6orYqt73XCvTtiWQyRkfJHC",
+    "displayName": "Front Desk",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-07-19T18:34:13.909Z"
+  },
+  {
+    "role": "doctor",
+    "email": "meera@spinexpert.local",
+    "passwordHash": "$2b$10$YP1mc/D.kIsEMD8ky/8AHOw9k/oJloHaDPzf2Nu//OCvfCt6Nw63G",
+    "displayName": "Dr Meera Nair",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-07-19T18:34:13.909Z"
+  },
+  {
+    "role": "doctor",
+    "email": "arjun@spinexpert.local",
+    "passwordHash": "$2b$10$0bHJOUi31ic.cGV22WUgh.dcAIHk05pFAEmKYtH52J2aKdmcm.deK",
+    "displayName": "Dr Arjun Rao",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-07-19T18:34:13.909Z"
+  },
+  {
+    "role": "doctor",
+    "email": "kavya@spinexpert.local",
+    "passwordHash": "$2b$10$Y1eIQwY6dDV9ScIhUP3mCeJuvNagW7M7Xt92p1WquxhdQCg1rqw96",
+    "displayName": "Dr Kavya Iyer",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-07-19T18:34:13.909Z"
+  }
+]

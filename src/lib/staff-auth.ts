@@ -313,7 +313,7 @@ export async function verifyStaffCredentials(
   if (shouldUseDb() && prisma) {
     try {
       const account = await prisma.user.findFirst({
-        where: { role, email: normalizedEmail, deletedAt: null, isActive: true },
+        where: { role, email: normalizedEmail },
         select: {
           passwordHash: true,
           displayName: true,
@@ -333,7 +333,19 @@ export async function verifyStaffCredentials(
       const resolvedPhotoUrl = account.photoMimeType ? buildStaffPhotoUrl(role, normalizedEmail) : "";
       return { ok: true, displayName: account.displayName, photoUrl: resolvedPhotoUrl };
     } catch {
-      return { ok: false };
+      // If the DB is temporarily unavailable, fall back to file-backed staff accounts.
+      const accounts = await listStaffAccounts();
+      const account = accounts.find(
+        (item) => item.role === role && item.email === normalizedEmail && item.isActive && !item.deletedAt,
+      );
+      if (!account) {
+        return { ok: false };
+      }
+      const valid = await compare(password, account.passwordHash);
+      if (!valid) {
+        return { ok: false };
+      }
+      return { ok: true, displayName: account.displayName, photoUrl: account.photoUrl };
     }
   }
 
@@ -363,7 +375,7 @@ export async function setStaffAccountActivation(input: {
 
   if (shouldUseDb() && prisma) {
     const existing = await prisma.user.findFirst({
-      where: { role, email, deletedAt: null },
+      where: { role, email },
       select: { email: true },
     });
 

@@ -34,8 +34,6 @@ export async function GET(request: Request) {
         where: {
           email: receptionistEmail.toLowerCase(),
           role: "receptionist",
-          isActive: true,
-          deletedAt: null,
         },
         select: { id: true },
       });
@@ -44,13 +42,7 @@ export async function GET(request: Request) {
 
     if (resolvedReceptionistId) {
       const assignments = await prisma.receptionistDoctorAssignment.findMany({
-        where: {
-          receptionistId: resolvedReceptionistId,
-          receptionist: {
-            isActive: true,
-            deletedAt: null,
-          },
-        },
+        where: { receptionistId: resolvedReceptionistId },
         include: {
           doctorProfile: {
             select: { id: true, name: true, registrationNumber: true },
@@ -74,13 +66,7 @@ export async function GET(request: Request) {
 
     if (doctorProfileId) {
       const assignments = await prisma.receptionistDoctorAssignment.findMany({
-        where: {
-          doctorProfileId,
-          receptionist: {
-            isActive: true,
-            deletedAt: null,
-          },
-        },
+        where: { doctorProfileId },
         include: {
           receptionist: {
             select: { id: true, email: true, displayName: true },
@@ -117,8 +103,6 @@ export async function POST(request: Request) {
         where: {
           email: normalizedEmail,
           role: "receptionist",
-          isActive: true,
-          deletedAt: null,
         },
         select: { id: true },
       });
@@ -170,8 +154,6 @@ export async function DELETE(request: Request) {
         where: {
           email: receptionistEmail.toLowerCase(),
           role: "receptionist",
-          isActive: true,
-          deletedAt: null,
         },
         select: { id: true },
       });

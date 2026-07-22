@@ -3,6 +3,7 @@ import { calculateBmi } from "@/lib/questionnaire";
 import { buildPromAuditPayload } from "@/lib/prom-scoring";
 import { prisma } from "@/lib/prisma";
 import { toPlainQuestionText } from "@/lib/question-text";
+import { ensurePatientRecordForPhone } from "@/lib/patient-record";
 import { patientWorkflowSections, preConsultSections, type WorkflowSection } from "@/lib/workflow-data";
 
 export const patientQuestionnaireSlug = "sei-pq-v3-final";
@@ -38,6 +39,32 @@ function normalizePhone(value: unknown) {
 
 function normalizeEmailPart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "user";
+}
+
+function asNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function asString(value: unknown) {
+  const parsed = String(value ?? "").trim();
+  return parsed.length > 0 ? parsed : null;
+}
+
+function asStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter((item) => item.length > 0);
+}
+
+function buildPatientId() {
+  const year = new Date().getFullYear();
+  const randomPart = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+  return `PT-${year}-${randomPart}`;
 }
 
 function jsonObject(value: unknown) {
@@ -358,47 +385,7 @@ async function resolveAssignedDoctorUser() {
     return existingDoctor.user;
   }
 
-  const doctorName = "Assigned SpinExpert doctor";
-  const license = "auto-assigned";
-  const email = `doctor-${normalizeEmailPart(license)}@spinexpert.local`;
-
-  return prisma.user.upsert({
-    where: { email },
-    create: {
-      email,
-      passwordHash: `doctor:${license}`,
-      role: "doctor",
-      displayName: doctorName,
-      doctorProfile: {
-        create: {
-          name: doctorName,
-          phone: "not-provided",
-          registrationNumber: license,
-          licenseNumber: license,
-          bio: "",
-        },
-      },
-    },
-    update: {
-      displayName: doctorName,
-      doctorProfile: {
-        upsert: {
-          create: {
-            name: doctorName,
-            phone: "not-provided",
-            registrationNumber: license,
-            licenseNumber: license,
-            bio: "",
-          },
-          update: {
-            name: doctorName,
-            registrationNumber: license,
-            licenseNumber: license,
-          },
-        },
-      },
-    },
-  });
+  throw new Error("No doctor profile found. Please create at least one doctor account.");
 }
 
 export async function savePatientQuestionnaireToDatabase(record: PatientQuestionnairePayload) {
@@ -415,6 +402,10 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
 
   const explicitPhone = normalizePhone(record.patientPhone);
   const { user: patientUser, phone } = await upsertPatientUser({ ...record.answers, phone: explicitPhone || record.answers.phone }, record.sessionId);
+  const resolvedPhone = explicitPhone || phone;
+  if (resolvedPhone.length >= 10) {
+    await ensurePatientRecordForPhone(resolvedPhone);
+  }
   const doctorUser = await resolveAssignedDoctorUser();
   const status = record.submitted ? "submitted" : "draft";
   const bmi = calculateBmi(Number(record.answers.weightKg), Number(record.answers.heightCm));
@@ -446,12 +437,78 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
       `;
       const existingAppointmentId = existingAppointmentRows[0]?.id;
 
+      const profileFullName = asString(record.answers.patientName) || asString(record.answers.fullName) || patientUser.displayName;
+      const profileAge = asNumber(record.answers.age);
+      const profileGender = asString(record.answers.gender);
+      const profileHeightCm = asNumber(record.answers.heightCm);
+      const profileWeightKg = asNumber(record.answers.weightKg);
+      const profileBmi = bmi ?? (profileHeightCm && profileWeightKg ? calculateBmi(profileWeightKg, profileHeightCm) : null);
+      const profileRegion = asString(record.answers.region) || asString(record.answers.city);
+      const profilePreferredLanguage = asString(record.answers.preferredLanguage);
+      const profileDailyActivity = asString(record.answers.dailyActivity) || asString(record.answers.occupation) || asString(record.answers.activityLevel);
+      const profileComorbidities = asStringArray(record.answers.comorbidities);
+      const profileMedicalHistory = asStringArray(record.answers.medicalHistory);
+      const profileCurrentMeds = asStringArray(record.answers.currentMeds);
+      const profileCurrentMedicines = asString(record.answers.currentMedicines);
+      const combinedMeds = [
+        ...profileCurrentMeds,
+        ...(profileCurrentMedicines ? [profileCurrentMedicines] : []),
+      ];
+      const profilePriorSurgery =
+        Boolean(record.answers.priorSurgery) ||
+        Boolean(record.answers.priorSpineSurgery);
+      const profileSurgeryDetails = asString(record.answers.surgeryDetails) || asString(record.answers.spineSurgeryDetails);
+      const profileEmail = asString(record.answers.email);
+
+      const patientRecord =
+        resolvedPhone.length >= 10
+          ? await tx.patientRecord.upsert({
+              where: { phone: resolvedPhone },
+              create: {
+                patientId: buildPatientId(),
+                phone: resolvedPhone,
+                email: profileEmail,
+                fullName: profileFullName,
+                age: profileAge ?? undefined,
+                gender: profileGender ?? undefined,
+                heightCm: profileHeightCm ?? undefined,
+                weightKg: profileWeightKg ?? undefined,
+                bmi: profileBmi ?? undefined,
+                region: profileRegion ?? undefined,
+                preferredLanguage: profilePreferredLanguage ?? undefined,
+                dailyActivity: profileDailyActivity ?? undefined,
+                comorbidities: profileComorbidities.length > 0 ? profileComorbidities : profileMedicalHistory,
+                currentMeds: combinedMeds,
+                priorSurgery: profilePriorSurgery,
+                surgeryDetails: profileSurgeryDetails ?? undefined,
+              },
+              update: {
+                email: profileEmail,
+                fullName: profileFullName,
+                age: profileAge ?? undefined,
+                gender: profileGender ?? undefined,
+                heightCm: profileHeightCm ?? undefined,
+                weightKg: profileWeightKg ?? undefined,
+                bmi: profileBmi ?? undefined,
+                region: profileRegion ?? undefined,
+                preferredLanguage: profilePreferredLanguage ?? undefined,
+                dailyActivity: profileDailyActivity ?? undefined,
+                comorbidities: profileComorbidities.length > 0 ? profileComorbidities : profileMedicalHistory,
+                currentMeds: combinedMeds,
+                priorSurgery: profilePriorSurgery,
+                surgeryDetails: profileSurgeryDetails ?? undefined,
+              },
+              select: { id: true },
+            })
+          : null;
+
       const appointment = existing
         ? await tx.appointment.update({
             where: { id: existing.appointmentId },
             data: {
               patientName: patientUser.displayName,
-              patientPhone: explicitPhone || phone || "",
+              patientPhone: resolvedPhone || "",
+              patientRecordId: patientRecord?.id ?? null,
               doctorName: doctorUser.displayName,
               appointmentDate: appointmentTimestamp,
               appointmentTime,
@@ -468,7 +525,8 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
               data: {
                 patientId: patientUser.id,
                 patientName: patientUser.displayName,
-                patientPhone: explicitPhone || phone || "",
+                patientPhone: resolvedPhone || "",
+                patientRecordId: patientRecord?.id ?? null,
                 doctorId: doctorUser.id,
                 doctorName: doctorUser.displayName,
                 appointmentDate: appointmentTimestamp,
@@ -485,7 +543,8 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
                 consultSessionId: record.sessionId,
                 patientId: patientUser.id,
                 patientName: patientUser.displayName,
-                patientPhone: explicitPhone || phone || "",
+                patientPhone: resolvedPhone || "",
+                patientRecordId: patientRecord?.id ?? null,
                 doctorId: doctorUser.id,
                 doctorName: doctorUser.displayName,
                 appointmentDate: appointmentTimestamp,
@@ -508,9 +567,10 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
           questionnaireId: questionnaire!.id,
           appointmentId: appointment.id,
           patientId: patientUser.id,
+          patientRecordId: patientRecord?.id ?? null,
           doctorId: doctorUser.id,
           sessionId: record.sessionId,
-          patientPhone: explicitPhone || phone || null,
+          patientPhone: resolvedPhone || null,
           status,
           sectionIndex: record.sectionIndex,
           questionIndex: record.questionIndex,
@@ -519,7 +579,8 @@ export async function savePatientQuestionnaireToDatabase(record: PatientQuestion
           bmi,
         },
         update: {
-          patientPhone: explicitPhone || phone || null,
+          patientRecordId: patientRecord?.id ?? null,
+          patientPhone: resolvedPhone || null,
           status,
           sectionIndex: record.sectionIndex,
           questionIndex: record.questionIndex,

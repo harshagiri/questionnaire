@@ -37,6 +37,24 @@ type MagicLinkStatusEntry = {
   note?: string;
 };
 
+type MagicLinkPanelState = {
+  phone: string;
+  message: string;
+  previewUrl: string;
+  date: string;
+  searchPhone: string;
+};
+
+const MAGIC_LINK_PANEL_STATE_KEY = "sei-receptionist-magic-link-panel";
+
+function formatLocalDateInput(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const queueStatusOptions = [
   { label: "Booked", value: "booked" },
   { label: "Waiting", value: "waiting" },
@@ -69,7 +87,7 @@ export function ReceptionistWorkflow() {
   const [magicLinkSending, setMagicLinkSending] = useState(false);
   const [magicLinkPreviewUrl, setMagicLinkPreviewUrl] = useState("");
   const [magicLinkEntries, setMagicLinkEntries] = useState<MagicLinkStatusEntry[]>([]);
-  const [magicLinkDate, setMagicLinkDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [magicLinkDate, setMagicLinkDate] = useState(() => formatLocalDateInput(new Date()));
   const [magicLinkSearchPhone, setMagicLinkSearchPhone] = useState("");
   const [resendingEntryId, setResendingEntryId] = useState<string | null>(null);
 
@@ -78,6 +96,53 @@ export function ReceptionistWorkflow() {
     const digits = normalizePhone(phone);
     return /^[6-9]\d{9}$/.test(digits) || /^91[6-9]\d{9}$/.test(digits);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(MAGIC_LINK_PANEL_STATE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const persisted = JSON.parse(raw) as Partial<MagicLinkPanelState>;
+      if (typeof persisted.phone === "string") {
+        setMagicLinkPhone(persisted.phone);
+      }
+      if (typeof persisted.message === "string") {
+        setMagicLinkMessage(persisted.message);
+      }
+      if (typeof persisted.previewUrl === "string") {
+        setMagicLinkPreviewUrl(persisted.previewUrl);
+      }
+      if (typeof persisted.date === "string" && persisted.date) {
+        setMagicLinkDate(persisted.date);
+      }
+      if (typeof persisted.searchPhone === "string") {
+        setMagicLinkSearchPhone(persisted.searchPhone);
+      }
+    } catch {
+      window.localStorage.removeItem(MAGIC_LINK_PANEL_STATE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const payload: MagicLinkPanelState = {
+      phone: magicLinkPhone,
+      message: magicLinkMessage,
+      previewUrl: magicLinkPreviewUrl,
+      date: magicLinkDate,
+      searchPhone: magicLinkSearchPhone,
+    };
+    window.localStorage.setItem(MAGIC_LINK_PANEL_STATE_KEY, JSON.stringify(payload));
+  }, [magicLinkDate, magicLinkMessage, magicLinkPhone, magicLinkPreviewUrl, magicLinkSearchPhone]);
 
   useEffect(() => {
     let active = true;
@@ -402,7 +467,7 @@ export function ReceptionistWorkflow() {
   };
 
   const filteredMagicLinkEntries = magicLinkEntries.filter((entry) => {
-    const entryDate = new Date(entry.createdAt).toISOString().slice(0, 10);
+    const entryDate = formatLocalDateInput(entry.createdAt);
     const dateMatch = !magicLinkDate || entryDate === magicLinkDate;
     const searchDigits = normalizePhone(magicLinkSearchPhone);
     const phoneMatch = !searchDigits || normalizePhone(entry.phone).includes(searchDigits);
