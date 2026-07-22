@@ -46,6 +46,66 @@ type AppointmentPayload = {
   updatedAt: string;
 };
 
+function buildLocalDemoAppointments(): AppointmentPayload[] {
+  const today = new Date();
+  const date = today.toISOString().slice(0, 10);
+  const stamp = new Date().toISOString();
+
+  return [
+    {
+      id: "local-demo-001",
+      consultSessionId: "DEMO-ROHIT-001",
+      consultId: "DEMO-ROHIT-001",
+      patientName: "Rohit Sharma",
+      patientPhone: "9880011111",
+      doctorId: "doctor-demo-1",
+      doctorName: "Dr. Meera Nair",
+      appointmentDate: date,
+      appointmentTime: "09:30",
+      appointmentType: "new",
+      status: "waiting",
+      notes: "Walk-in severe low back pain",
+      promSummary: { instrument: "ODI", percent: 48, severity: "Severe", source: "doctor-entered" },
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+    {
+      id: "local-demo-002",
+      consultSessionId: "DEMO-SNEHA-002",
+      consultId: "DEMO-SNEHA-002",
+      patientName: "Sneha Patel",
+      patientPhone: "9880022222",
+      doctorId: "doctor-demo-2",
+      doctorName: "Dr. Arjun Rao",
+      appointmentDate: date,
+      appointmentTime: "10:00",
+      appointmentType: "follow-up",
+      status: "booked",
+      notes: "Review after physiotherapy",
+      promSummary: { instrument: "NDI", percent: 38, severity: "Moderate", source: "doctor-entered" },
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+    {
+      id: "local-demo-003",
+      consultSessionId: "DEMO-MANOJ-003",
+      consultId: "DEMO-MANOJ-003",
+      patientName: "Manoj Verma",
+      patientPhone: "9880033333",
+      doctorId: "doctor-demo-3",
+      doctorName: "Dr. Kavya Iyer",
+      appointmentDate: date,
+      appointmentTime: "11:30",
+      appointmentType: "new",
+      status: "submitted",
+      notes: "Forms completed, awaiting consult",
+      promSummary: { instrument: "ODI", percent: 20, severity: "Minimal", source: "doctor-entered" },
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+}
+
 type StoredAnswerValue = string | number | boolean | string[];
 
 type AppointmentTx = Parameters<NonNullable<typeof prisma>['$transaction']>[0] extends (transaction: infer Transaction, ...args: never[]) => unknown
@@ -312,7 +372,7 @@ export async function GET(request: Request) {
   const doctorProfileId = searchParams.get("doctorProfileId");
 
   if (!prisma) {
-    return NextResponse.json({ ok: true, appointments: [], storage: "no-db" });
+    return NextResponse.json({ ok: true, appointments: buildLocalDemoAppointments(), storage: "no-db-demo" });
   }
 
   try {
@@ -380,7 +440,7 @@ export async function GET(request: Request) {
       storage: "database",
     });
   } catch {
-    return NextResponse.json({ ok: true, appointments: [], storage: "error" });
+    return NextResponse.json({ ok: true, appointments: buildLocalDemoAppointments(), storage: "error-demo" });
   }
 }
 
