@@ -312,14 +312,8 @@ export function PatientDashboard({ phone }: { phone: string }) {
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       <a
-                        href={canProceed ? `/patient/consult/${consultId}` : "/register"}
-                        className={`flex-1 text-center text-xs font-semibold py-2 px-3 rounded-lg transition-colors ${canProceed ? "bg-teal-600 text-white hover:bg-teal-700" : "bg-gray-100 text-gray-400"}`}
-                      >
-                        Fill pre-consult
-                      </a>
-                      <a
                         href={canProceed ? `/patient/upload/${consultId}` : "/register"}
-                        className={`text-center border text-xs font-semibold py-2 px-3 rounded-lg transition-colors ${canProceed ? "border-gray-200 text-gray-600 hover:bg-gray-50" : "border-gray-100 text-gray-400"}`}
+                        className={`flex-1 text-center border text-xs font-semibold py-2 px-3 rounded-lg transition-colors ${canProceed ? "border-gray-200 text-gray-600 hover:bg-gray-50" : "border-gray-100 text-gray-400"}`}
                       >
                         Upload reports
                       </a>
@@ -346,14 +340,6 @@ export function PatientDashboard({ phone }: { phone: string }) {
                     <p className="text-xs text-gray-400">{appt.appointmentDate}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {appt.status === "submitted" ? (
-                      <a
-                        href={`/patient/consult/${appt.consultId ?? appt.sessionId}`}
-                        className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100"
-                      >
-                        View submitted form
-                      </a>
-                    ) : null}
                     <StatusBadge status={appt.status} />
                   </div>
                 </div>
