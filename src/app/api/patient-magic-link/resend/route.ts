@@ -7,6 +7,7 @@ import {
   resolveMagicLinkForPhone,
   sendMagicLinkViaMsg91,
 } from "@/lib/patient-magic-link";
+import { ensurePatientRecordForPhone } from "@/lib/patient-record";
 
 type ResendBody = {
   phone?: string;
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const patientRecord = await ensurePatientRecordForPhone(phone);
     const resolved = await resolveMagicLinkForPhone({
       phone,
       preferredEntryId: body?.entryId,
@@ -80,6 +82,7 @@ export async function POST(request: Request) {
         ok: true,
         phone,
         expiresAt: resolved.expiresAt,
+        patientId: patientRecord.patientId,
         sent: false,
         reusedExisting: resolved.reusedExisting,
         magicLink,
@@ -102,6 +105,7 @@ export async function POST(request: Request) {
           ok: true,
           phone,
           expiresAt: resolved.expiresAt,
+          patientId: patientRecord.patientId,
           sent: false,
           reusedExisting: resolved.reusedExisting,
           magicLink,
@@ -116,6 +120,7 @@ export async function POST(request: Request) {
       ok: true,
       phone,
       expiresAt: resolved.expiresAt,
+      patientId: patientRecord.patientId,
       sent: true,
       reusedExisting: resolved.reusedExisting,
     });

@@ -9,6 +9,7 @@ import {
   revokePatientMagicLink,
   sendMagicLinkViaMsg91,
 } from "@/lib/patient-magic-link";
+import { ensurePatientRecordForPhone } from "@/lib/patient-record";
 
 type MagicLinkRequestBody = {
   phone?: string;
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const patientRecord = await ensurePatientRecordForPhone(phone);
     const issued = await issuePatientMagicLink({ phone });
     const baseUrl = resolveAppUrl(request);
     const magicLink = `${baseUrl}/api/patient-magic-link/consume?token=${encodeURIComponent(issued.token)}`;
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
         ok: true,
         phone,
         expiresAt: issued.expiresAt,
+        patientId: patientRecord.patientId,
         sent: false,
         magicLink,
         message: "SMS skipped for local testing.",
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
           ok: true,
           phone,
           expiresAt: issued.expiresAt,
+          patientId: patientRecord.patientId,
           sent: false,
           magicLink,
           message: `SMS failed: ${smsMessage}`,
@@ -134,6 +138,7 @@ export async function POST(request: Request) {
       ok: true,
       phone,
       expiresAt: issued.expiresAt,
+      patientId: patientRecord.patientId,
       sent: true,
     });
   } catch (error) {
