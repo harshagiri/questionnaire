@@ -13,9 +13,16 @@ const bodyFont = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "SpinExpert Health Screening",
+  title: "SpinExperts India",
   description:
     "A role-based health screening questionnaire platform for patients, doctors, and administrators.",
+  icons: {
+    icon: [
+      { url: "/favicon.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

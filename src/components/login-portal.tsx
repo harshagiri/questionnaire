@@ -344,15 +344,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
           <section className="order-2 bg-[linear-gradient(180deg,#fffdf8_0%,#f7f4ee_100%)] p-4 sm:p-6 lg:order-1 lg:p-10">
             <div className="mb-5">
-              <div className="relative mb-4 h-12 w-[150px] overflow-hidden rounded-lg border border-[rgba(21,32,43,0.08)] bg-white/70 p-1">
-                <Image
-                  src="/logo.jpg"
-                  alt="SpinExperts India"
-                  fill
-                  sizes="150px"
-                  className="object-contain"
-                />
-              </div>
               <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Login</h2>
             </div>
 
@@ -501,17 +492,30 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
           <section className="order-1 relative overflow-hidden bg-[linear-gradient(130deg,#063b57_0%,#0b6a7a_38%,#f17b4a_100%)] p-4 text-white sm:p-6 lg:order-2 lg:p-10">
             <div className="absolute -left-10 top-16 h-44 w-44 rounded-full bg-white/15 blur-2xl" />
             <div className="absolute -right-12 bottom-14 h-52 w-52 rounded-full bg-[#ffcf9f]/30 blur-2xl" />
+            <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 opacity-12 sm:h-64 sm:w-64">
+              <Image
+                src="/favicon.png"
+                alt=""
+                fill
+                sizes="256px"
+                className="object-contain blur-[1px] saturate-0"
+              />
+            </div>
             <div className="relative z-10">
-              <div className="w-fit rounded-2xl border border-white/30 bg-white/92 p-2 shadow-[0_18px_36px_rgba(2,18,36,0.18)] backdrop-blur">
-                <div className="relative h-[82px] w-[250px] sm:h-[92px] sm:w-[280px]">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/30 bg-white/12 px-3 py-3 shadow-[0_20px_44px_rgba(2,18,36,0.2)] backdrop-blur sm:w-fit sm:gap-4 sm:px-4">
+                <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-white/70 shadow-[0_12px_24px_rgba(2,18,36,0.24)] sm:h-20 sm:w-20">
                   <Image
-                    src="/logo.jpg"
-                    alt="SpinExperts India"
+                    src="/favicon.png"
+                    alt="SpinExperts mark"
                     fill
-                    sizes="(max-width: 640px) 250px, 280px"
+                    sizes="80px"
                     className="object-contain"
                     priority
                   />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/90">SpinExperts India</div>
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-white/75">Expert Care. Every Spine. Every Time.</div>
                 </div>
               </div>
 
