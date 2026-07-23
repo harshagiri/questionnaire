@@ -3,7 +3,7 @@ import { roleHomePath } from "@/lib/auth";
 import { verifyPatientAccessCode } from "@/lib/patient-access-code";
 import { consumePatientOtpToken } from "@/lib/patient-otp";
 import { verifyStaffCredentials } from "@/lib/staff-auth";
-import { prisma } from "@/lib/prisma";
+import { ensurePatientRecordForPhone } from "@/lib/patient-record";
 
 type SessionBody = {
   role?: string;
@@ -23,25 +23,6 @@ function hasValidPatientPhone(phone: string | undefined) {
 
 function normalizePhone(phone: string | undefined) {
   return (phone ?? "").replace(/\D/g, "");
-}
-
-async function patientExistsByPhone(phone: string | undefined) {
-  const normalizedPhone = normalizePhone(phone);
-
-  if (!normalizedPhone || !prisma) {
-    return false;
-  }
-
-  try {
-    const patientRecord = await prisma.patientRecord.findUnique({
-      where: { phone: normalizedPhone },
-      select: { id: true },
-    });
-
-    return Boolean(patientRecord);
-  } catch {
-    return false;
-  }
 }
 
 function hasValidStaffCredentials(email: string | undefined, password: string | undefined) {
@@ -65,9 +46,6 @@ export async function POST(request: Request) {
     if (!hasValidPatientPhone(body.phone)) {
       return NextResponse.json({ ok: false, message: "Invalid phone number" }, { status: 400 });
     }
-    if (!(await patientExistsByPhone(body.phone))) {
-      return NextResponse.json({ ok: false, message: "Patient not registered. Please complete registration first." }, { status: 401 });
-    }
     if (body.otpToken?.trim()) {
       const tokenVerification = await consumePatientOtpToken({
         phone: body.phone ?? "",
@@ -85,6 +63,12 @@ export async function POST(request: Request) {
       if (!verification.ok) {
         return NextResponse.json({ ok: false, message: verification.message ?? "Invalid access code" }, { status: 401 });
       }
+    }
+
+    try {
+      await ensurePatientRecordForPhone(body.phone ?? "");
+    } catch {
+      return NextResponse.json({ ok: false, message: "Could not initialize patient profile" }, { status: 503 });
     }
   } else {
     if (!hasValidStaffCredentials(body.email, body.password)) {

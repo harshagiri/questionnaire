@@ -57,7 +57,7 @@ type SummaryCacheEntry = {
 };
 
 type SummaryMeta = {
-  source: "cache" | "fresh" | "unknown";
+  source: "cache" | "fresh" | "persisted" | "unknown";
   generatedAt?: string;
 };
 
@@ -173,6 +173,10 @@ function parseAiSummaryText(summary: string) {
     snapshot,
     sections: sections.filter((section) => section.items.length > 0),
   };
+}
+
+function normalizeSummaryTitle(title: string) {
+  return title.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function stableSerialize(value: unknown): string {
@@ -1153,6 +1157,14 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         painScore: selectedPatient.painScore,
         consultationType: selectedPatient.consultationType,
         promSummary: formatPromSummary(selectedPatient.promSummary),
+        prom: selectedPatient.promSummary
+          ? {
+              instrument: selectedPatient.promSummary.instrument,
+              percent: selectedPatient.promSummary.percent,
+              severity: selectedPatient.promSummary.severity,
+              source: selectedPatient.promSummary.source,
+            }
+          : undefined,
         questionnaireAnswers: selectedPatient.answers,
         facts: patientSummaryFacts,
       },
@@ -1191,6 +1203,81 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
 
     return payload.summary;
   }
+
+  async function savePersistedDoctorSummary(input: { summary: string; generatedAt: string }) {
+    if (!selectedPatient?.consultSessionId || !input.summary.trim()) {
+      return;
+    }
+
+    try {
+      await fetch("/api/doctor-ai-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consultSessionId: selectedPatient.consultSessionId,
+          summary: input.summary,
+          generatedAt: input.generatedAt,
+        }),
+      });
+    } catch {
+      // Best-effort persistence; UI should still show summary if save fails.
+    }
+  }
+
+  async function loadPersistedDoctorSummary(consultSessionId: string) {
+    const response = await fetch(`/api/doctor-ai-summary?consultSessionId=${encodeURIComponent(consultSessionId)}`, {
+      cache: "no-store",
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          ok?: boolean;
+          record?: { summary?: string; generatedAt?: string } | null;
+        }
+      | null;
+
+    if (!response.ok || !payload?.ok || !payload.record?.summary) {
+      return null;
+    }
+
+    return {
+      summary: payload.record.summary,
+      generatedAt: payload.record.generatedAt,
+    };
+  }
+
+  useEffect(() => {
+    const resolvedConsultSessionId = selectedPatient?.consultSessionId;
+    if (!resolvedConsultSessionId) {
+      return;
+    }
+    const consultSessionId = resolvedConsultSessionId;
+
+    let active = true;
+
+    async function hydratePersistedSummary() {
+      try {
+        const persisted = await loadPersistedDoctorSummary(consultSessionId);
+        if (!active || !persisted?.summary) {
+          return;
+        }
+
+        setDoctorPostConsultSummary(persisted.summary);
+        setDoctorPostConsultMeta({
+          source: "persisted",
+          generatedAt: persisted.generatedAt,
+        });
+      } catch {
+        // Ignore summary hydration failures and continue normal workflow.
+      }
+    }
+
+    void hydratePersistedSummary();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPatient?.consultSessionId]);
 
   async function openPatientAiSummary() {
     setAiModalMode("patient-preconsult");
@@ -1257,6 +1344,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         setDoctorPostConsultSummary(cachedSummary.summary);
         const cachedMeta: SummaryMeta = { source: "cache", generatedAt: cachedSummary.generatedAt };
         setDoctorPostConsultMeta(cachedMeta);
+        void savePersistedDoctorSummary({ summary: cachedSummary.summary, generatedAt: cachedSummary.generatedAt });
         setAiModalMode("doctor-postconsult");
         setAiSummary(cachedSummary.summary);
         setAiSummaryMeta(cachedMeta);
@@ -1270,6 +1358,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       const resolvedSummary = summary ?? "";
       const generatedAt = new Date().toISOString();
       writeCachedSummary("doctor-postconsult", signature, resolvedSummary);
+      await savePersistedDoctorSummary({ summary: resolvedSummary, generatedAt });
       setDoctorPostConsultSummary(resolvedSummary);
       const freshMeta: SummaryMeta = { source: "fresh", generatedAt };
       setDoctorPostConsultMeta(freshMeta);
@@ -1290,6 +1379,24 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   }
 
   const aiSummaryParsed = useMemo(() => parseAiSummaryText(aiSummary), [aiSummary]);
+
+  const aiSummarySectionsByPriority = useMemo(() => {
+    const primarySectionTitles = new Set([
+      "prom and risk signal",
+      "pathway recommendation",
+      "pathway alignment check",
+      "doctor form influence",
+      "doctor form focus updates",
+    ]);
+
+    const primarySections = aiSummaryParsed.sections.filter((section) => primarySectionTitles.has(normalizeSummaryTitle(section.title)));
+    const secondarySections = aiSummaryParsed.sections.filter((section) => !primarySectionTitles.has(normalizeSummaryTitle(section.title)));
+
+    return {
+      primarySections,
+      secondarySections,
+    };
+  }, [aiSummaryParsed.sections]);
 
   const aiSummaryImpact = useMemo(() => {
     const summaryWords = countWords(aiSummary);
@@ -1776,60 +1883,50 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-[rgba(15,118,110,0.22)] bg-[linear-gradient(135deg,rgba(15,118,110,0.1),rgba(255,255,255,0.96)_40%,rgba(255,138,91,0.12))] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">AI Briefing</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Clinical AI Summary</div>
                       <div className="flex items-center gap-2">
                         <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[color:var(--foreground)]">
                           {aiModalMode === "patient-preconsult" ? "Pre-consult" : "Post-consult"}
                         </span>
                         <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]">
-                          {aiSummaryMeta.source === "cache" ? `Cached ${formatRelativeTimeLabel(aiSummaryMeta.generatedAt)}` : "Fresh summary"}
+                          {aiSummaryMeta.source === "cache"
+                            ? `Cached ${formatRelativeTimeLabel(aiSummaryMeta.generatedAt)}`
+                            : aiSummaryMeta.source === "persisted"
+                              ? `Saved for visit ${formatRelativeTimeLabel(aiSummaryMeta.generatedAt)}`
+                              : "Fresh summary"}
                         </span>
                       </div>
                     </div>
 
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Estimated time saved</div>
-                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{formatDurationLabel(aiSummaryImpact.timeSavedSeconds)}</div>
-                        <div className="text-[11px] text-[color:var(--muted)]">vs full intake scan</div>
+                    {aiSummaryParsed.snapshot ? (
+                      <div className="mt-3 rounded-xl border border-[rgba(21,32,43,0.1)] bg-white/90 px-4 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Snapshot</div>
+                        <p className="mt-1 text-base font-semibold leading-7 text-[color:var(--foreground)]">{aiSummaryParsed.snapshot}</p>
                       </div>
-                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Data points reviewed</div>
-                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.dataPointsReviewed}</div>
-                        <div className="text-[11px] text-[color:var(--muted)]">patient + consult fields</div>
-                      </div>
-                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Clinical signal count</div>
-                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.clinicalSignalCount}</div>
-                        <div className="text-[11px] text-[color:var(--muted)]">PROM + red flags + weakness</div>
-                      </div>
-                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white/85 px-3 py-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-                          {aiModalMode === "doctor-postconsult" ? "Doctor form completion" : "Summary reading time"}
-                        </div>
-                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">
-                          {aiModalMode === "doctor-postconsult" && aiSummaryImpact.completionPercent !== null
-                            ? `${Math.round(aiSummaryImpact.completionPercent)}%`
-                            : formatDurationLabel(aiSummaryImpact.summaryReadSeconds)}
-                        </div>
-                        <div className="text-[11px] text-[color:var(--muted)]">
-                          {aiModalMode === "doctor-postconsult" ? "documented by doctor" : `${aiSummaryImpact.summaryWords} words`}
-                        </div>
-                      </div>
-                    </div>
+                    ) : null}
                   </div>
 
-                  {aiSummaryParsed.snapshot ? (
-                    <div className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-white px-4 py-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Snapshot</div>
-                      <p className="mt-1 text-base font-semibold leading-7 text-[color:var(--foreground)]">{aiSummaryParsed.snapshot}</p>
-                    </div>
-                  ) : null}
-
                   <div className="grid gap-3 md:grid-cols-2">
-                    {aiSummaryParsed.sections.map((section, index) => (
+                    {aiSummarySectionsByPriority.primarySections.map((section, index) => (
                       <section
-                        key={`${section.title}-${index}`}
+                        key={`primary-${section.title}-${index}`}
+                        className="rounded-xl border border-[rgba(15,118,110,0.22)] bg-[rgba(15,118,110,0.08)] px-4 py-3"
+                      >
+                        <h4 className="text-sm font-semibold text-[color:var(--foreground)]">{section.title}</h4>
+                        <ul className="mt-2 space-y-1.5 text-sm text-[color:var(--foreground)]">
+                          {section.items.map((item) => (
+                            <li key={item} className="flex gap-2">
+                              <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-[var(--accent)]" aria-hidden="true" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+
+                    {aiSummarySectionsByPriority.secondarySections.map((section, index) => (
+                      <section
+                        key={`secondary-${section.title}-${index}`}
                         className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-[rgba(248,245,240,0.48)] px-4 py-3"
                       >
                         <h4 className="text-sm font-semibold text-[color:var(--foreground)]">{section.title}</h4>
@@ -1844,6 +1941,42 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                       </section>
                     ))}
                   </div>
+
+                  <details className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-[rgba(248,245,240,0.65)] px-4 py-3">
+                    <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                      AI briefing stats
+                    </summary>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Estimated time saved</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{formatDurationLabel(aiSummaryImpact.timeSavedSeconds)}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">vs full intake scan</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Data points reviewed</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.dataPointsReviewed}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">patient + consult fields</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Clinical signal count</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">{aiSummaryImpact.clinicalSignalCount}</div>
+                        <div className="text-[11px] text-[color:var(--muted)]">PROM + red flags + weakness</div>
+                      </div>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                          {aiModalMode === "doctor-postconsult" ? "Doctor form completion" : "Summary reading time"}
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--foreground)]">
+                          {aiModalMode === "doctor-postconsult" && aiSummaryImpact.completionPercent !== null
+                            ? `${Math.round(aiSummaryImpact.completionPercent)}%`
+                            : formatDurationLabel(aiSummaryImpact.summaryReadSeconds)}
+                        </div>
+                        <div className="text-[11px] text-[color:var(--muted)]">
+                          {aiModalMode === "doctor-postconsult" ? "documented by doctor" : `${aiSummaryImpact.summaryWords} words`}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
 
                   <details className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3">
                     <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">

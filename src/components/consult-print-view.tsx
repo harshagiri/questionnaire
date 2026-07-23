@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { doctorQuestionnaireDefinition, summarizeAnswer } from "@/lib/questionnaire";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
@@ -272,7 +273,7 @@ export function ConsultPrintView({ consultSessionId, role }: { consultSessionId:
             right: 0;
           }
           .print-content {
-            margin-top: 72px;
+            margin-top: 86px;
             margin-bottom: 56px;
           }
         }
@@ -298,9 +299,20 @@ export function ConsultPrintView({ consultSessionId, role }: { consultSessionId:
 
       <header className="print-header rounded-xl border border-[rgba(21,32,43,0.16)] bg-white px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="headline text-xl font-semibold">SpinExpert Health Screening</h1>
-            <p className="text-xs text-[color:var(--muted)]">Clinical Consultation Summary</p>
+          <div className="flex items-center gap-3">
+            <div className="relative h-12 w-[160px] overflow-hidden rounded-lg border border-[rgba(21,32,43,0.1)] bg-white p-1">
+              <Image
+                src="/logo.jpg"
+                alt="SpinExperts India"
+                fill
+                sizes="160px"
+                className="object-contain"
+              />
+            </div>
+            <div>
+              <h1 className="headline text-xl font-semibold">Clinical Consultation Summary</h1>
+              <p className="text-xs text-[color:var(--muted)]">SpinExperts India</p>
+            </div>
           </div>
           <div className="text-right text-xs text-[color:var(--muted)]">
             <p>Consult ID: {consultSessionId}</p>
@@ -386,7 +398,7 @@ export function ConsultPrintView({ consultSessionId, role }: { consultSessionId:
 
       <footer className="print-footer rounded-xl border border-[rgba(21,32,43,0.16)] bg-white px-4 py-2 text-[11px] text-[color:var(--muted)]">
         <div className="flex items-center justify-between gap-3">
-          <span>SpinExpert Health Screening · Confidential Clinical Document</span>
+          <span>SpinExperts India · Expert care. Every spine. Every time. · Confidential Clinical Document</span>
           <span>Doctor Signature: ____________________</span>
         </div>
       </footer>

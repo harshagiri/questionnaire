@@ -233,8 +233,9 @@ async function loadPromSummaryBySessionId(sessionIds: string[]) {
   return summaryBySession;
 }
 
-function toConsultLink(consultSessionId: string | null, appointmentId: string) {
-  return `/access?role=patient&next=/patient/${consultSessionId ?? appointmentId}`;
+function toConsultLink(consultSessionId: string | null, appointmentId: string, consultId?: string | null) {
+  const targetConsultId = (consultId ?? consultSessionId ?? appointmentId).trim();
+  return `/access?role=patient&next=/patient/consult/${encodeURIComponent(targetConsultId)}`;
 }
 
 function normalizeDateTime(dateValue: string, timeValue: string) {
@@ -472,7 +473,7 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      consultLink: toConsultLink(parsed.data.consultSessionId, parsed.data.consultSessionId),
+      consultLink: toConsultLink(parsed.data.consultSessionId, parsed.data.consultSessionId, parsed.data.consultId),
       storage: "local",
     }, { status: 201 });
   }
@@ -543,7 +544,11 @@ export async function POST(request: Request) {
           createdAt: createdAppointment.createdAt,
           updatedAt: createdAppointment.updatedAt,
         }),
-        consultLink: toConsultLink(createdAppointment.consultSessionId, createdAppointment.id),
+        consultLink: toConsultLink(
+          createdAppointment.consultSessionId,
+          createdAppointment.id,
+          input.consultId ?? createdAppointment.consultSessionId,
+        ),
         storage: "database",
       },
       { status: 201 },

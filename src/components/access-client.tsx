@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { AppShell } from "@/components/app-shell";
 import { roleLandingCopy } from "@/lib/workflow-data";
 import type { AppRole } from "@/lib/rbac";
@@ -53,6 +54,15 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
     <AppShell>
       <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="glass-panel rounded-[2rem] p-6 lg:p-8">
+          <div className="relative mb-4 h-14 w-[180px] overflow-hidden rounded-lg border border-[rgba(21,32,43,0.08)] bg-white/70 p-1.5">
+            <Image
+              src="/logo.jpg"
+              alt="SpinExperts India"
+              fill
+              sizes="180px"
+              className="object-contain"
+            />
+          </div>
           <span className="rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">Secure access</span>
           <h1 className="headline mt-4 text-4xl font-semibold sm:text-5xl">Choose your role and continue</h1>
           <p className="mt-3 max-w-2xl text-base leading-8 text-[color:var(--muted)]">{roleLandingCopy[selectedRole]}</p>

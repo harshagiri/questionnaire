@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { AppRole } from "@/lib/rbac";
 
 type StaffRole = Exclude<AppRole, "patient">;
@@ -200,6 +201,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         message?: string;
         requestId?: string;
         expiresAt?: string;
+        onboardingRequired?: boolean;
       };
 
       if (!response.ok || !payload.ok || !payload.requestId) {
@@ -209,7 +211,11 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
 
       setPatientOtpRequestId(payload.requestId);
       setPatientOtpExpiresAt(payload.expiresAt ?? null);
-      setPatientMessage("OTP sent to your registered phone number");
+      setPatientMessage(
+        payload.onboardingRequired
+          ? "OTP sent. After login, complete your profile to unlock questionnaire."
+          : "OTP sent to your phone number",
+      );
     } catch {
       setPatientMessage("Network error while sending OTP");
     } finally {
@@ -338,6 +344,15 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
           <section className="order-2 bg-[linear-gradient(180deg,#fffdf8_0%,#f7f4ee_100%)] p-4 sm:p-6 lg:order-1 lg:p-10">
             <div className="mb-5">
+              <div className="relative mb-4 h-12 w-[150px] overflow-hidden rounded-lg border border-[rgba(21,32,43,0.08)] bg-white/70 p-1">
+                <Image
+                  src="/logo.jpg"
+                  alt="SpinExperts India"
+                  fill
+                  sizes="150px"
+                  className="object-contain"
+                />
+              </div>
               <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Login</h2>
             </div>
 
@@ -396,7 +411,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
                   <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                    Enter your registered phone number, request OTP, and login. OTP expires in 5 minutes.
+                    Enter your phone number, request OTP, and login. First-time users will complete profile first. OTP expires in 5 minutes.
                     {patientOtpExpiresAt ? ` Last OTP valid until: ${new Date(patientOtpExpiresAt).toLocaleTimeString()}` : ""}
                   </div>
                   {patientMessage ? <p className="text-sm font-medium text-[color:#b23b1e]">{patientMessage}</p> : null}
@@ -487,9 +502,17 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
             <div className="absolute -left-10 top-16 h-44 w-44 rounded-full bg-white/15 blur-2xl" />
             <div className="absolute -right-12 bottom-14 h-52 w-52 rounded-full bg-[#ffcf9f]/30 blur-2xl" />
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-3 rounded-full border border-white/30 bg-white/10 px-3 py-2 backdrop-blur">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-bold text-[#0b5568]">SE</div>
-                <div className="text-xs font-semibold tracking-[0.12em] text-white/90">SPINEXPERT ADVANCED SPINE CARE NETWORK</div>
+              <div className="w-fit rounded-2xl border border-white/30 bg-white/92 p-2 shadow-[0_18px_36px_rgba(2,18,36,0.18)] backdrop-blur">
+                <div className="relative h-[82px] w-[250px] sm:h-[92px] sm:w-[280px]">
+                  <Image
+                    src="/logo.jpg"
+                    alt="SpinExperts India"
+                    fill
+                    sizes="(max-width: 640px) 250px, 280px"
+                    className="object-contain"
+                    priority
+                  />
+                </div>
               </div>
 
               <h1 className="headline mt-4 text-2xl font-semibold leading-tight sm:text-3xl lg:text-[2.45rem]">

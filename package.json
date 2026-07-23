@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:migrate:doctors": "node scripts/migrate-doctors-to-db.mjs",
-    "db:seed:demo": "node scripts/seed-local-demo.mjs"
+    "db:seed:demo": "node scripts/seed-local-demo.mjs",
+    "db:backfill:prom": "node scripts/backfill-prom-audit.mjs",
+    "db:backfill:prom:apply": "node scripts/backfill-prom-audit.mjs --apply"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

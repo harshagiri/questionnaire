@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requestPatientOtp } from "@/lib/patient-otp";
+import { ensurePatientRecordForPhone } from "@/lib/patient-record";
+import { resolveMagicLinkForPhone } from "@/lib/patient-magic-link";
 
 function normalizePhone(phone: string | undefined) {
   return (phone ?? "").replace(/\D/g, "");
@@ -85,18 +86,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Invalid phone number" }, { status: 400 });
     }
 
-    // Avoid account enumeration: same response shape for unknown numbers.
-    if (!prisma) {
-      return NextResponse.json({ ok: false, message: "OTP service unavailable" }, { status: 503 });
-    }
-
-    const patient = await prisma.patientRecord.findUnique({
-      where: { phone },
-      select: { id: true },
-    });
-
-    if (!patient) {
-      return NextResponse.json({ ok: true, message: "If this phone is registered, OTP has been sent." });
+    let onboardingRequired = false;
+    try {
+      const ensuredRecord = await ensurePatientRecordForPhone(phone);
+      onboardingRequired = Boolean(ensuredRecord.isNew);
+      if (ensuredRecord.isNew) {
+        await resolveMagicLinkForPhone({ phone });
+      }
+    } catch {
+      // Continue OTP flow even if persistence is temporarily unavailable.
     }
 
     const providerMode = getOtpProviderMode();
@@ -128,6 +126,7 @@ export async function POST(request: Request) {
       message: successMessage || "OTP sent",
       requestId: otpResult.requestId,
       expiresAt: otpResult.expiresAt,
+      onboardingRequired,
     });
   } catch {
     return NextResponse.json({ ok: false, message: "Unable to process OTP request right now" }, { status: 500 });

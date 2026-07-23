@@ -323,8 +323,20 @@ async function upsertPatientUser(answers: Record<string, PatientAnswerValue>, se
   }
 
   const phone = normalizePhone(answers.phone) || normalizePhone(sessionId);
+  const existingPatientRecord =
+    phone.length >= 10
+      ? await prisma.patientRecord.findUnique({
+          where: { phone },
+          select: { fullName: true, age: true, gender: true, region: true },
+        })
+      : null;
   const email = `patient-${phone || normalizeEmailPart(sessionId)}@spinexpert.local`;
-  const fullName = String(answers.patientName ?? "Patient").trim() || "Patient";
+  const fullName =
+    String(answers.patientName ?? answers.fullName ?? existingPatientRecord?.fullName ?? "Patient").trim() ||
+    "Patient";
+  const profileAge = asNumber(answers.age) ?? existingPatientRecord?.age ?? null;
+  const profileGender = asString(answers.gender) ?? existingPatientRecord?.gender ?? null;
+  const profileRegion = asString(answers.region) ?? asString(answers.city) ?? existingPatientRecord?.region ?? null;
 
   const user = await prisma.user.upsert({
     where: { email },
@@ -336,9 +348,9 @@ async function upsertPatientUser(answers: Record<string, PatientAnswerValue>, se
       patientProfile: {
         create: {
           fullName,
-          age: Number(answers.age ?? 0),
-          gender: String(answers.gender ?? "not-provided"),
-          region: String(answers.region ?? "not-provided"),
+          age: profileAge ?? 0,
+          gender: profileGender ?? "not-provided",
+          region: profileRegion ?? "not-provided",
           phone: phone || "not-provided",
           aadhar: String(answers.aadhar ?? "not-provided"),
         },
@@ -350,18 +362,18 @@ async function upsertPatientUser(answers: Record<string, PatientAnswerValue>, se
         upsert: {
           create: {
             fullName,
-            age: Number(answers.age ?? 0),
-            gender: String(answers.gender ?? "not-provided"),
-            region: String(answers.region ?? "not-provided"),
+            age: profileAge ?? 0,
+            gender: profileGender ?? "not-provided",
+            region: profileRegion ?? "not-provided",
             phone: phone || "not-provided",
             aadhar: String(answers.aadhar ?? "not-provided"),
           },
           update: {
             fullName,
-            age: Number(answers.age ?? 0),
-            gender: String(answers.gender ?? "not-provided"),
-            region: String(answers.region ?? "not-provided"),
             phone: phone || "not-provided",
+            ...(profileAge !== null ? { age: profileAge } : {}),
+            ...(profileGender ? { gender: profileGender } : {}),
+            ...(profileRegion ? { region: profileRegion } : {}),
           },
         },
       },

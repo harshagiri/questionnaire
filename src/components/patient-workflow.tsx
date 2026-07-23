@@ -405,7 +405,12 @@ function applyQuestionContentOverrides(questionContent: PatientQuestionContent[]
 }
 
 function getVisibleQuestions(sections: WorkflowSections, sectionIndex: number, answers: AnswerMap) {
-  return sections[sectionIndex].questions.filter((question) =>
+  const section = sections[sectionIndex];
+  if (!section) {
+    return [];
+  }
+
+  return section.questions.filter((question) =>
     question.showIf ? question.showIf(answers) : true,
   );
 }
@@ -603,16 +608,31 @@ export function PatientWorkflow({
       return;
     }
 
+    const maxSectionIndex = Math.max(workflowSections.length - 1, 0);
+    const nextSectionIndex = Math.min(Math.max(saved.sectionIndex ?? 0, 0), maxSectionIndex);
+    const sectionQuestions = getVisibleQuestions(
+      workflowSections,
+      nextSectionIndex,
+      {
+        ...initialAnswers,
+        ...registeredProfileDefaults,
+        ...(saved.answers ?? {}),
+      } as AnswerMap,
+    );
+    const maxQuestionIndex = Math.max(sectionQuestions.length - 1, -1);
+    const rawQuestionIndex = typeof saved.questionIndex === "number" ? saved.questionIndex : -1;
+    const nextQuestionIndex = Math.min(Math.max(rawQuestionIndex, -1), maxQuestionIndex);
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAnswers(() => ({
       ...initialAnswers,
       ...registeredProfileDefaults,
       ...(saved.answers ?? {}),
     } as AnswerMap));
-    setSectionIndex(saved.sectionIndex ?? 0);
-    setQuestionIndex(typeof saved.questionIndex === "number" ? saved.questionIndex : -1);
+    setSectionIndex(nextSectionIndex);
+    setQuestionIndex(nextQuestionIndex);
     setSubmitted(Boolean(saved.submitted));
-  }, [initialSavedWorkflow, registeredProfileDefaults, sessionId]);
+  }, [initialSavedWorkflow, registeredProfileDefaults, sessionId, workflowSections]);
 
   useEffect(() => {
     const currentName = String(answers.patientName ?? "").trim();
@@ -795,8 +815,18 @@ export function PatientWorkflow({
     [answers, workflowSections],
   );
 
-  const section = workflowSections[sectionIndex];
-  const visibleQuestions = getSectionQuestions(sectionIndex);
+  const safeSectionIndex = Math.min(Math.max(sectionIndex, 0), Math.max(workflowSections.length - 1, 0));
+  const section = workflowSections[safeSectionIndex];
+  const visibleQuestions = getSectionQuestions(safeSectionIndex);
+
+  if (!section) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">
+        Questionnaire configuration is unavailable. Please return to the dashboard and try again.
+      </div>
+    );
+  }
+
   const isRedFlagSection = section.id === "red-flags";
   const sectionQuestionCount = isRedFlagSection ? 1 : visibleQuestions.length;
   const isSectionIntro = questionIndex < 0;
@@ -814,18 +844,43 @@ export function PatientWorkflow({
   );
   const redFlagOptions = visibleQuestions.filter((question) => redFlagKeys.includes(question.id));
   const redFlagNoneQuestion = visibleQuestions.find((question) => question.id === "redFlagNone");
-  const redFlagReasonQuestion = workflowSections[0].questions.find((question) => question.id === "redFlagReason");
+  const redFlagReasonQuestion = workflowSections[0]?.questions.find((question) => question.id === "redFlagReason");
   const redFlagPositiveQuestions = redFlagOptions.filter((question) => answers[question.id] === true);
   const redFlagSectionAnswered =
     answers.redFlagNone === true || redFlagKeys.every((redFlagKey) => typeof answers[redFlagKey] === "boolean");
 
+  const findNextSectionWithQuestions = (fromIndex: number) => {
+    for (let index = fromIndex + 1; index < workflowSections.length; index += 1) {
+      if (getSectionQuestions(index).length > 0) {
+        return index;
+      }
+    }
+
+    return fromIndex;
+  };
+
+  const findPreviousSectionWithQuestions = (fromIndex: number) => {
+    for (let index = fromIndex - 1; index >= 0; index -= 1) {
+      if (getSectionQuestions(index).length > 0) {
+        return index;
+      }
+    }
+
+    return fromIndex;
+  };
+
   const nextSection = () => {
-    setSectionIndex((current) => Math.min(current + 1, workflowSections.length - 1));
+    setSectionIndex((current) => findNextSectionWithQuestions(current));
     setQuestionIndex(-1);
   };
 
   const nextQuestion = () => {
     if (isSectionIntro) {
+      if (sectionQuestionCount === 0) {
+        nextSection();
+        return;
+      }
+
       setQuestionIndex(0);
       return;
     }
@@ -850,8 +905,9 @@ export function PatientWorkflow({
       return;
     }
 
-    if (sectionIndex < workflowSections.length - 1) {
-      setSectionTransition({ from: sectionIndex, to: sectionIndex + 1 });
+    const nextIndex = findNextSectionWithQuestions(safeSectionIndex);
+    if (nextIndex > safeSectionIndex) {
+      setSectionTransition({ from: safeSectionIndex, to: nextIndex });
     }
   };
 
@@ -861,8 +917,12 @@ export function PatientWorkflow({
       return;
     }
 
-    if (sectionIndex > 0) {
-      const previousSectionIndex = sectionIndex - 1;
+    if (safeSectionIndex > 0) {
+      const previousSectionIndex = findPreviousSectionWithQuestions(safeSectionIndex);
+      if (previousSectionIndex === safeSectionIndex) {
+        return;
+      }
+
       const previousSectionQuestions = getSectionQuestions(previousSectionIndex);
       setSectionIndex(previousSectionIndex);
       setQuestionIndex(Math.max(previousSectionQuestions.length - 1, 0));
@@ -900,6 +960,15 @@ export function PatientWorkflow({
     [answers, getSectionQuestions, workflowSections],
   );
 
+  const renderableSectionIndices = useMemo(
+    () => workflowSections.map((_, index) => index).filter((index) => sectionCompletionStats[index]?.total > 0),
+    [sectionCompletionStats, workflowSections],
+  );
+  const firstRenderableSectionIndex = renderableSectionIndices[0] ?? 0;
+  const lastRenderableSectionIndex = renderableSectionIndices[renderableSectionIndices.length - 1] ?? 0;
+  const totalRenderableSections = Math.max(renderableSectionIndices.length, 1);
+  const completedSectionsCount = renderableSectionIndices.filter((index) => sectionCompletionStats[index]?.complete).length;
+
   const questionsBeforeCurrentSection = useMemo(() => {
     let total = 0;
 
@@ -915,10 +984,12 @@ export function PatientWorkflow({
   const overallCompletionPercent = Math.round(
     (sectionProgress.totalAnsweredQuestions / Math.max(totalQuestionCount, 1)) * 100,
   );
-  const isFirstQuestion = !isSectionIntro && sectionIndex === 0 && (isRedFlagSection || currentQuestionIndex === 0);
+  const isFirstQuestion =
+    !isSectionIntro &&
+    safeSectionIndex === firstRenderableSectionIndex &&
+    (isRedFlagSection || currentQuestionIndex === 0);
   const isLastQuestionInSection = !isSectionIntro && (isRedFlagSection || currentQuestionIndex >= sectionQuestionCount - 1);
-  const isLastQuestionOverall = !isSectionIntro && sectionIndex === workflowSections.length - 1 && isLastQuestionInSection;
-  const completedSectionsCount = sectionCompletionStats.filter((sectionStat) => sectionStat.complete).length;
+  const isLastQuestionOverall = !isSectionIntro && safeSectionIndex === lastRenderableSectionIndex && isLastQuestionInSection;
   const milestoneMessage = milestoneLabel(overallCompletionPercent);
   const momentumMessage = progressMood(overallCompletionPercent);
   const sectionVisual = getSectionVisual(section.id);
@@ -1541,13 +1612,13 @@ export function PatientWorkflow({
           <div className="mx-auto mt-6 flex w-full max-w-md flex-col gap-3">
             <button
               type="button"
-              onClick={() => setQuestionIndex(0)}
+              onClick={nextQuestion}
               className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-sm"
             >
               {intro.buttonLabel}
             </button>
             <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
-              {intro.summary} You have completed {completedSectionsCount} of {workflowSections.length} sections.
+              {intro.summary} You have completed {completedSectionsCount} of {totalRenderableSections} sections.
             </div>
           </div>
         </div>
@@ -1806,7 +1877,7 @@ export function PatientWorkflow({
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">Care journey progress</div>
               <div className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">
-                {overallCompletionPercent}% complete • {completedSectionsCount}/{workflowSections.length} sections completed
+                {overallCompletionPercent}% complete • {completedSectionsCount}/{totalRenderableSections} sections completed
               </div>
               <p className="mt-1 text-xs text-[color:var(--muted)]">{momentumMessage}</p>
             </div>

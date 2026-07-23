@@ -17,6 +17,14 @@ const summaryRequestSchema = z.object({
     painScore: z.string().optional(),
     consultationType: z.string().optional(),
     promSummary: z.string().optional(),
+    prom: z
+      .object({
+        instrument: z.enum(["ODI", "NDI"]).optional(),
+        percent: z.number().optional(),
+        severity: z.string().optional(),
+        source: z.enum(["patient-auto", "doctor-entered"]).optional(),
+      })
+      .optional(),
     questionnaireAnswers: z.record(z.string(), answerValueSchema).default({}),
     facts: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
   }),
@@ -39,38 +47,144 @@ function getOpenAiConfig() {
 function buildSystemPrompt(summaryType: "patient-preconsult" | "doctor-postconsult") {
   if (summaryType === "patient-preconsult") {
     return [
-      "You are a strict summarizer for doctors.",
+      "You are a strict clinical briefing assistant for doctors.",
       "Use only explicit provided input values.",
-      "Do NOT infer, diagnose, recommend, prioritize, or add missing-data analysis.",
-      "Do NOT add any content not present in input.",
-      "Keep summary concise and easy to scan.",
+      "Do NOT invent facts, diagnosis, or treatment details.",
+      "PROM score and PROM pathway hint must be used to frame next-step triage guidance.",
+      "Do NOT provide medication prescriptions.",
       "Return plain text in this exact format:",
       "Patient snapshot: <one sentence>",
-      "Key reported details:",
+      "PROM and risk signal:",
       "- <bullet>",
       "- <bullet>",
+      "Pathway recommendation:",
+      "- <bullet with pathway + rationale>",
+      "Doctor form influence:",
+      "- patientRiskCategory: <low|moderate|high>",
+      "- aiSuggestedPathway: <education|conservative|specialist-evaluation|priority-review>",
+      "- overallRiskCategory: <routine|needs-follow-up|urgent>",
+      "Optional context:",
       "- <bullet>",
-      "Optional additional context:",
-      "- <bullet>",
-      "Maximum 110 words total.",
+      "Maximum 140 words total.",
     ].join("\n");
   }
 
   return [
-    "You are a strict summarizer for doctors.",
+    "You are a strict clinical summarizer for doctors.",
     "Use only explicit provided input values.",
-    "Do NOT infer, diagnose, recommend, prioritize, or add new information.",
-    "Summarize what doctor entered in concise plain language.",
+    "Use PROM score and pathway hint to assess alignment with doctor's selected pathway fields.",
+    "Do NOT invent facts.",
     "Return plain text in this exact format:",
     "Doctor submission snapshot: <one sentence>",
+    "Pathway alignment check:",
+    "- <bullet>",
+    "- <bullet>",
     "Key documented findings/actions:",
     "- <bullet>",
     "- <bullet>",
+    "Doctor form focus updates:",
+    "- <bullet referencing carePathway / overallRiskCategory / summaryValidation>",
+    "Optional context:",
     "- <bullet>",
-    "Optional additional context:",
-    "- <bullet>",
-    "Maximum 120 words total.",
+    "Maximum 150 words total.",
   ].join("\n");
+}
+
+function parsePercent(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function derivePromPathwayHint(patient: z.infer<typeof summaryRequestSchema>["patient"]) {
+  const percent = parsePercent(patient.prom?.percent);
+  const answers = patient.questionnaireAnswers ?? {};
+  const redFlagKeys = [
+    "redFlagBladderBowel",
+    "redFlagRapidWeakness",
+    "redFlagFever",
+    "redFlagTrauma",
+    "redFlagCancer",
+    "redFlagWeightLoss",
+  ];
+  const hasUrgentRedFlag = redFlagKeys.some((key) => answers[key] === true);
+
+  if (hasUrgentRedFlag) {
+    return {
+      hasUrgentRedFlag: true,
+      promPercent: percent,
+      patientRiskCategory: "high",
+      aiSuggestedPathway: "priority-review",
+      overallRiskCategory: "urgent",
+      suggestedCarePathway: "pathway-5",
+      rationale: "Urgent red-flag positive responses are present.",
+    } as const;
+  }
+
+  if (percent === null) {
+    return {
+      hasUrgentRedFlag: false,
+      promPercent: null,
+      patientRiskCategory: "moderate",
+      aiSuggestedPathway: "specialist-evaluation",
+      overallRiskCategory: "needs-follow-up",
+      suggestedCarePathway: "pathway-3",
+      rationale: "PROM is unavailable, so use conservative specialist follow-up until scored.",
+    } as const;
+  }
+
+  if (percent >= 61) {
+    return {
+      hasUrgentRedFlag: false,
+      promPercent: percent,
+      patientRiskCategory: "high",
+      aiSuggestedPathway: "priority-review",
+      overallRiskCategory: "urgent",
+      suggestedCarePathway: "pathway-4",
+      rationale: "PROM disability is high.",
+    } as const;
+  }
+
+  if (percent >= 41) {
+    return {
+      hasUrgentRedFlag: false,
+      promPercent: percent,
+      patientRiskCategory: "high",
+      aiSuggestedPathway: "specialist-evaluation",
+      overallRiskCategory: "needs-follow-up",
+      suggestedCarePathway: "pathway-3",
+      rationale: "PROM disability is moderate-to-severe.",
+    } as const;
+  }
+
+  if (percent >= 21) {
+    return {
+      hasUrgentRedFlag: false,
+      promPercent: percent,
+      patientRiskCategory: "moderate",
+      aiSuggestedPathway: "conservative",
+      overallRiskCategory: "needs-follow-up",
+      suggestedCarePathway: "pathway-2",
+      rationale: "PROM disability is moderate.",
+    } as const;
+  }
+
+  return {
+    hasUrgentRedFlag: false,
+    promPercent: percent,
+    patientRiskCategory: "low",
+    aiSuggestedPathway: "education",
+    overallRiskCategory: "routine",
+    suggestedCarePathway: "pathway-1",
+    rationale: "PROM disability is minimal.",
+  } as const;
 }
 
 function clampWords(input: string, maxWords: number) {
@@ -142,6 +256,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Doctor answers are required for post-consult summary" }, { status: 400 });
   }
 
+  const promPathwayHint = derivePromPathwayHint(body.patient);
+
   const response = await fetch(`${baseUrl}/responses`, {
     method: "POST",
     headers: {
@@ -166,6 +282,7 @@ export async function POST(request: Request) {
                 {
                   summaryType: body.summaryType,
                   patient: body.patient,
+                  promPathwayHint,
                   doctor: body.doctor,
                 },
                 null,
@@ -191,7 +308,7 @@ export async function POST(request: Request) {
   }
 
   const payload = JSON.parse(raw) as unknown;
-  const maxWords = body.summaryType === "patient-preconsult" ? 110 : 120;
+  const maxWords = body.summaryType === "patient-preconsult" ? 140 : 150;
   const summary = clampWords(extractOutputText(payload), maxWords);
   if (!summary) {
     return NextResponse.json({ ok: false, message: "AI summary is empty" }, { status: 502 });

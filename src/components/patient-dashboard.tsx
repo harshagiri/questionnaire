@@ -195,7 +195,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
   const canProceed = isPatientProfileComplete(patientRecord);
   const questionnaireSessionId = patientRecord?.patientId ? `self-${patientRecord.patientId}` : "";
   const questionnaireHref = canProceed
-    ? `/patient/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(phone)}`
+    ? `/patient/consult/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(phone)}`
     : "/register";
 
   return (

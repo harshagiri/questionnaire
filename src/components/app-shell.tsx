@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { cookies } from "next/headers";
 import { HeaderProfile } from "@/components/header-profile";
 
@@ -50,12 +51,18 @@ export async function AppShell({ children, role }: AppShellProps) {
       <header className="sticky top-0 z-30 border-b border-[rgba(21,32,43,0.08)] bg-[rgba(251,250,247,0.82)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
           <Link href="/" aria-label="SpinExperts home" className="focus-ring flex shrink-0 items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--accent)] text-xs font-bold text-white shadow-lg shadow-[rgba(15,118,110,0.25)] sm:h-10 sm:w-10 sm:text-sm">
-              SE
+            <span className="relative h-9 w-9 overflow-hidden rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white shadow-lg shadow-[rgba(15,118,110,0.22)] sm:h-10 sm:w-10">
+              <Image
+                src="/logo.jpg"
+                alt="SpinExperts icon"
+                fill
+                sizes="40px"
+                className="object-cover object-[50%_22%] scale-[1.3]"
+              />
             </span>
             <div className="hidden sm:block">
-              <div className="headline text-lg font-semibold leading-none">SpinExperts</div>
-              <div className="text-xs text-[color:var(--muted)]">Health screening workflow</div>
+              <div className="headline text-lg font-semibold leading-none">SpinExperts India</div>
+              <div className="text-xs text-[color:var(--muted)]">Expert care. Every spine. Every time.</div>
             </div>
           </Link>
 
@@ -76,7 +83,16 @@ export async function AppShell({ children, role }: AppShellProps) {
       </main>
 
       <footer className="border-t border-[rgba(21,32,43,0.08)] bg-[rgba(255,255,255,0.5)]">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-[color:var(--muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-[color:var(--muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="relative h-12 w-[150px] overflow-hidden rounded-lg border border-[rgba(21,32,43,0.08)] bg-white/70 p-1">
+            <Image
+              src="/logo.jpg"
+              alt="SpinExperts India"
+              fill
+              sizes="150px"
+              className="object-contain"
+            />
+          </div>
           <p>Privacy-first patient intake with doctor follow-up and admin telemetry.</p>
         </div>
       </footer>
