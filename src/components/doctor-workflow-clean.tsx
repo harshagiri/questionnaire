@@ -1224,10 +1224,13 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     }
   }
 
-  async function loadPersistedDoctorSummary(consultSessionId: string) {
-    const response = await fetch(`/api/doctor-ai-summary?consultSessionId=${encodeURIComponent(consultSessionId)}`, {
+  async function loadPersistedDoctorSummary(consultSessionId: string, summaryType: "doctor-postconsult" | "patient-preconsult" = "doctor-postconsult") {
+    const response = await fetch(
+      `/api/doctor-ai-summary?consultSessionId=${encodeURIComponent(consultSessionId)}&summaryType=${encodeURIComponent(summaryType)}`,
+      {
       cache: "no-store",
-    });
+      },
+    );
 
     const payload = (await response.json().catch(() => null)) as
       | {
@@ -1257,7 +1260,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
 
     async function hydratePersistedSummary() {
       try {
-        const persisted = await loadPersistedDoctorSummary(consultSessionId);
+        const persisted = await loadPersistedDoctorSummary(consultSessionId, "doctor-postconsult");
         if (!active || !persisted?.summary) {
           return;
         }
@@ -1303,6 +1306,17 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
         setAiSummaryMeta({ source: "cache", generatedAt: cachedSummary.generatedAt });
         setAiSummaryLoading(false);
         return;
+      }
+
+      if (selectedPatient?.consultSessionId) {
+        const persisted = await loadPersistedDoctorSummary(selectedPatient.consultSessionId, "patient-preconsult");
+        if (persisted?.summary) {
+          writeCachedSummary("patient-preconsult", signature, persisted.summary);
+          setAiSummary(persisted.summary);
+          setAiSummaryMeta({ source: "persisted", generatedAt: persisted.generatedAt });
+          setAiSummaryLoading(false);
+          return;
+        }
       }
 
       const summary = await callAiSummaryApi(requestBody);

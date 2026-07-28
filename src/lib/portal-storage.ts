@@ -26,8 +26,14 @@ export type PatientRecord = {
 	dailyActivity?: string;
 	comorbidities?: string[];
 	currentMeds?: string[];
+	profileExtras?: Record<string, unknown>;
 	priorSurgery?: boolean;
 	surgeryDetails?: string;
+	consentClinicalCare?: boolean;
+	consentPrivacy?: boolean;
+	consentRegistry?: boolean;
+	consentRecordedAt?: string;
+	consentVersion?: string;
 	createdAt: string;
 	updatedAt: string;
 };

@@ -6,18 +6,23 @@ const saveDoctorAiSummarySchema = z.object({
   consultSessionId: z.string().min(1),
   summary: z.string().min(1),
   generatedAt: z.string().optional(),
+  summaryType: z.enum(["doctor-postconsult", "patient-preconsult"]).optional(),
 });
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const consultSessionId = searchParams.get("consultSessionId") ?? undefined;
+  const rawSummaryType = searchParams.get("summaryType");
+  const summaryType = rawSummaryType === "patient-preconsult" || rawSummaryType === "doctor-postconsult"
+    ? rawSummaryType
+    : undefined;
 
   if (!consultSessionId) {
     return NextResponse.json({ ok: false, message: "consultSessionId is required" }, { status: 400 });
   }
 
   try {
-    const record = await getSavedDoctorPostConsultSummary({ consultSessionId });
+    const record = await getSavedDoctorPostConsultSummary({ consultSessionId, summaryType });
 
     return NextResponse.json({
       ok: true,

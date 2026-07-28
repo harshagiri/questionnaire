@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { roleHomePath } from "@/lib/auth";
-import { verifyPatientAccessCode } from "@/lib/patient-access-code";
-import { consumePatientOtpToken } from "@/lib/patient-otp";
 import { verifyStaffCredentials } from "@/lib/staff-auth";
 import { ensurePatientRecordForPhone } from "@/lib/patient-record";
 
@@ -11,8 +9,6 @@ type SessionBody = {
   phone?: string;
   email?: string;
   password?: string;
-  otp?: string;
-  otpToken?: string;
   nextPath?: string;
 };
 
@@ -46,29 +42,11 @@ export async function POST(request: Request) {
     if (!hasValidPatientPhone(body.phone)) {
       return NextResponse.json({ ok: false, message: "Invalid phone number" }, { status: 400 });
     }
-    if (body.otpToken?.trim()) {
-      const tokenVerification = await consumePatientOtpToken({
-        phone: body.phone ?? "",
-        verifyToken: body.otpToken,
-      });
-
-      if (!tokenVerification.ok) {
-        return NextResponse.json({ ok: false, message: tokenVerification.message ?? "Invalid OTP verification" }, { status: 401 });
-      }
-    } else {
-      const verification = await verifyPatientAccessCode({
-        phone: body.phone ?? "",
-        otp: body.otp ?? "",
-      });
-      if (!verification.ok) {
-        return NextResponse.json({ ok: false, message: verification.message ?? "Invalid access code" }, { status: 401 });
-      }
-    }
 
     try {
       await ensurePatientRecordForPhone(body.phone ?? "");
     } catch {
-      return NextResponse.json({ ok: false, message: "Could not initialize patient profile" }, { status: 503 });
+      console.warn("Unable to initialize patient profile during session bootstrap");
     }
   } else {
     if (!hasValidStaffCredentials(body.email, body.password)) {

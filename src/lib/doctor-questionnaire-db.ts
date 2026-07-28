@@ -46,7 +46,25 @@ const doctorAuditAnswerKeys = {
 const doctorAiSummaryAnswerKeys = {
   postConsultSummary: "__doctorAiPostConsultSummary",
   generatedAt: "__doctorAiPostConsultGeneratedAt",
+  preConsultSummary: "__patientAiPreConsultSummary",
+  preConsultGeneratedAt: "__patientAiPreConsultGeneratedAt",
 } as const;
+
+type PersistedSummaryType = "doctor-postconsult" | "patient-preconsult";
+
+function getPersistedSummaryKeys(summaryType: PersistedSummaryType) {
+  if (summaryType === "patient-preconsult") {
+    return {
+      summary: doctorAiSummaryAnswerKeys.preConsultSummary,
+      generatedAt: doctorAiSummaryAnswerKeys.preConsultGeneratedAt,
+    } as const;
+  }
+
+  return {
+    summary: doctorAiSummaryAnswerKeys.postConsultSummary,
+    generatedAt: doctorAiSummaryAnswerKeys.generatedAt,
+  } as const;
+}
 
 function isKnownDoctorField(key: string) {
   return doctorQuestionnaireDefinition.questions.some((question) => question.id === key);
@@ -827,55 +845,77 @@ export async function saveDoctorQuestionnaireToDatabase(record: DoctorQuestionna
 
 export async function getSavedDoctorPostConsultSummary(input: {
   consultSessionId?: string;
+  summaryType?: PersistedSummaryType;
 }): Promise<DoctorPersistedAiSummary | null> {
   if (!prisma || !input.consultSessionId) {
     return null;
   }
 
+  const summaryType = input.summaryType ?? "doctor-postconsult";
+  const summaryKeys = getPersistedSummaryKeys(summaryType);
+
   const submissionSessionId = `${input.consultSessionId}:doctor`;
-  const submission = await prisma.questionnaireSubmission.findUnique({
+  const doctorSubmission = await prisma.questionnaireSubmission.findUnique({
     where: { sessionId: submissionSessionId },
     include: { answers: true },
   });
 
-  if (!submission) {
-    return null;
+  const patientSubmission = await prisma.questionnaireSubmission.findUnique({
+    where: { sessionId: input.consultSessionId },
+    include: { answers: true },
+  });
+
+  for (const submission of [doctorSubmission, patientSubmission]) {
+    if (!submission) {
+      continue;
+    }
+
+    const summary = submission.answers.find((answer) => answer.key === summaryKeys.summary)?.value;
+    if (typeof summary !== "string" || summary.trim().length === 0) {
+      continue;
+    }
+
+    const generatedAtValue = submission.answers.find((answer) => answer.key === summaryKeys.generatedAt)?.value;
+    const generatedAt = typeof generatedAtValue === "string" && generatedAtValue.trim().length > 0 ? generatedAtValue : undefined;
+
+    return {
+      consultSessionId: input.consultSessionId,
+      summary,
+      generatedAt,
+    };
   }
 
-  const summary = submission.answers.find((answer) => answer.key === doctorAiSummaryAnswerKeys.postConsultSummary)?.value;
-  if (typeof summary !== "string" || summary.trim().length === 0) {
-    return null;
-  }
-
-  const generatedAtValue = submission.answers.find((answer) => answer.key === doctorAiSummaryAnswerKeys.generatedAt)?.value;
-  const generatedAt = typeof generatedAtValue === "string" && generatedAtValue.trim().length > 0 ? generatedAtValue : undefined;
-
-  return {
-    consultSessionId: input.consultSessionId,
-    summary,
-    generatedAt,
-  };
+  return null;
 }
 
 export async function saveDoctorPostConsultSummary(input: {
   consultSessionId: string;
   summary: string;
   generatedAt?: string;
+  summaryType?: PersistedSummaryType;
 }) {
   if (!prisma) {
     return { ok: true as const, storage: "local" as const, persisted: false };
   }
 
+  const summaryType = input.summaryType ?? "doctor-postconsult";
+  const summaryKeys = getPersistedSummaryKeys(summaryType);
+
   const submissionSessionId = `${input.consultSessionId}:doctor`;
-  const submission = await prisma.questionnaireSubmission.findUnique({
+  const doctorSubmission = await prisma.questionnaireSubmission.findUnique({
     where: { sessionId: submissionSessionId },
     select: { id: true },
   });
+  const patientSubmission = await prisma.questionnaireSubmission.findUnique({
+    where: { sessionId: input.consultSessionId },
+    select: { id: true },
+  });
+  const submission = doctorSubmission ?? patientSubmission;
 
   if (!submission) {
     return {
       ok: false as const,
-      message: "Doctor consultation record not found for this visit",
+      message: "Consultation record not found for this visit",
       storage: "database" as const,
       persisted: false,
     };
@@ -890,7 +930,7 @@ export async function saveDoctorPostConsultSummary(input: {
       where: {
         submissionId: submission.id,
         key: {
-          in: [doctorAiSummaryAnswerKeys.postConsultSummary, doctorAiSummaryAnswerKeys.generatedAt],
+          in: [summaryKeys.summary, summaryKeys.generatedAt],
         },
       },
     });
@@ -899,12 +939,12 @@ export async function saveDoctorPostConsultSummary(input: {
       data: [
         {
           submissionId: submission.id,
-          key: doctorAiSummaryAnswerKeys.postConsultSummary,
+          key: summaryKeys.summary,
           value: answerValue(input.summary),
         },
         {
           submissionId: submission.id,
-          key: doctorAiSummaryAnswerKeys.generatedAt,
+          key: summaryKeys.generatedAt,
           value: answerValue(generatedAt),
         },
       ],

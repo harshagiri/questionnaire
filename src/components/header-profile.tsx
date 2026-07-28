@@ -13,6 +13,7 @@ type HeaderProfileProps = {
 
 type PatientProfile = {
   patientName?: string;
+  fullName?: string;
   phone?: string;
 };
 
@@ -33,7 +34,20 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
   );
   const patientProfile = useMemo(() => {
     if (!patientProfileRaw) {
-      return null;
+      if (role !== "patient") {
+        return null;
+      }
+
+      const latestRaw = window.localStorage.getItem("sei-patient-profile-latest");
+      if (!latestRaw) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(latestRaw) as PatientProfile;
+      } catch {
+        return null;
+      }
     }
 
     try {
@@ -43,8 +57,12 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
     }
   }, [patientProfileRaw]);
 
-  const primaryLabel = patientProfile?.patientName?.trim() || displayName;
-  const secondaryLabel = role === "patient" ? patientProfile?.phone?.trim() || displayName : roleLabel;
+  const primaryLabel =
+    patientProfile?.patientName?.trim() ||
+    patientProfile?.fullName?.trim() ||
+    displayName;
+  const patientPhone = patientProfile?.phone?.trim() || "";
+  const secondaryLabel = role === "patient" ? patientPhone || roleLabel : roleLabel;
   const resolvedAvatarLabel = useMemo(
     () =>
       primaryLabel
@@ -58,8 +76,8 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
 
   return (
     <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
-      <div className="flex min-w-0 items-center gap-2 rounded-[1.2rem] border border-[rgba(15,118,110,0.18)] bg-[rgba(15,118,110,0.08)] px-2 py-1.5 sm:px-2.5">
-        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(15,118,110,0.24),rgba(21,32,43,0.12))] shadow-sm sm:h-9 sm:w-9">
+      <div className="flex min-w-0 items-center gap-2 rounded-[1.2rem] border border-[rgba(22,95,192,0.2)] bg-[rgba(22,95,192,0.08)] px-2 py-1.5 sm:px-2.5">
+        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(22,95,192,0.24),rgba(16,53,103,0.14))] shadow-sm sm:h-9 sm:w-9">
           {sessionAvatar && !avatarLoadError ? (
             <img
               src={sessionAvatar}

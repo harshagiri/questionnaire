@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { findPatientRecordByPhone, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
@@ -14,6 +14,15 @@ type ConsultModal = {
   time: string;
   preConsultLink: string;
   videoConsultLink: string;
+};
+
+type UploadedReport = {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes?: number | null;
+  storedPath?: string | null;
+  uploadedAt: string;
 };
 
 const statusColors: Record<string, string> = {
@@ -115,13 +124,91 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
   );
 }
 
+function simpleHash(input: string) {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash << 5) - hash + input.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+}
+
+type AgeBand = "child" | "adult" | "senior";
+type AvatarGender = "male" | "female" | "other";
+
+function resolveAgeBand(age?: number) {
+  if (typeof age !== "number" || !Number.isFinite(age)) {
+    return "adult" as AgeBand;
+  }
+
+  if (age < 18) {
+    return "child";
+  }
+
+  if (age >= 60) {
+    return "senior";
+  }
+
+  return "adult";
+}
+
+function resolveAvatarGender(gender?: string) {
+  const normalized = String(gender ?? "").trim().toLowerCase();
+  if (["male", "man", "m", "boy"].includes(normalized)) {
+    return "male" as AvatarGender;
+  }
+  if (["female", "woman", "f", "girl"].includes(normalized)) {
+    return "female" as AvatarGender;
+  }
+  return "other";
+}
+
+const avatarPalettes: Record<AvatarGender, Record<AgeBand, string[]>> = {
+  male: {
+    child: ["b6e3f4", "c0aede", "d1d4f9"],
+    adult: ["9ecad6", "b6e3f4", "e0ddff"],
+    senior: ["a8d8f0", "c3b8ff", "d9f2ff"],
+  },
+  female: {
+    child: ["ffdfbf", "ffd5dc", "c0aede"],
+    adult: ["ffd5dc", "e0ddff", "b6e3f4"],
+    senior: ["f4d9ff", "ffd5dc", "d9f2ff"],
+  },
+  other: {
+    child: ["c0aede", "b6e3f4", "d9f2ff"],
+    adult: ["d1d4f9", "c0aede", "b6e3f4"],
+    senior: ["e0ddff", "b6e3f4", "ffd5dc"],
+  },
+};
+
+function patientAvatarCartoon(input: { seed: string; age?: number; gender?: string }) {
+  const normalizedSeed = input.seed.trim().toLowerCase() || "patient";
+  const ageBand = resolveAgeBand(input.age);
+  const avatarGender = resolveAvatarGender(input.gender);
+  const palette = avatarPalettes[avatarGender][ageBand];
+  const offset = simpleHash(`${normalizedSeed}|${avatarGender}|${ageBand}`) % palette.length;
+  const orderedPalette = [...palette.slice(offset), ...palette.slice(0, offset)].join(",");
+  const seed = `${normalizedSeed}|${avatarGender}|${ageBand}|abstract`;
+
+  const searchParams = new URLSearchParams({
+    seed,
+    backgroundType: "gradientLinear",
+    backgroundColor: orderedPalette,
+    radius: "50",
+    scale: "95",
+  });
+
+  return `https://api.dicebear.com/9.x/shapes/svg?${searchParams.toString()}`;
+}
+
 export function PatientDashboard({ phone }: { phone: string }) {
   const router = useRouter();
   const [patientRecord, setPatientRecord] = useState<PatientRecord | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [consultModal, setConsultModal] = useState<ConsultModal | null>(null);
+  const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +261,51 @@ export function PatientDashboard({ phone }: { phone: string }) {
   }, [phone]);
 
   useEffect(() => {
+    let active = true;
+
+    async function loadUploadedReports() {
+      const normalizedPhone = phone.replace(/\D/g, "");
+      if (normalizedPhone.length < 10) {
+        if (active) {
+          setUploadedReports([]);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/uploads/lab-reports?patientPhone=${encodeURIComponent(normalizedPhone)}`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; reports?: UploadedReport[] }
+          | null;
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok || !payload?.ok) {
+          setUploadedReports([]);
+          return;
+        }
+
+        setUploadedReports(payload.reports ?? []);
+      } catch {
+        if (active) {
+          setUploadedReports([]);
+        }
+      }
+    }
+
+    void loadUploadedReports();
+
+    return () => {
+      active = false;
+    };
+  }, [phone]);
+
+  useEffect(() => {
     async function loadAppointments() {
       try {
         const res = await fetch(`/api/appointments?phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
@@ -183,20 +315,25 @@ export function PatientDashboard({ phone }: { phone: string }) {
         }
       } catch {
         setAppointments([]);
-      } finally {
-        setLoading(false);
       }
     }
     loadAppointments();
   }, [phone]);
 
-  const upcomingAppointments = appointments.filter((a) => a.status !== "cancelled" && a.status !== "submitted");
   const pastAppointments = appointments.filter((a) => a.status === "submitted" || a.status === "cancelled");
   const canProceed = isPatientProfileComplete(patientRecord);
   const questionnaireSessionId = patientRecord?.patientId ? `self-${patientRecord.patientId}` : "";
   const questionnaireHref = canProceed
     ? `/patient/consult/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(phone)}`
     : "/register";
+  const patientAvatarUrl = useMemo(() => {
+    const avatarSeed = `${patientRecord?.fullName ?? ""}|${patientRecord?.phone ?? phone}`;
+    return patientAvatarCartoon({
+      seed: avatarSeed,
+      age: patientRecord?.age,
+      gender: patientRecord?.gender,
+    });
+  }, [patientRecord?.age, patientRecord?.fullName, patientRecord?.gender, patientRecord?.phone, phone]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -210,14 +347,25 @@ export function PatientDashboard({ phone }: { phone: string }) {
           <div className="bg-teal-700 text-white rounded-2xl p-5 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-teal-200 mb-1">Patient ID</p>
-                <p className="text-2xl font-mono font-bold tracking-wider">{patientRecord.patientId}</p>
-                <p className="text-sm text-teal-100 mt-0.5">{patientRecord.fullName}</p>
+                <p className="text-xs font-medium text-teal-200 mb-1">Patient</p>
+                <p className="text-2xl font-bold tracking-tight text-white">{patientRecord.fullName}</p>
+                <p className="text-xs text-teal-100 mt-1">ID: {patientRecord.patientId}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/register")}
+                  aria-label="Edit profile"
+                  title="Edit profile"
+                  className="h-10 w-10 rounded-lg border border-white/35 bg-white/10 text-white hover:bg-white/20 transition-colors grid place-items-center"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center overflow-hidden border border-white/30">
+                  <img src={patientAvatarUrl} alt="Patient avatar" className="h-full w-full object-cover" />
+                </div>
               </div>
             </div>
             {patientRecord.bmi && (
@@ -243,7 +391,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
         )}
 
         {/* Quick actions */}
-        <div className="grid grid-cols-1 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           <button
             onClick={() => canProceed && router.push(questionnaireHref)}
             disabled={!canProceed}
@@ -255,19 +403,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
               </svg>
             </div>
             <p className="text-sm font-semibold text-gray-800">Start questionnaire</p>
-            <p className="text-xs text-gray-400 mt-0.5">Fill or continue your patient questionnaire without booking</p>
-          </button>
-          <button
-            onClick={() => router.push("/register")}
-            className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-gray-400 transition-colors"
-          >
-            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center mb-2">
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </div>
-            <p className="text-sm font-semibold text-gray-800">Update profile</p>
-            <p className="text-xs text-gray-400 mt-0.5">Edit your registration details</p>
+            <p className="text-xs text-gray-400 mt-0.5">Fill or continue</p>
           </button>
           <button
             onClick={() => canProceed && router.push("/patient/upload")}
@@ -280,47 +416,45 @@ export function PatientDashboard({ phone }: { phone: string }) {
               </svg>
             </div>
             <p className="text-sm font-semibold text-gray-800">Upload documents</p>
-            <p className="text-xs text-gray-400 mt-0.5">Add MRI, X-ray, labs, and prescriptions anytime</p>
+            <p className="text-xs text-gray-400 mt-0.5">MRI, X-ray, labs</p>
           </button>
         </div>
 
-        {/* Upcoming appointments */}
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Upcoming</h2>
-          {loading ? (
-            <div className="text-sm text-gray-400 py-4">Loading…</div>
-          ) : upcomingAppointments.length === 0 ? (
-            <div className="bg-white border border-dashed border-gray-200 rounded-xl p-6 text-center">
-              <p className="text-sm text-gray-400">No upcoming appointments</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcomingAppointments.map((appt, index) => {
-                const consultId = appt.consultId ?? appt.sessionId;
-                return (
-                  <div key={`${appt.sessionId}-${consultId}-${index}`} className="bg-white border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{formatDoctorDisplayName(appt.doctorName) || "Doctor TBD"}</p>
-                        <p className="text-xs text-gray-500">{appt.appointmentDate} at {appt.appointmentTime}</p>
-                        {consultId && <p className="text-xs font-mono text-gray-400 mt-0.5">{consultId}</p>}
-                      </div>
-                      <StatusBadge status={appt.status} />
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <a
-                        href={canProceed ? `/patient/upload/${consultId}` : "/register"}
-                        className={`flex-1 text-center border text-xs font-semibold py-2 px-3 rounded-lg transition-colors ${canProceed ? "border-gray-200 text-gray-600 hover:bg-gray-50" : "border-gray-100 text-gray-400"}`}
-                      >
-                        Upload reports
-                      </a>
-                    </div>
+        {uploadedReports.length > 0 ? (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Uploaded documents ({uploadedReports.length})
+            </h2>
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {uploadedReports.map((report) => (
+                <div key={report.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-700 truncate">{report.fileName}</p>
+                    <p className="text-xs text-gray-400">
+                      {report.fileType}
+                      {typeof report.fileSizeBytes === "number" && report.fileSizeBytes > 0
+                        ? ` · ${(report.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB`
+                        : ""}
+                      {report.uploadedAt
+                        ? ` · ${new Date(report.uploadedAt).toLocaleDateString()}`
+                        : ""}
+                    </p>
                   </div>
-                );
-              })}
+                  {report.storedPath ? (
+                    <a
+                      href={report.storedPath}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-teal-700 hover:underline shrink-0"
+                    >
+                      Open
+                    </a>
+                  ) : null}
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         {/* Past appointments */}
         {pastAppointments.length > 0 && (

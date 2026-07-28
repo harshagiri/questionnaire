@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { savePatientRecord, findPatientRecordByPhone } from "@/lib/portal-storage";
 
 const registerSchema = z.object({
   fullName: z.string().min(2),
@@ -19,7 +18,19 @@ const registerSchema = z.object({
   currentMeds: z.array(z.string()).optional().default([]),
   priorSurgery: z.boolean().optional().default(false),
   surgeryDetails: z.string().optional(),
+  extras: z.object({
+    pinCode: z.string().optional(),
+    smoking: z.string().optional(),
+    alcohol: z.string().optional(),
+    drugAllergies: z.string().optional(),
+    otherSurgeries: z.array(z.string()).optional(),
+    consentClinicalCare: z.literal(true),
+    consentPrivacy: z.literal(true),
+    consentRegistry: z.boolean().optional().default(false),
+  }),
 });
+
+const consentVersion = "registration-v1-2026-07-25";
 
 function generatePatientId(count: number): string {
   const year = new Date().getFullYear();
@@ -87,8 +98,14 @@ export async function POST(request: Request) {
             dailyActivity: data.dailyActivity,
             comorbidities: data.comorbidities,
             currentMeds: data.currentMeds,
+            profileExtras: data.extras,
             priorSurgery: data.priorSurgery,
             surgeryDetails: data.surgeryDetails,
+            consentClinicalCare: data.extras.consentClinicalCare,
+            consentPrivacy: data.extras.consentPrivacy,
+            consentRegistry: data.extras.consentRegistry,
+            consentRecordedAt: new Date(),
+            consentVersion,
           },
         });
         return NextResponse.json({ ok: true, record: updated, isNew: false });
@@ -114,8 +131,14 @@ export async function POST(request: Request) {
           dailyActivity: data.dailyActivity,
           comorbidities: data.comorbidities,
           currentMeds: data.currentMeds,
+          profileExtras: data.extras,
           priorSurgery: data.priorSurgery ?? false,
           surgeryDetails: data.surgeryDetails,
+          consentClinicalCare: data.extras.consentClinicalCare,
+          consentPrivacy: data.extras.consentPrivacy,
+          consentRegistry: data.extras.consentRegistry,
+          consentRecordedAt: new Date(),
+          consentVersion,
         },
       });
 
@@ -145,8 +168,14 @@ export async function POST(request: Request) {
     dailyActivity: data.dailyActivity,
     comorbidities: data.comorbidities,
     currentMeds: data.currentMeds,
+    profileExtras: data.extras,
     priorSurgery: data.priorSurgery ?? false,
     surgeryDetails: data.surgeryDetails,
+    consentClinicalCare: data.extras.consentClinicalCare,
+    consentPrivacy: data.extras.consentPrivacy,
+    consentRegistry: data.extras.consentRegistry,
+    consentRecordedAt: new Date().toISOString(),
+    consentVersion,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

@@ -48,10 +48,10 @@ export async function AppShell({ children, role }: AppShellProps) {
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b border-[rgba(21,32,43,0.08)] bg-[rgba(251,250,247,0.82)] backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[rgba(238,247,255,0.86)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
           <Link href="/" aria-label="SpinExperts home" className="focus-ring flex shrink-0 items-center gap-3">
-            <span className="relative h-9 w-9 overflow-hidden rounded-2xl bg-[rgba(255,255,255,0.8)] shadow-[0_10px_26px_rgba(15,118,110,0.2)] sm:h-10 sm:w-10">
+            <span className="relative h-9 w-9 overflow-hidden rounded-2xl bg-[rgba(248,252,255,0.9)] shadow-[0_12px_30px_rgba(31,111,216,0.24)] sm:h-10 sm:w-10">
               <Image
                 src="/logo.jpg"
                 alt="SpinExperts icon"
@@ -82,7 +82,7 @@ export async function AppShell({ children, role }: AppShellProps) {
         {children}
       </main>
 
-      <footer className="border-t border-[rgba(21,32,43,0.08)] bg-[rgba(255,255,255,0.5)]">
+      <footer className="border-t border-[color:var(--border)] bg-[rgba(240,248,255,0.78)]">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-[color:var(--muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <p>Expert care. Every spine. Every time.</p>
           <p>Privacy-first patient intake with doctor follow-up and admin telemetry.</p>

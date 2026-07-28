@@ -22,16 +22,16 @@ const redFlagKeys = [
 ];
 
 const celebrationConfetti = [
-  { left: "8%", delay: "0ms", color: "#0f766e", size: "10px", drift: "-18px", rotate: "28deg" },
-  { left: "14%", delay: "220ms", color: "#ff8a5b", size: "7px", drift: "22px", rotate: "-18deg" },
-  { left: "22%", delay: "80ms", color: "#f6c85f", size: "9px", drift: "-12px", rotate: "42deg" },
-  { left: "34%", delay: "340ms", color: "#15202b", size: "6px", drift: "18px", rotate: "12deg" },
-  { left: "45%", delay: "160ms", color: "#0f766e", size: "8px", drift: "-26px", rotate: "-34deg" },
-  { left: "56%", delay: "420ms", color: "#ff8a5b", size: "11px", drift: "24px", rotate: "20deg" },
-  { left: "66%", delay: "120ms", color: "#f6c85f", size: "7px", drift: "-16px", rotate: "-28deg" },
-  { left: "74%", delay: "280ms", color: "#0f766e", size: "9px", drift: "20px", rotate: "38deg" },
-  { left: "84%", delay: "40ms", color: "#ff8a5b", size: "6px", drift: "-20px", rotate: "-12deg" },
-  { left: "92%", delay: "360ms", color: "#15202b", size: "8px", drift: "14px", rotate: "32deg" },
+  { left: "8%", delay: "0ms", color: "#165fc0", size: "10px", drift: "-18px", rotate: "28deg" },
+  { left: "14%", delay: "220ms", color: "#5ab5ff", size: "7px", drift: "22px", rotate: "-18deg" },
+  { left: "22%", delay: "80ms", color: "#8bcfff", size: "9px", drift: "-12px", rotate: "42deg" },
+  { left: "34%", delay: "340ms", color: "#0b223d", size: "6px", drift: "18px", rotate: "12deg" },
+  { left: "45%", delay: "160ms", color: "#1f6fd8", size: "8px", drift: "-26px", rotate: "-34deg" },
+  { left: "56%", delay: "420ms", color: "#7ac6ff", size: "11px", drift: "24px", rotate: "20deg" },
+  { left: "66%", delay: "120ms", color: "#b6dfff", size: "7px", drift: "-16px", rotate: "-28deg" },
+  { left: "74%", delay: "280ms", color: "#165fc0", size: "9px", drift: "20px", rotate: "38deg" },
+  { left: "84%", delay: "40ms", color: "#5ab5ff", size: "6px", drift: "-20px", rotate: "-12deg" },
+  { left: "92%", delay: "360ms", color: "#123b67", size: "8px", drift: "14px", rotate: "32deg" },
 ] as const;
 
 const initialAnswers: AnswerMap = {
@@ -164,67 +164,23 @@ function formatDisplayLabel(label: string) {
   return label.trim();
 }
 
-function progressMood(percent: number) {
-  if (percent >= 90) {
-    return "Brilliant pace. You are almost consultation-ready.";
-  }
-
-  if (percent >= 75) {
-    return "Excellent progress. Just a quick final stretch.";
-  }
-
-  if (percent >= 50) {
-    return "Great momentum. You are past the halfway mark.";
-  }
-
-  if (percent >= 25) {
-    return "Nice start. Your doctor will thank you for this clarity.";
-  }
-
-  return "Strong start. Each answer helps your doctor prepare better.";
-}
-
-function milestoneLabel(percent: number) {
-  if (percent >= 75) {
-    return "Milestone unlocked: 75% complete";
-  }
-
-  if (percent >= 50) {
-    return "Milestone unlocked: halfway done";
-  }
-
-  if (percent >= 25) {
-    return "Milestone unlocked: great start";
-  }
-
-  return "Your care journey has begun";
-}
-
-type SectionVisual = {
-  emoji: string;
-  iconLabel: string;
-  spotlight: string;
-  imageSrc: string;
-  imageAlt: string;
-};
-
-function getSectionVisual(sectionId: string): SectionVisual {
+function getSectionVisual(sectionId: string) {
   switch (sectionId) {
     case "red-flags":
       return {
-        emoji: "🚦",
-        iconLabel: "Safety",
-        spotlight: "Why this matters: this is your emergency brake check; red flags here can change triage immediately.",
+        emoji: "🚨",
+        iconLabel: "Safety check",
+        spotlight: "Why this matters: urgent red flags are handled first so risky cases are escalated without delay.",
         imageSrc: "/illustrations/section-celebration.svg",
-        imageAlt: "Safety and section progress illustration",
+        imageAlt: "Red flag safety check illustration",
       };
     case "patient-profile":
       return {
-        emoji: "🪪",
+        emoji: "👤",
         iconLabel: "Profile",
-        spotlight: "Why this matters: boring admin, heroic impact; correct identity and demographics prevent wrong-path decisions.",
+        spotlight: "Why this matters: verified basics reduce admin friction and let the doctor focus on clinical decisions.",
         imageSrc: "/illustrations/care-journey.svg",
-        imageAlt: "Patient profile context illustration",
+        imageAlt: "Patient profile setup illustration",
       };
     case "medical-history":
       return {
@@ -557,8 +513,12 @@ export function PatientWorkflow({
   );
   const [answers, setAnswers] = useState<AnswerMap>(initialAnswersState);
   const [sectionIndex, setSectionIndex] = useState(0);
-  const [questionIndex, setQuestionIndex] = useState(-1);
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [finalizingSubmission, setFinalizingSubmission] = useState(false);
+  const [finalAiSummary, setFinalAiSummary] = useState("");
+  const [finalAiSummaryGeneratedAt, setFinalAiSummaryGeneratedAt] = useState<string | null>(null);
+  const [finalAiSummaryError, setFinalAiSummaryError] = useState("");
   const [sectionTransition, setSectionTransition] = useState<{ from: number; to: number } | null>(null);
   const [validationMessage, setValidationMessage] = useState("");
   const [profileBmi, setProfileBmi] = useState<number | null>(null);
@@ -619,9 +579,9 @@ export function PatientWorkflow({
         ...(saved.answers ?? {}),
       } as AnswerMap,
     );
-    const maxQuestionIndex = Math.max(sectionQuestions.length - 1, -1);
-    const rawQuestionIndex = typeof saved.questionIndex === "number" ? saved.questionIndex : -1;
-    const nextQuestionIndex = Math.min(Math.max(rawQuestionIndex, -1), maxQuestionIndex);
+    const maxQuestionIndex = Math.max(sectionQuestions.length - 1, 0);
+    const rawQuestionIndex = typeof saved.questionIndex === "number" ? saved.questionIndex : 0;
+    const nextQuestionIndex = Math.min(Math.max(rawQuestionIndex, 0), maxQuestionIndex);
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAnswers(() => ({
@@ -871,20 +831,10 @@ export function PatientWorkflow({
 
   const nextSection = () => {
     setSectionIndex((current) => findNextSectionWithQuestions(current));
-    setQuestionIndex(-1);
+    setQuestionIndex(0);
   };
 
   const nextQuestion = () => {
-    if (isSectionIntro) {
-      if (sectionQuestionCount === 0) {
-        nextSection();
-        return;
-      }
-
-      setQuestionIndex(0);
-      return;
-    }
-
     if (isRedFlagSection && !redFlagSectionAnswered) {
       setValidationMessage("Please answer each red flag item, or choose None of the above.");
       return;
@@ -980,7 +930,6 @@ export function PatientWorkflow({
   }, [getSectionQuestions, sectionIndex]);
 
   const totalQuestionCount = sectionProgress.totalVisibleQuestions;
-  const currentQuestionNumber = questionsBeforeCurrentSection + (isRedFlagSection ? 1 : currentQuestionIndex + 1);
   const overallCompletionPercent = Math.round(
     (sectionProgress.totalAnsweredQuestions / Math.max(totalQuestionCount, 1)) * 100,
   );
@@ -990,8 +939,6 @@ export function PatientWorkflow({
     (isRedFlagSection || currentQuestionIndex === 0);
   const isLastQuestionInSection = !isSectionIntro && (isRedFlagSection || currentQuestionIndex >= sectionQuestionCount - 1);
   const isLastQuestionOverall = !isSectionIntro && safeSectionIndex === lastRenderableSectionIndex && isLastQuestionInSection;
-  const milestoneMessage = milestoneLabel(overallCompletionPercent);
-  const momentumMessage = progressMood(overallCompletionPercent);
   const sectionVisual = getSectionVisual(section.id);
   const transitionFromSection = sectionTransition ? workflowSections[sectionTransition.from] : null;
   const transitionToSection = sectionTransition ? workflowSections[sectionTransition.to] : null;
@@ -1032,21 +979,10 @@ export function PatientWorkflow({
   const goalKey = summaryKey("spineHealthAnchor", "q15TreatmentHelped", "careGoal");
   const reportsKey = summaryKey("q14TreatmentTried", "reportsWithPatient");
 
-  const submittedSummaryCards = [
-    { label: "Visit reason", value: summarizeQuestionAnswer(workflowSections, visitReasonKey, answers[visitReasonKey]) },
-    { label: "Main concern", value: summarizeQuestionAnswer(workflowSections, concernKey, answers[concernKey]) },
-    { label: "Pain score", value: summarizeQuestionAnswer(workflowSections, painScoreKey, answers[painScoreKey]) },
-    { label: "Pain location", value: summarizeQuestionAnswer(workflowSections, painLocationKey, answers[painLocationKey]) },
-    { label: "Duration", value: summarizeQuestionAnswer(workflowSections, durationKey, answers[durationKey]) },
-    { label: "Treatment goal", value: summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey]) },
-  ];
-  const doctorReadyItems = [
-    `Reason for visit: ${summarizeQuestionAnswer(workflowSections, visitReasonKey, answers[visitReasonKey])}`,
-    `Current concern: ${summarizeQuestionAnswer(workflowSections, concernKey, answers[concernKey])}`,
-    `Red flag screen: ${redFlagTriggered ? "Clinic attention needed" : "No urgent red flags reported"}`,
-    `Reports available: ${summarizeQuestionAnswer(workflowSections, reportsKey, answers[reportsKey])}`,
-    `Patient goal: ${summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey])}`,
-  ];
+  const concernSummary = summarizeQuestionAnswer(workflowSections, concernKey, answers[concernKey]);
+  const painScoreSummary = summarizeQuestionAnswer(workflowSections, painScoreKey, answers[painScoreKey]);
+  const durationSummary = summarizeQuestionAnswer(workflowSections, durationKey, answers[durationKey]);
+  const goalSummary = summarizeQuestionAnswer(workflowSections, goalKey, answers[goalKey]);
 
   const setValue = (key: string, value: AnswerValue) => {
     setAnswers((current) => {
@@ -1104,6 +1040,76 @@ export function PatientWorkflow({
     persistDraft(record);
   };
 
+  const buildPatientSummaryFacts = () => {
+    const facts: Array<{ label: string; value: string }> = [
+      { label: "Main concern", value: concernSummary },
+      { label: "Pain score", value: painScoreSummary },
+      { label: "Symptom duration", value: durationSummary },
+      { label: "Care goal", value: goalSummary },
+      { label: "Safety flags", value: redFlagTriggered ? "Present" : "None" },
+      { label: "BMI", value: resolvedBmi !== null && resolvedBmi !== undefined ? String(resolvedBmi) : "Pending" },
+    ];
+
+    return facts.filter((item) => item.value.trim().length > 0 && item.value !== "Not filled");
+  };
+
+  const buildPatientSummaryRequestBody = () => {
+    return {
+      summaryType: "patient-preconsult" as const,
+      patient: {
+        consultSessionId: sessionId,
+        name: String(answers.patientName ?? answers.fullName ?? "").trim() || patientDisplayName,
+        phone: patientPhone,
+        age: String(answers.age ?? "").trim() || undefined,
+        sex: String(answers.sex ?? "").trim() || undefined,
+        region: String(answers.region ?? answers.city ?? "").trim() || undefined,
+        language: String(answers.language ?? "").trim() || undefined,
+        bmi: resolvedBmi !== null && resolvedBmi !== undefined ? String(resolvedBmi) : undefined,
+        painScore: String(painScoreSummary ?? "").trim() || undefined,
+        consultationType: String(answers[visitReasonKey] ?? "").trim() || undefined,
+        questionnaireAnswers: answers as Record<string, string | number | boolean | string[]>,
+        facts: buildPatientSummaryFacts(),
+      },
+    };
+  };
+
+  const callPatientSummaryApi = async () => {
+    const requestBody = buildPatientSummaryRequestBody();
+
+    const response = await fetch("/api/ai/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; summary?: string; message?: string }
+      | null;
+
+    if (!response.ok || !payload?.ok || !payload.summary) {
+      throw new Error(payload?.message ?? "Unable to generate AI summary");
+    }
+
+    return payload.summary;
+  };
+
+  const savePatientPreConsultSummary = async (summary: string, generatedAt: string) => {
+    if (!summary.trim()) {
+      return;
+    }
+
+    await fetch("/api/doctor-ai-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        consultSessionId: sessionId,
+        summary,
+        generatedAt,
+        summaryType: "patient-preconsult",
+      }),
+    }).catch(() => undefined);
+  };
+
   const handleBackToDashboard = () => {
     if (!dashboardHref) {
       return;
@@ -1119,7 +1125,7 @@ export function PatientWorkflow({
     }
   };
 
-  const submitQuestionnaire = () => {
+  const submitQuestionnaire = async () => {
     if (!requiredComplete) {
       const firstMissing = missingRequiredQuestions[0];
 
@@ -1138,54 +1144,89 @@ export function PatientWorkflow({
       return;
     }
 
-    setSubmitted(true);
+    if (finalizingSubmission) {
+      return;
+    }
+
+    setFinalizingSubmission(true);
+    setFinalAiSummaryError("");
     saveDraft(true);
+
+    try {
+      const summary = await callPatientSummaryApi();
+      const generatedAt = new Date().toISOString();
+      setFinalAiSummary(summary);
+      setFinalAiSummaryGeneratedAt(generatedAt);
+      await savePatientPreConsultSummary(summary, generatedAt);
+    } catch (error) {
+      setFinalAiSummaryError(error instanceof Error ? error.message : "Unable to generate AI summary right now");
+    } finally {
+      setFinalizingSubmission(false);
+      setSubmitted(true);
+    }
   };
 
-  const renderRedFlagSection = () => (
-    <article className="section-reveal rounded-xl border border-[rgba(255,138,91,0.22)] bg-[linear-gradient(180deg,rgba(255,138,91,0.12),rgba(255,255,255,0.98))] p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-[rgba(255,138,91,0.18)] pb-3">
-        <button
-          type="button"
-          aria-label="Previous question"
-          onClick={prevQuestion}
-            disabled={isFirstQuestion}
-          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          &lt;
-        </button>
+  useEffect(() => {
+    if (!submitted || finalAiSummary.trim().length > 0) {
+      return;
+    }
 
-        <div className="min-w-0 flex-1 text-center">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-            Question {currentQuestionNumber} / {totalQuestionCount}
-          </div>
+    let active = true;
+
+    async function hydrateSavedPreConsultSummary() {
+      try {
+        const response = await fetch(
+          `/api/doctor-ai-summary?consultSessionId=${encodeURIComponent(sessionId)}&summaryType=patient-preconsult`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; record?: { summary?: string; generatedAt?: string } | null }
+          | null;
+
+        if (!active || !response.ok || !payload?.ok || !payload.record?.summary) {
+          return;
+        }
+
+        setFinalAiSummary(payload.record.summary);
+        setFinalAiSummaryGeneratedAt(payload.record.generatedAt ?? null);
+      } catch {
+        // Ignore hydration failure; final screen still works without summary block.
+      }
+    }
+
+    void hydrateSavedPreConsultSummary();
+
+    return () => {
+      active = false;
+    };
+  }, [finalAiSummary, sessionId, submitted]);
+
+  const renderCompactProgress = () => (
+    <div className="mt-2 w-full">
+      <div className="flex items-center justify-between text-[11px] font-medium text-[color:var(--muted)]">
+        <span>{overallCompletionPercent}% complete</span>
+        <span>{sectionProgress.totalAnsweredQuestions}/{Math.max(totalQuestionCount, 1)}</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[rgba(21,32,43,0.1)]">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent),#5ab5ff)] transition-[width] duration-300"
+          style={{ width: `${overallCompletionPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderRedFlagSection = () => (
+    <article className="section-reveal rounded-[1.15rem] bg-[linear-gradient(180deg,rgba(90,181,255,0.12),rgba(255,255,255,0.98))] p-4">
+      <div className="flex items-center justify-center gap-3 border-b border-[rgba(22,95,192,0.2)] pb-3">
+        <div className="min-w-0 w-full text-center">
           <div className="mt-1 flex items-center justify-center gap-2">
-            <span className="rounded-full bg-[rgba(255,138,91,0.16)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">
+            <span className="rounded-full bg-[rgba(22,95,192,0.16)] px-2 py-0.5 text-[11px] font-semibold text-[color:#165fc0]">
               Urgent safety check
             </span>
           </div>
+          <div className="mx-auto">{renderCompactProgress()}</div>
         </div>
-
-        {isLastQuestionOverall ? (
-          <button
-            type="button"
-            aria-label="Submit for clinical review"
-            onClick={submitQuestionnaire}
-            disabled={!requiredComplete}
-            className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
-          >
-            Submit
-          </button>
-        ) : (
-          <button
-            type="button"
-            aria-label="Next question"
-            onClick={nextQuestion}
-            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
-          >
-            &gt;
-          </button>
-        )}
       </div>
 
       <div className="text-center">
@@ -1195,13 +1236,13 @@ export function PatientWorkflow({
         </p>
       </div>
 
-      <div className="mx-auto mt-4 w-full max-w-2xl overflow-hidden rounded-xl border border-[rgba(21,32,43,0.1)] bg-white">
+      <div className="mx-auto mt-4 w-full max-w-2xl overflow-hidden rounded-xl bg-white/75">
         {redFlagOptions.map((question) => (
           <div key={question.id} className="border-b border-[rgba(21,32,43,0.08)] px-3 py-2.5 text-center last:border-b-0">
             <button
               type="button"
               onClick={() => setValue(question.id, answers[question.id] === true ? false : true)}
-              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
+              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(22,95,192,0.08)]"}`}
             >
               <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(question.label)}</span>
             </button>
@@ -1209,17 +1250,15 @@ export function PatientWorkflow({
         ))}
       </div>
 
-      <div className="mt-3 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.03)] px-3 py-3 text-xs leading-6 text-[color:var(--foreground)]">
-        {redFlagPositiveQuestions.length > 0 ? (
-          <>
-            Positive red flags: <span className="font-semibold">{redFlagPositiveQuestions.map((question) => formatDisplayLabel(question.label)).join("; ")}</span>
-          </>
-        ) : answers.redFlagNone === true ? (
+      {redFlagPositiveQuestions.length > 0 ? (
+        <div className="mt-3 rounded-lg bg-[rgba(21,32,43,0.04)] px-3 py-3 text-xs leading-6 text-[color:var(--foreground)]">
+          Positive red flags: <span className="font-semibold">{redFlagPositiveQuestions.map((question) => formatDisplayLabel(question.label)).join("; ")}</span>
+        </div>
+      ) : answers.redFlagNone === true ? (
+        <div className="mt-3 rounded-lg bg-[rgba(21,32,43,0.04)] px-3 py-3 text-xs leading-6 text-[color:var(--foreground)]">
           <span className="font-medium text-[var(--accent)]">None of the above selected.</span>
-        ) : (
-          <span>Answer each item to complete this safety check and unlock the next section.</span>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {redFlagNoneQuestion ? (
         <div className="mt-3 px-3 text-center">
@@ -1227,7 +1266,7 @@ export function PatientWorkflow({
             type="button"
             aria-label={formatDisplayLabel(redFlagNoneQuestion.label)}
             onClick={() => setValue(redFlagNoneQuestion.id, answers.redFlagNone === true ? false : true)}
-            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(22,95,192,0.08)]"}`}
           >
             <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(redFlagNoneQuestion.label)}</span>
           </button>
@@ -1235,7 +1274,7 @@ export function PatientWorkflow({
       ) : null}
 
       {redFlagReasonQuestion && redFlagTriggered ? (
-        <div className={`mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)] items-start gap-2 rounded-xl border px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.46fr)] sm:gap-3 ${redFlagTriggered ? "border-[rgba(255,138,91,0.24)] bg-[rgba(255,138,91,0.08)]" : "border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.03)]"}`}>
+        <div className={`mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.42fr)] items-start gap-2 rounded-lg px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.46fr)] sm:gap-3 ${redFlagTriggered ? "bg-[rgba(22,95,192,0.1)]" : "bg-[rgba(21,32,43,0.03)]"}`}>
           <div className="min-w-0">
             <label className="text-sm font-medium leading-6 text-[color:var(--foreground)]" htmlFor="redFlagReason">
               {formatDisplayLabel(redFlagReasonQuestion.label)}
@@ -1259,7 +1298,7 @@ export function PatientWorkflow({
         </div>
       ) : null}
 
-      {validationMessage ? <p className="mt-3 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
+      {validationMessage ? <p className="mt-3 text-sm font-semibold text-[color:#165fc0]">{validationMessage}</p> : null}
     </article>
   );
 
@@ -1270,14 +1309,14 @@ export function PatientWorkflow({
           <button
             type="button"
             onClick={() => setValue(question.id, true)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
           >
             Yes
           </button>
           <button
             type="button"
             onClick={() => setValue(question.id, false)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "selected-answer border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "selected-answer border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
           >
             No
           </button>
@@ -1299,7 +1338,7 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => toggleMultiSelectValue(question, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
               >
                 {formatDisplayLabel(option.label)}
               </button>
@@ -1320,7 +1359,7 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => setValue(question.id, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
               >
                 {formatDisplayLabel(option.label)}
               </button>
@@ -1400,51 +1439,18 @@ export function PatientWorkflow({
     const painScoreValue = typeof answers.painScore === "number" ? answers.painScore : 0;
 
     return (
-      <div className="section-reveal rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
-          <button
-            type="button"
-            aria-label="Previous question"
-            onClick={prevQuestion}
-            disabled={isFirstQuestion}
-            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            &lt;
-          </button>
-
-          <div className="min-w-0 flex-1 text-center">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-              Question {currentQuestionIndex + 1} / {sectionQuestionCount}
-            </div>
+      <div className="section-reveal rounded-[1.25rem] bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-center gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
+          <div className="min-w-0 w-full text-center">
             <div className="mt-1 flex items-center justify-center gap-2">
-              {currentQuestion?.required ? <span className="rounded-full bg-[rgba(255,138,91,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">Required</span> : null}
+              {currentQuestion?.required ? <span className="rounded-full bg-[rgba(22,95,192,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[color:#165fc0]">Required</span> : null}
             </div>
+            <div className="mx-auto">{renderCompactProgress()}</div>
           </div>
-
-          {isLastQuestionOverall ? (
-            <button
-              type="button"
-              aria-label="Submit for clinical review"
-              onClick={submitQuestionnaire}
-              disabled={!requiredComplete}
-              className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
-            >
-              Submit
-            </button>
-          ) : (
-            <button
-              type="button"
-              aria-label="Next question"
-              onClick={nextQuestion}
-              className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
-            >
-              &gt;
-            </button>
-          )}
         </div>
 
         <div className="mt-4 space-y-4">
-          <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] p-4">
+          <div className="rounded-[1.2rem] bg-[rgba(21,32,43,0.03)] p-4">
             <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Where does it hurt most?</h3>
             <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Choose the main pain location.</p>
             <div className="mx-auto mt-3 flex w-full max-w-md flex-col gap-2">
@@ -1456,7 +1462,7 @@ export function PatientWorkflow({
                     key={option.value}
                     type="button"
                     onClick={() => setValue("painLocation", option.value)}
-                    className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(15,118,110,0.05)]"}`}
+                    className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
                   >
                     {option.label}
                   </button>
@@ -1465,7 +1471,7 @@ export function PatientWorkflow({
             </div>
           </div>
 
-          <div className="rounded-[1.35rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm">
+          <div className="rounded-[1.2rem] bg-[rgba(255,255,255,0.78)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pain score</div>
@@ -1492,13 +1498,13 @@ export function PatientWorkflow({
           </div>
 
           {answers.painLocation ? (
-            <div className="rounded-[1.35rem] border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
+            <div className="rounded-[1.35rem] border border-[rgba(22,95,192,0.18)] bg-[rgba(22,95,192,0.08)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
               Selected area: <span className="font-semibold">{currentQuestion?.options?.find((option) => option.value === answers.painLocation)?.label ?? answers.painLocation}</span>
             </div>
           ) : null}
         </div>
 
-        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
+        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#165fc0]">{validationMessage}</p> : null}
       </div>
     );
   };
@@ -1513,62 +1519,26 @@ export function PatientWorkflow({
     }
 
     return (
-      <div className="section-reveal rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
-          <button
-            type="button"
-            aria-label="Previous question"
-            onClick={prevQuestion}
-            disabled={isFirstQuestion}
-            className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-white text-base font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            &lt;
-          </button>
-
-          <div className="min-w-0 flex-1 text-center">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-              Question {currentQuestionIndex + 1} / {sectionQuestionCount}
-            </div>
+      <div className="section-reveal rounded-[1.25rem] bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-center gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
+          <div className="min-w-0 w-full text-center">
             <div className="mt-1 flex items-center justify-center gap-2">
-              {currentQuestion.required ? <span className="rounded-full bg-[rgba(255,138,91,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[color:#a34722]">Required</span> : null}
-              {currentQuestion.linkedFrom ? <span className="rounded-full bg-[rgba(15,118,110,0.08)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">Linked</span> : null}
+              {currentQuestion.required ? <span className="rounded-full bg-[rgba(22,95,192,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[color:#165fc0]">Required</span> : null}
+              {currentQuestion.linkedFrom ? <span className="rounded-full bg-[rgba(22,95,192,0.1)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">Linked</span> : null}
             </div>
+            <div className="mx-auto">{renderCompactProgress()}</div>
           </div>
-
-          {isLastQuestionOverall ? (
-            <button
-              type="button"
-              aria-label="Submit for clinical review"
-              onClick={submitQuestionnaire}
-              disabled={!requiredComplete}
-              className={`focus-ring h-10 shrink-0 rounded-full px-3 text-xs font-semibold shadow-sm ${requiredComplete ? "border border-[var(--accent)] bg-[var(--accent)] text-white" : "cursor-not-allowed border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]"}`}
-            >
-              Submit
-            </button>
-          ) : (
-            <button
-              type="button"
-              aria-label="Next question"
-              onClick={nextQuestion}
-              className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[rgba(21,32,43,0.12)] bg-[var(--accent)] text-base font-semibold text-white shadow-sm"
-            >
-              &gt;
-            </button>
-          )}
         </div>
 
         <div className="mt-4 space-y-4 text-center">
           <div className="space-y-2">
             <label className="block text-2xl font-semibold leading-tight text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(currentQuestion.label)}</label>
             {currentQuestion.helpText ? <p className="mx-auto max-w-2xl text-sm leading-6 text-[color:var(--muted)]">{currentQuestion.helpText}</p> : null}
-            <p className="mx-auto max-w-2xl text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-              {momentumMessage}
-            </p>
           </div>
           <div>{renderQuestionInput(currentQuestion)}</div>
         </div>
 
-        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#a34722]">{validationMessage}</p> : null}
+        {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#165fc0]">{validationMessage}</p> : null}
       </div>
     );
   };
@@ -1577,7 +1547,7 @@ export function PatientWorkflow({
     const intro = getSectionIntro(section.id, section.title);
 
     return (
-      <div className="mx-auto flex min-h-[54vh] w-full max-w-3xl items-center justify-center rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(135deg,rgba(15,118,110,0.08),rgba(255,255,255,0.96))] p-5 text-center shadow-sm sm:p-8">
+      <div className="mx-auto flex min-h-[54vh] w-full max-w-3xl items-center justify-center rounded-[1.75rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(135deg,rgba(22,95,192,0.1),rgba(255,255,255,0.96))] p-5 text-center shadow-sm sm:p-8">
         <div className="w-full">
           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">{intro.kicker}</div>
           <h2 className="headline mt-2 text-2xl font-semibold leading-tight text-[color:var(--foreground)] sm:text-4xl">{intro.title}</h2>
@@ -1609,17 +1579,8 @@ export function PatientWorkflow({
             </div>
           </div>
 
-          <div className="mx-auto mt-6 flex w-full max-w-md flex-col gap-3">
-            <button
-              type="button"
-              onClick={nextQuestion}
-              className="focus-ring rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-sm"
-            >
-              {intro.buttonLabel}
-            </button>
-            <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
-              {intro.summary} You have completed {completedSectionsCount} of {totalRenderableSections} sections.
-            </div>
+          <div className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-[rgba(21,32,43,0.08)] bg-white px-4 py-3 text-xs leading-6 text-[color:var(--foreground)]">
+            {intro.summary} You have completed {completedSectionsCount} of {totalRenderableSections} sections.
           </div>
         </div>
       </div>
@@ -1629,10 +1590,6 @@ export function PatientWorkflow({
   const renderCurrentPanel = () => {
     if (isRedFlagSection) {
       return renderRedFlagSection();
-    }
-
-    if (isSectionIntro) {
-      return renderSectionIntro();
     }
 
     return renderQuestionPage();
@@ -1652,138 +1609,121 @@ export function PatientWorkflow({
           </button>
         ) : null}
 
-        <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] shadow-[0_24px_80px_rgba(21,32,43,0.12)]">
-        <div className="relative overflow-hidden bg-[linear-gradient(135deg,rgba(15,118,110,0.16),rgba(255,138,91,0.14)_55%,rgba(255,255,255,0.65))] p-6 sm:p-8 lg:p-10">
-          <div className="absolute left-0 top-0 h-full w-full opacity-60 [background-image:linear-gradient(120deg,rgba(15,118,110,0.16)_0_12px,transparent_12px_32px),linear-gradient(60deg,rgba(255,138,91,0.16)_0_10px,transparent_10px_30px)]" />
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            {celebrationConfetti.map((piece) => (
-              <span
-                key={`${piece.left}-${piece.delay}`}
-                className="confetti-piece"
-                style={{
-                  "--confetti-left": piece.left,
-                  "--confetti-delay": piece.delay,
-                  "--confetti-color": piece.color,
-                  "--confetti-size": piece.size,
-                  "--confetti-drift": piece.drift,
-                  "--confetti-rotate": piece.rotate,
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-          <div className="pointer-events-none absolute right-6 top-6 hidden h-28 w-28 rounded-full border border-white/70 bg-white/35 shadow-[0_18px_40px_rgba(15,118,110,0.16)] backdrop-blur sm:block" aria-hidden="true">
-            <div className="absolute inset-4 rounded-full border border-[rgba(15,118,110,0.16)]" />
-            <div className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[rgba(15,118,110,0.12)]" />
-          </div>
-          <div className="relative grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+        <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-[var(--accent)] shadow-sm">
-                Cheers, {patientDisplayName}
-              </span>
-              <h1 className="headline mt-4 max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">
-                Congratulations, your health story is ready for the doctor.
+              <p className="text-sm font-semibold text-[var(--accent)]">Thank you, {patientDisplayName}</p>
+              <h1 className="headline mt-1 text-2xl font-semibold text-[color:var(--foreground)] sm:text-3xl">
+                Questionnaire completed
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-8 text-[color:var(--foreground)]">
-                Thank you for completing this before the consultation. Your answers give the doctor a faster, clearer starting point so the visit can focus on decisions, reassurance, and next steps.
+              <p className="mt-1 text-sm text-[color:var(--muted)]">
+                Your doctor can review this before the consultation.
               </p>
             </div>
+            <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]">
+              Ready for review
+            </span>
+          </div>
 
-            <div className="grid grid-cols-3 gap-2 rounded-[1.5rem] bg-white/80 p-3 shadow-sm backdrop-blur">
-              <div className="rounded-2xl bg-[rgba(15,118,110,0.08)] p-3 text-center">
-                <div className="headline text-3xl font-semibold text-[var(--accent)]">{answeredForSummary}</div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">answers captured</div>
-              </div>
-              <div className="rounded-2xl bg-[rgba(255,138,91,0.12)] p-3 text-center">
-                <div className="headline text-3xl font-semibold text-[color:#a34722]">8-10</div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">minutes prepared</div>
-              </div>
-              <div className="rounded-2xl bg-[rgba(21,32,43,0.04)] p-3 text-center">
-                <div className="headline text-3xl font-semibold text-[color:var(--foreground)]">{redFlagTriggered ? "Yes" : "Clear"}</div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">red flag screen</div>
-              </div>
+          <div className="mt-3 rounded-xl bg-[rgba(22,95,192,0.1)] px-3 py-2.5 text-sm font-medium text-[#1b4f8e]">
+            Sit back and relax. Your doctor will get back to you.
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-xl bg-[rgba(22,95,192,0.12)] px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Answers</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--accent)]">{answeredForSummary}</div>
             </div>
-
-            <div className="relative mt-3 h-24 overflow-hidden rounded-2xl border border-white/70 bg-white/85 sm:h-28">
-              <Image
-                src="/illustrations/completion-bloom.svg"
-                alt="Celebration bloom illustration"
-                fill
-                sizes="(max-width: 1024px) 100vw, 32vw"
-                className="object-cover"
-              />
+            <div className="rounded-xl bg-[rgba(21,32,43,0.04)] px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Safety flags</div>
+              <div className="mt-1 text-lg font-semibold text-[color:var(--foreground)]">{redFlagTriggered ? "Yes" : "None"}</div>
+            </div>
+            <div className="rounded-xl bg-[rgba(21,32,43,0.04)] px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">BMI</div>
+              <div className="mt-1 text-lg font-semibold text-[color:var(--foreground)]">{resolvedBmi ?? "Pending"}</div>
             </div>
           </div>
-        </div>
 
-        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[0.92fr_1.08fr] lg:p-8">
-          <section className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">What your doctor can now see</div>
-            <div className="mt-4 space-y-3">
-              {doctorReadyItems.map((item) => (
-                <div key={item} className="flex gap-3 rounded-2xl bg-[rgba(15,118,110,0.05)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
-                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" />
-                  <span>{item}</span>
-                </div>
-              ))}
+          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Main concern</span>
+              <p className="mt-1 font-medium text-[color:var(--foreground)]">{concernSummary}</p>
             </div>
-
-            <div className="mt-5 rounded-2xl border border-[rgba(255,138,91,0.22)] bg-[rgba(255,138,91,0.1)] p-4 text-sm leading-6 text-[color:var(--foreground)]">
-              This helps reduce repeat history-taking and gives both you and the doctor more room for the actual consultation conversation.
+            <div className="rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Pain score</span>
+              <p className="mt-1 font-medium text-[color:var(--foreground)]">{painScoreSummary}</p>
             </div>
-          </section>
-
-          <section className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Visit summary</div>
-                <div className="mt-1 text-xs text-[color:var(--muted)]">Session ID: {sessionId}</div>
-              </div>
-              <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]">
-                Ready for review
-              </div>
+            <div className="rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Duration</span>
+              <p className="mt-1 font-medium text-[color:var(--foreground)]">{durationSummary}</p>
             </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Patient</div>
-                <div className="mt-1 font-semibold text-[color:var(--foreground)]">{summarizeAnswer(answers.patientName)}</div>
-              </div>
-              <div className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">BMI</div>
-                <div className="mt-1 font-semibold text-[color:var(--foreground)]">{resolvedBmi ?? "Pending"}</div>
-              </div>
-              {submittedSummaryCards.map((item) => (
-                <div key={item.label} className="rounded-2xl bg-[rgba(21,32,43,0.03)] px-4 py-3 text-sm sm:col-span-2">
-                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{item.label}</div>
-                  <div className="mt-1 font-semibold leading-6 text-[color:var(--foreground)]">{item.value}</div>
-                </div>
-              ))}
+            <div className="rounded-xl bg-[rgba(21,32,43,0.03)] px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goal</span>
+              <p className="mt-1 font-medium text-[color:var(--foreground)]">{goalSummary}</p>
             </div>
+          </div>
 
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-4 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.02)] px-3 py-3">
+            <p className="text-sm font-semibold text-[color:var(--foreground)]">
+              Do you want to upload any documents?
+            </p>
+            <p className="mt-1 text-xs text-[color:var(--muted)]">
+              You can upload scans or reports now, or do it later from your dashboard.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => {
-                  setSubmitted(false);
-                  saveDraft(false);
+                  if (typeof window !== "undefined") {
+                    window.location.href = `/patient/upload/${encodeURIComponent(sessionId)}`;
+                  }
                 }}
-                className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2.5 text-sm font-semibold"
+                className="focus-ring rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
               >
-                Edit answers
+                Yes, upload documents
               </button>
-              <div className="rounded-full bg-[rgba(15,118,110,0.06)] px-4 py-2.5 text-sm font-semibold text-[var(--accent)]">
-                Thank you. We will take it from here.
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.location.href = "/patient";
+                  }
+                }}
+                className="focus-ring rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)]"
+              >
+                No, go to dashboard
+              </button>
             </div>
-          </section>
-        </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden pb-16 sm:pb-20">
+      {finalizingSubmission ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(21,32,43,0.48)] p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 text-center shadow-[0_24px_70px_rgba(21,32,43,0.28)] sm:p-6">
+            <div className="mx-auto relative h-14 w-14">
+              <div className="absolute inset-0 rounded-full border-4 border-[#c8def7]" />
+              <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#165fc0] border-r-[#165fc0]" />
+              <div className="absolute inset-0 grid place-items-center">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e2efff] text-[#165fc0] shadow-[0_8px_16px_rgba(22,95,192,0.2)]">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 animate-pulse">
+                    <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm4.6 9h-3.2V7.8a1.4 1.4 0 0 0-2.8 0V11H7.4a1.4 1.4 0 0 0 0 2.8h3.2V17a1.4 1.4 0 0 0 2.8 0v-3.2h3.2a1.4 1.4 0 0 0 0-2.8Z" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+            <h3 className="headline mt-4 text-xl font-semibold text-[color:var(--foreground)]">Preparing your doctor summary</h3>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
+              Please wait while we generate and save your AI pre-consult summary.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {sectionTransition && transitionFromSection && transitionToSection && transitionToVisual ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(21,32,43,0.42)] p-4 backdrop-blur-[2px]">
           <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/70 bg-white p-5 shadow-[0_26px_80px_rgba(21,32,43,0.22)] sm:p-6">
@@ -1805,7 +1745,7 @@ export function PatientWorkflow({
             </div>
 
             <div className="relative">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(15,118,110,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(22,95,192,0.12)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
                 <span aria-hidden="true">🎉</span>
                 Section completed
               </div>
@@ -1819,7 +1759,7 @@ export function PatientWorkflow({
               </p>
 
               {transitionShortSection ? (
-                <div className="mt-3 rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
+                <div className="mt-3 rounded-2xl border border-[rgba(22,95,192,0.18)] bg-[rgba(22,95,192,0.08)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
                   Great job. This shorter section gives the doctor a quick, high-signal snapshot and keeps the questionnaire moving.
                 </div>
               ) : null}
@@ -1835,20 +1775,13 @@ export function PatientWorkflow({
                 <p className="mt-2 text-sm leading-6 text-[color:var(--foreground)]">{transitionToVisual.spotlight}</p>
               </div>
 
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  className="focus-ring rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]"
-                  onClick={() => setSectionTransition(null)}
-                >
-                  Stay here
-                </button>
+              <div className="mt-5 flex justify-end">
                 <button
                   type="button"
                   className="focus-ring rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white"
                   onClick={() => {
                     setSectionIndex(sectionTransition.to);
-                    setQuestionIndex(-1);
+                    setQuestionIndex(0);
                     setSectionTransition(null);
                   }}
                 >
@@ -1871,51 +1804,48 @@ export function PatientWorkflow({
         </button>
       ) : null}
 
-      <section ref={questionAreaRef} className="rounded-[1.1rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-3.5 shadow-[0_20px_60px_rgba(21,32,43,0.12)] sm:rounded-[1.75rem] sm:p-4 lg:p-8">
-        <div className="rounded-2xl border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(135deg,rgba(15,118,110,0.08),rgba(255,255,255,0.94))] p-3 shadow-sm sm:p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">Care journey progress</div>
-              <div className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">
-                {overallCompletionPercent}% complete • {completedSectionsCount}/{totalRenderableSections} sections completed
-              </div>
-              <p className="mt-1 text-xs text-[color:var(--muted)]">{momentumMessage}</p>
-            </div>
-            <div className="milestone-pill inline-flex rounded-full border border-[rgba(15,118,110,0.18)] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-              {milestoneMessage}
-            </div>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(21,32,43,0.08)]">
-            <div className="progress-shimmer h-full rounded-full bg-[linear-gradient(90deg,var(--accent),#16a394)]" style={{ width: `${overallCompletionPercent}%` }} />
-          </div>
-        </div>
-
+      <section ref={questionAreaRef} className="flex min-h-0 flex-1 flex-col rounded-[1.1rem] bg-[rgba(255,255,255,0.72)] p-3.5 sm:rounded-[1.75rem] sm:p-4 lg:p-8">
         {redFlagTriggered && section.id === "red-flags" ? (
-          <div className="mt-4 rounded-xl border border-[rgba(255,138,91,0.24)] bg-[rgba(255,138,91,0.12)] p-3 text-xs leading-6 text-[color:var(--foreground)]">
+          <div className="rounded-xl border border-[rgba(22,95,192,0.24)] bg-[rgba(22,95,192,0.12)] p-3 text-xs leading-6 text-[color:var(--foreground)]">
             One or more red flags are positive. The clinic should review this case before continuing routine intake.
           </div>
         ) : null}
 
-        <div className="mt-4">
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
           {renderCurrentPanel()}
         </div>
 
       </section>
 
-        <div className="pt-1">
-          {!requiredComplete ? (
-            <p className="mb-2 text-xs text-[color:var(--muted)]">
-              You are close. Complete required answers to finish this journey. Remaining: {missingRequiredQuestions.length}
-            </p>
-          ) : !hasConsent ? (
-            <p className="mb-2 text-xs text-[color:var(--muted)]">
-              Final step: accept the consent statement in the last section to submit confidently.
-            </p>
-          ) : null}
-          <p className="text-xs font-medium text-[color:var(--muted)]">
-            Draft autosaves while you answer, so you can resume anytime from this same session link.
-          </p>
-        </div>
+      {!sectionTransition ? (
+        <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-[rgba(21,32,43,0.1)] bg-white/96 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3 lg:px-8">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
+            <button
+              type="button"
+              aria-label="Previous question"
+              onClick={prevQuestion}
+              disabled={isFirstQuestion}
+              className="focus-ring inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-4 text-sm font-semibold text-[color:var(--foreground)] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-[rgba(21,32,43,0.04)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 sm:min-h-12"
+            >
+              <span aria-hidden="true">←</span>
+              <span>Previous</span>
+            </button>
+
+            <button
+              type="button"
+              aria-label={isLastQuestionOverall ? "Submit for clinical review" : "Next question"}
+              onClick={isLastQuestionOverall ? submitQuestionnaire : nextQuestion}
+              disabled={finalizingSubmission || (isLastQuestionOverall && !requiredComplete)}
+              className={`focus-ring inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-5 text-sm font-semibold shadow-sm transition duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:hover:translate-y-0 sm:min-h-12 ${isLastQuestionOverall ? (requiredComplete ? "bg-[var(--accent)] text-white hover:bg-[#0e54ab]" : "border border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.08)] text-[color:var(--muted)]") : "bg-[var(--accent)] text-white hover:bg-[#0e54ab]"}`}
+            >
+              <span>{isLastQuestionOverall ? "Submit" : "Next"}</span>
+              <span aria-hidden="true">{isLastQuestionOverall ? "✓" : "→"}</span>
+            </button>
+          </div>
+        </footer>
+      ) : null}
+
+
     </div>
   );
 }

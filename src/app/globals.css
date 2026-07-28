@@ -1,15 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3efe7;
-  --foreground: #15202b;
-  --muted: #607080;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-strong: #ffffff;
-  --border: rgba(21, 32, 43, 0.08);
-  --accent: #0f766e;
-  --accent-soft: #d9f0ec;
-  --accent-warm: #ff8a5b;
+  --background: #e8f3ff;
+  --foreground: #0b223d;
+  --muted: #365270;
+  --surface: rgba(244, 250, 255, 0.84);
+  --surface-strong: #f8fcff;
+  --border: rgba(26, 84, 156, 0.24);
+  --accent: #165fc0;
+  --accent-soft: #d8eaff;
+  --accent-warm: #3a97e0;
+  --theme-shadow-sm: 0 10px 26px rgba(19, 68, 128, 0.12);
+  --theme-shadow-md: 0 18px 48px rgba(19, 68, 128, 0.16);
+  --theme-shadow-lg: 0 28px 84px rgba(16, 53, 103, 0.2);
 }
 
 @theme inline {
@@ -30,9 +33,10 @@ html {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 30%),
-    radial-gradient(circle at right 15%, rgba(255, 138, 91, 0.15), transparent 25%),
-    linear-gradient(180deg, #fbfaf7 0%, var(--background) 100%);
+    radial-gradient(circle at 12% 10%, rgba(68, 172, 238, 0.22), transparent 34%),
+    radial-gradient(circle at 84% 0%, rgba(31, 111, 216, 0.2), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(135, 196, 255, 0.24), transparent 42%),
+    linear-gradient(180deg, #f7fbff 0%, var(--background) 52%, #e1eeff 100%);
   color: var(--foreground);
   font-family: var(--font-body), system-ui, sans-serif;
 }
@@ -43,20 +47,20 @@ a {
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.18);
+  background: rgba(31, 111, 216, 0.25);
 }
 
 .glass-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   backdrop-filter: blur(18px);
-  box-shadow: 0 24px 80px rgba(21, 32, 43, 0.1);
+  box-shadow: var(--theme-shadow-lg);
 }
 
 .hero-grid {
   background-image:
-    linear-gradient(rgba(21, 32, 43, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(21, 32, 43, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(16, 53, 103, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 53, 103, 0.04) 1px, transparent 1px);
   background-size: 36px 36px;
 }
 
@@ -66,7 +70,7 @@ a {
 }
 
 .subtle-shadow {
-  box-shadow: 0 12px 40px rgba(21, 32, 43, 0.08);
+  box-shadow: var(--theme-shadow-md);
 }
 
 .noise {
@@ -78,7 +82,7 @@ a {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(21, 32, 43, 0.045) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(16, 53, 103, 0.04) 1px, transparent 1px);
   background-size: 12px 12px;
   opacity: 0.4;
   mix-blend-mode: multiply;
@@ -112,7 +116,7 @@ a {
 
 .selected-answer {
   animation: answer-pop 360ms cubic-bezier(0.2, 0.85, 0.25, 1);
-  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.18);
+  box-shadow: 0 10px 24px rgba(31, 111, 216, 0.22);
 }
 
 .section-reveal {
@@ -163,10 +167,10 @@ a {
 @keyframes milestone-glow {
   0%,
   100% {
-    box-shadow: 0 0 0 rgba(15, 118, 110, 0);
+    box-shadow: 0 0 0 rgba(31, 111, 216, 0);
   }
   50% {
-    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+    box-shadow: 0 10px 24px rgba(31, 111, 216, 0.22);
   }
 }
 
@@ -196,6 +200,22 @@ a {
   }
 }
 
+@keyframes registration-person-breathe {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -2px;
+  }
+}
+
+.registration-illustration-person {
+  animation: registration-person-breathe 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .confetti-piece {
     animation: none;
@@ -206,6 +226,7 @@ a {
   .selected-answer,
   .section-reveal,
   .milestone-pill,
+  .registration-illustration-person,
   .progress-shimmer::after {
     animation: none;
   }
@@ -217,6 +238,213 @@ a {
 input, select, textarea, .focus-ring {
   min-width: 0;
   max-width: 100%;
+}
+
+/* Unify common utility-based surfaces around the blue theme. */
+.bg-white {
+  background-color: rgba(248, 252, 255, 0.94) !important;
+}
+
+.bg-gray-50,
+.bg-slate-50,
+.bg-zinc-50,
+.bg-neutral-50 {
+  background-color: #eff6ff !important;
+}
+
+.border-gray-100,
+.border-gray-200,
+.border-slate-100,
+.border-slate-200,
+.border-zinc-100,
+.border-zinc-200,
+.border-neutral-100,
+.border-neutral-200 {
+  border-color: rgba(42, 99, 170, 0.18) !important;
+}
+
+.text-gray-900,
+.text-slate-900,
+.text-zinc-900,
+.text-neutral-900 {
+  color: #0b223d !important;
+}
+
+.text-gray-800,
+.text-slate-800,
+.text-zinc-800,
+.text-neutral-800 {
+  color: #16385f !important;
+}
+
+.text-gray-700,
+.text-slate-700,
+.text-zinc-700,
+.text-neutral-700 {
+  color: #22476f !important;
+}
+
+.text-gray-600,
+.text-slate-600,
+.text-zinc-600,
+.text-neutral-600,
+.text-gray-500,
+.text-slate-500,
+.text-zinc-500,
+.text-neutral-500 {
+  color: #365270 !important;
+}
+
+/* Map teal-based utility classes to an accessible blue ramp for visual consistency. */
+.bg-teal-50 {
+  background-color: #e8f3ff !important;
+}
+
+.bg-teal-100 {
+  background-color: #d8eaff !important;
+}
+
+.bg-teal-200 {
+  background-color: #bfdcff !important;
+}
+
+.bg-teal-500,
+.bg-teal-600,
+.bg-teal-700 {
+  background-color: #165fc0 !important;
+}
+
+.hover\:bg-teal-500:hover,
+.hover\:bg-teal-600:hover,
+.hover\:bg-teal-700:hover {
+  background-color: #0f4e9f !important;
+}
+
+.text-teal-500,
+.text-teal-600,
+.text-teal-700,
+.text-teal-800,
+.text-teal-900 {
+  color: #165fc0 !important;
+}
+
+.border-teal-100,
+.border-teal-200,
+.border-teal-300,
+.border-teal-500,
+.border-teal-600 {
+  border-color: rgba(22, 95, 192, 0.34) !important;
+}
+
+.ring-teal-500,
+.focus\:ring-teal-500:focus,
+.focus-visible\:ring-teal-500:focus-visible {
+  --tw-ring-color: rgba(22, 95, 192, 0.5) !important;
+}
+
+.from-teal-50,
+.from-teal-100,
+.from-teal-500,
+.from-teal-600,
+.from-teal-700 {
+  --tw-gradient-from: #d8eaff var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(216 234 255 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-teal-50,
+.to-teal-100,
+.to-teal-500,
+.to-teal-600,
+.to-teal-700 {
+  --tw-gradient-to: #165fc0 var(--tw-gradient-to-position) !important;
+}
+
+.via-teal-100,
+.via-teal-500,
+.via-teal-600 {
+  --tw-gradient-stops: var(--tw-gradient-from), #3a97e0 var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+/* Remap non-blue utility color families to blue for full app consistency. */
+.bg-amber-50,
+.bg-amber-100,
+.bg-yellow-50,
+.bg-yellow-100,
+.bg-orange-50,
+.bg-orange-100,
+.bg-emerald-50,
+.bg-emerald-100,
+.bg-rose-50,
+.bg-rose-100 {
+  background-color: #e8f3ff !important;
+}
+
+.bg-amber-500,
+.bg-amber-600,
+.bg-yellow-500,
+.bg-yellow-600,
+.bg-orange-500,
+.bg-orange-600,
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-rose-500,
+.bg-rose-600 {
+  background-color: #1f6fd8 !important;
+}
+
+.text-amber-600,
+.text-amber-700,
+.text-amber-800,
+.text-yellow-600,
+.text-yellow-700,
+.text-yellow-800,
+.text-orange-700,
+.text-orange-800,
+.text-emerald-600,
+.text-emerald-700,
+.text-emerald-800,
+.text-rose-600,
+.text-rose-700,
+.text-rose-800 {
+  color: #0f4e9f !important;
+}
+
+.border-amber-200,
+.border-amber-300,
+.border-yellow-200,
+.border-yellow-300,
+.border-orange-200,
+.border-orange-300,
+.border-emerald-200,
+.border-emerald-300,
+.border-rose-200,
+.border-rose-300 {
+  border-color: rgba(22, 95, 192, 0.3) !important;
+}
+
+.hover\:bg-amber-50:hover,
+.hover\:bg-yellow-50:hover,
+.hover\:bg-orange-50:hover,
+.hover\:bg-emerald-50:hover,
+.hover\:bg-rose-50:hover {
+  background-color: #dcecff !important;
+}
+
+.hover\:bg-amber-700:hover,
+.hover\:bg-yellow-700:hover,
+.hover\:bg-orange-700:hover,
+.hover\:bg-emerald-700:hover,
+.hover\:bg-rose-700:hover {
+  background-color: #0e54ab !important;
+}
+
+.focus\:ring-amber-500:focus,
+.focus\:ring-yellow-500:focus,
+.focus\:ring-orange-500:focus,
+.focus\:ring-emerald-500:focus,
+.focus\:ring-rose-500:focus {
+  --tw-ring-color: rgba(22, 95, 192, 0.5) !important;
 }
 
 /* If you have any custom dropdown menus, constrain them to the viewport width */

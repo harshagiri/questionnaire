@@ -1,86 +1,282 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
+import { RegistrationActivityIllustration } from "@/components/registration-activity-illustration";
 import { registrationSections } from "@/lib/workflow-data";
+import type { WorkflowQuestion } from "@/lib/workflow-data";
 import { calculateBmi } from "@/lib/questionnaire";
 import type { PatientRecord } from "@/lib/portal-storage";
 
 type AnswerValue = string | number | boolean | string[];
 type AnswerMap = Record<string, AnswerValue>;
+type PinState = {
+  status: "idle" | "loading" | "success" | "error";
+  district?: string;
+  state?: string;
+  localities: string[];
+  message?: string;
+};
 
-const TOTAL_SECTIONS = registrationSections.length;
+const chapterLabels = [
+  "About you",
+  "Reach you",
+  "Your day",
+  "Health",
+  "Consent",
+];
+const fieldClass =
+  "focus-ring h-11 w-full rounded-md border border-[rgba(22,95,192,0.2)] bg-white px-3 text-[13px] text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)] sm:h-12 sm:px-3.5 sm:text-sm";
+const activityTypes = [
+  "sitting",
+  "standing",
+  "walking",
+  "manual",
+  "caregiving",
+  "varied",
+] as const;
+const healthGroups = [
+  ["Ongoing conditions", "healthConditionsStatus", "medicalHistory"],
+  ["Regular medicines", "medicineStatus", "currentMedicines"],
+  ["Drug allergies", "allergyStatus", "drugAllergies"],
+  ["Previous spine surgery", "spineSurgeryStatus", "spineSurgeryDetails"],
+  ["Other previous surgery", "otherSurgeryStatus", "otherSurgeries"],
+] as const;
 
-function ProgressBar({ current, total }: { current: number; total: number }) {
-  const pct = Math.round((current / total) * 100);
+function hasAnswer(value: AnswerValue | undefined) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return value !== undefined && value !== null;
+}
+
+function formatFeetInches(cm: number) {
+  const totalInches = Math.round(cm / 2.54);
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  return `${feet} ft ${inches} in`;
+}
+
+function FloatingInput({
+  label,
+  value,
+  onChange,
+  required = false,
+  suffix,
+  className = "",
+  ...props
+}: {
+  label: string;
+  value: string;
+  onChange: InputHTMLAttributes<HTMLInputElement>["onChange"];
+  required?: boolean;
+  suffix?: string;
+  className?: string;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "className">) {
+  const active = value.trim().length > 0;
+
   return (
-    <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6">
-      <div
-        className="bg-teal-600 h-1.5 rounded-full transition-all duration-500"
-        style={{ width: `${pct}%` }}
+    <div className="relative">
+      <input
+        {...props}
+        value={value}
+        onChange={onChange}
+        placeholder=" "
+        className={`${fieldClass} pt-5 pb-1.5 ${suffix ? "pr-12" : ""} ${className}`}
       />
+      <span
+        className={`pointer-events-none absolute left-3 text-[color:var(--muted)] transition-all ${active ? "top-1.5 text-[10px] font-semibold" : "top-1/2 -translate-y-1/2 text-[13px]"}`}
+      >
+        {label}
+        {required ? " *" : ""}
+      </span>
+      {suffix ? (
+        <span className="pointer-events-none absolute right-3 top-3.5 text-xs text-[color:var(--muted)]">
+          {suffix}
+        </span>
+      ) : null}
     </div>
   );
 }
 
-function PatientIdCard({ record }: { record: PatientRecord }) {
-  const [copied, setCopied] = useState(false);
-
-  function copy() {
-    navigator.clipboard.writeText(record.patientId).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+function isValid(question: WorkflowQuestion, answers: AnswerMap) {
+  const value = answers[question.id];
+  if (!hasAnswer(value)) return false;
+  if (question.type === "toggle") return value === true;
+  if (question.id === "phone")
+    return String(value).replace(/\D/g, "").length >= 10;
+  if (question.id === "pinCode") return /^\d{6}$/.test(String(value));
+  if (question.type === "number" || question.type === "range") {
+    const number = Number(value);
+    return (
+      Number.isFinite(number) &&
+      (question.min === undefined || number >= question.min) &&
+      (question.max === undefined || number <= question.max)
+    );
   }
+  return true;
+}
+
+function ChoiceGrid({
+  question,
+  value,
+  onChange,
+  compact = false,
+}: {
+  question: WorkflowQuestion;
+  value: AnswerValue | undefined;
+  onChange: (value: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`grid gap-2 ${compact ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}
+    >
+      {question.options?.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`focus-ring min-h-11 rounded-md border px-3 py-2 text-left text-[13px] font-semibold leading-5 transition sm:min-h-12 sm:py-2.5 sm:text-sm ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:border-[rgba(22,95,192,0.5)]"}`}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border text-[9px] ${selected ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.28)]"}`}
+              >
+                {selected ? "✓" : ""}
+              </span>
+              {option.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LanguageCloud({
+  question,
+  value,
+  onChange,
+}: {
+  question: WorkflowQuestion;
+  value: AnswerValue | undefined;
+  onChange: (value: string) => void;
+}) {
+  const cloudSizes = ["px-4 py-2", "px-5 py-2.5", "px-4 py-2.5"] as const;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-teal-100 mb-4">
-            <svg className="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Registration complete!</h1>
-          <p className="text-gray-500 mt-1">Welcome, {record.fullName}</p>
-        </div>
+    <div className="rounded-xl border border-[rgba(22,95,192,0.18)] bg-[linear-gradient(180deg,#f4f9ff_0%,#eaf4ff_100%)] p-3">
+      <div className="flex flex-wrap items-center gap-2.5">
+        {question.options?.map((option, index) => {
+          const selected = value === option.value;
+          const sizeClass = cloudSizes[index % cloudSizes.length];
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Your permanent patient ID</p>
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-mono font-bold text-teal-700 tracking-widest">{record.patientId}</span>
+          return (
             <button
-              onClick={copy}
-              className="ml-auto px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 text-sm font-medium hover:bg-teal-100 transition-colors"
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option.value)}
+              className={`focus-ring rounded-full border text-xs font-semibold transition sm:text-sm ${sizeClass} ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_6px_16px_rgba(22,95,192,0.18)]" : "border-[rgba(21,32,43,0.16)] bg-white text-[color:var(--foreground)] hover:border-[rgba(22,95,192,0.5)] hover:bg-[#f4f9ff]"}`}
             >
-              {copied ? "Copied!" : "Copy"}
+              {selected ? "✓ " : ""}
+              {option.label}
             </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Save this ID — you will need it for all future consultations.
-          </p>
-        </div>
-
-        <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 mb-6 space-y-1">
-          {record.age && <p><span className="font-medium">Age:</span> {record.age}</p>}
-          {record.gender && <p><span className="font-medium">Gender:</span> {record.gender}</p>}
-          {record.region && <p><span className="font-medium">Region:</span> {record.region}</p>}
-          {record.bmi && <p><span className="font-medium">BMI:</span> {record.bmi.toFixed(1)}</p>}
-        </div>
-
-        <div className="space-y-3">
-          <a
-            href="/patient"
-            className="block w-full text-center bg-teal-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-teal-700 transition-colors"
-          >
-            Back to dashboard
-          </a>
-          <p className="text-center text-xs text-gray-400">
-            Your patient ID is saved. Continue from your dashboard.
-          </p>
-        </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function OneRowTrafficChoice({
+  question,
+  value,
+  onChange,
+}: {
+  question: WorkflowQuestion;
+  value: AnswerValue | undefined;
+  onChange: (value: string) => void;
+}) {
+  const toneByIndex = [
+    {
+      dot: "bg-[#5a84bf]",
+      active: "border-[#9ec0e6] bg-[#eaf4ff] text-[#0f4e9f]",
+      idle: "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)]",
+    },
+    {
+      dot: "bg-[#d18a1f]",
+      active: "border-[#efc17a] bg-[#fff6e8] text-[#9b5a00]",
+      idle: "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)]",
+    },
+    {
+      dot: "bg-[#d92d20]",
+      active: "border-[#f1a6a1] bg-[#fff1f0] text-[#b42318]",
+      idle: "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)]",
+    },
+  ] as const;
+
+  return (
+    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+      {question.options?.map((option, index) => {
+        const selected = value === option.value;
+        const tone = toneByIndex[index] ?? toneByIndex[toneByIndex.length - 1];
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`focus-ring min-h-11 rounded-md border px-1.5 py-1.5 text-center text-[11px] font-semibold leading-4 transition sm:min-h-12 sm:px-2 sm:py-2 sm:text-xs ${selected ? tone.active : tone.idle}`}
+          >
+            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
+              <span>{option.label}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MultiSelect({
+  question,
+  value,
+  onChange,
+}: {
+  question: WorkflowQuestion;
+  value: AnswerValue | undefined;
+  onChange: (value: string[]) => void;
+}) {
+  const selected = Array.isArray(value) ? value : [];
+  return (
+    <div className="flex flex-wrap gap-2">
+      {question.options?.map((option) => {
+        const checked = selected.includes(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={checked}
+            onClick={() =>
+              onChange(
+                checked
+                  ? selected.filter((item) => item !== option.value)
+                  : [...selected, option.value],
+              )
+            }
+            className={`focus-ring rounded-full border px-3 py-2 text-xs font-semibold ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)]"}`}
+          >
+            {checked ? "✓ " : ""}
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -88,238 +284,281 @@ function PatientIdCard({ record }: { record: PatientRecord }) {
 export function PatientRegister() {
   const router = useRouter();
   const [sectionIndex, setSectionIndex] = useState(0);
-  const [answers, setAnswers] = useState<AnswerMap>({});
-  const [dobDraft, setDobDraft] = useState<{ day: string; month: string; year: string }>({ day: "", month: "", year: "" });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [registered, setRegistered] = useState<PatientRecord | null>(null);
-
-  const section = registrationSections[sectionIndex];
-
-  const bmi = useMemo(() => {
-    const h = Number(answers.heightCm);
-    const w = Number(answers.weightKg);
-    if (h > 0 && w > 0) return calculateBmi(w, h);
-    return null;
-  }, [answers.heightCm, answers.weightKg]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const rawProfile = window.localStorage.getItem("sei-patient-profile-latest");
-    if (!rawProfile) {
-      return;
-    }
-
+  const [answers, setAnswers] = useState<AnswerMap>(() => {
+    if (typeof window === "undefined") return {};
+    const raw = window.localStorage.getItem("sei-patient-profile-latest");
+    if (!raw) return {};
     try {
-      const profile = JSON.parse(rawProfile) as { fullName?: string; patientName?: string; phone?: string };
-      const resolvedFullName = String(profile.fullName ?? profile.patientName ?? "").trim();
-      const resolvedPhone = String(profile.phone ?? "").replace(/\D/g, "");
-
-      setAnswers((prev) => ({
-        ...prev,
-        ...(resolvedFullName && !prev.fullName ? { fullName: resolvedFullName } : {}),
-        ...(resolvedPhone && !prev.phone ? { phone: resolvedPhone } : {}),
-      }));
+      const profile = JSON.parse(raw) as {
+        fullName?: string;
+        patientName?: string;
+        phone?: string;
+      };
+      const fullName = String(
+        profile.fullName ?? profile.patientName ?? "",
+      ).trim();
+      const phone = String(profile.phone ?? "").replace(/\D/g, "");
+      return { ...(fullName ? { fullName } : {}), ...(phone ? { phone } : {}) };
     } catch {
       window.localStorage.removeItem("sei-patient-profile-latest");
+      return {};
     }
-  }, []);
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [editingHealth, setEditingHealth] = useState<string | null>(null);
+  const [pin, setPin] = useState<PinState>({ status: "idle", localities: [] });
+  const section = registrationSections[sectionIndex];
+  const questions = useMemo(
+    () =>
+      new Map(
+        registrationSections
+          .flatMap((item) => item.questions)
+          .map((question) => [question.id, question]),
+      ),
+    [],
+  );
+  const bmi = useMemo(
+    () =>
+      Number(answers.heightCm) > 0 && Number(answers.weightKg) > 0
+        ? calculateBmi(Number(answers.weightKg), Number(answers.heightCm))
+        : null,
+    [answers.heightCm, answers.weightKg],
+  );
 
   useEffect(() => {
-    const normalizedPhone = String(answers.phone ?? "").replace(/\D/g, "");
-    if (normalizedPhone.length < 10) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void handlePhoneLookup(normalizedPhone);
+    const phone = String(answers.phone ?? "").replace(/\D/g, "");
+    if (phone.length < 10) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        const { findPatientRecordByPhone } =
+          await import("@/lib/portal-storage");
+        const local = findPatientRecordByPhone(phone);
+        if (local?.fullName) {
+          setAnswers((current) => ({
+            ...current,
+            fullName: current.fullName || local.fullName,
+          }));
+          return;
+        }
+        const response = await fetch(
+          `/api/patient-register?phone=${encodeURIComponent(phone)}`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          record?: { fullName?: string } | null;
+        };
+        if (response.ok && payload.ok && payload.record?.fullName)
+          setAnswers((current) => ({
+            ...current,
+            fullName: current.fullName || payload.record?.fullName || "",
+          }));
+      } catch {
+        return;
+      }
     }, 250);
-
     return () => window.clearTimeout(timer);
   }, [answers.phone]);
 
-  function setValue(id: string, value: AnswerValue) {
-    setAnswers((prev) => ({ ...prev, [id]: value }));
-  }
-
   useEffect(() => {
-    const raw = String(answers.dateOfBirth ?? "");
-    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) {
-      return;
-    }
-
-    const next = {
-      year: match[1],
-      month: String(Number(match[2])),
-      day: String(Number(match[3])),
+    const pinCode = String(answers.pinCode ?? "").replace(/\D/g, "");
+    if (pinCode.length !== 6) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/pin-code/${pinCode}`, {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as {
+          ok?: boolean;
+          district?: string;
+          state?: string;
+          localities?: string[];
+          message?: string;
+        };
+        if (cancelled) return;
+        if (!response.ok || !data.ok) {
+          setPin({
+            status: "error",
+            localities: [],
+            message:
+              data.message ?? "PIN code not found. Enter your city manually.",
+          });
+          return;
+        }
+        setPin({
+          status: "success",
+          district: data.district,
+          state: data.state,
+          localities: data.localities ?? [],
+        });
+        setAnswers((current) => ({
+          ...current,
+          city: current.city || data.district || data.localities?.[0] || "",
+        }));
+      } catch {
+        if (!cancelled)
+          setPin({
+            status: "error",
+            localities: [],
+            message: "Lookup unavailable. Enter your city manually.",
+          });
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
     };
+  }, [answers.pinCode]);
 
-    setDobDraft((prev) =>
-      prev.year === next.year && prev.month === next.month && prev.day === next.day
-        ? prev
-        : next,
+  function setValue(id: string, value: AnswerValue) {
+    setAnswers((current) => ({ ...current, [id]: value }));
+    if (id === "pinCode")
+      setPin(
+        String(value).length === 6
+          ? { status: "loading", localities: [] }
+          : { status: "idle", localities: [] },
+      );
+    setError("");
+  }
+  function visibleRequired(item = section) {
+    return item.questions.filter(
+      (question) =>
+        question.required && (!question.showIf || question.showIf(answers)),
     );
-  }, [answers.dateOfBirth]);
-
-  function updateDob(next: { year: string; month: string; day: string }) {
-    setDobDraft(next);
-    if (next.year && next.month && next.day) {
-      setValue("dateOfBirth", `${next.year}-${next.month.padStart(2, "0")}-${next.day.padStart(2, "0")}`);
+  }
+  function chapterComplete(item = section) {
+    return visibleRequired(item).every((question) =>
+      isValid(question, answers),
+    );
+  }
+  function handleBack() {
+    if (sectionIndex === 0) router.push("/patient");
+    else {
+      setSectionIndex((value) => value - 1);
+      setEditingHealth(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+  function handleNext() {
+    const missing = visibleRequired().find(
+      (question) => !isValid(question, answers),
+    );
+    if (missing) {
+      setError(`Please complete “${missing.label}” before continuing.`);
+      document
+        .getElementById(`question-${missing.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-
-    setValue("dateOfBirth", "");
-  }
-
-  // When phone is entered, try to pre-fill name from existing appointment or patient record
-  async function handlePhoneLookup(phone: string) {
-    const normalized = phone.replace(/\D/g, "");
-    if (normalized.length < 10) return;
-
-    try {
-      // Check localStorage first (PatientRecord)
-      const { findPatientRecordByPhone } = await import("@/lib/portal-storage");
-      const existing = findPatientRecordByPhone(normalized);
-      if (existing?.fullName) {
-        setAnswers((prev) => ({
-          ...prev,
-          fullName: prev.fullName ? prev.fullName : existing.fullName,
-        }));
-        return;
-      }
-
-      const patientResponse = await fetch(`/api/patient-register?phone=${encodeURIComponent(normalized)}`, { cache: "no-store" });
-      const patientPayload = (await patientResponse.json()) as { ok?: boolean; record?: { fullName?: string } | null };
-      if (patientResponse.ok && patientPayload.ok && patientPayload.record?.fullName) {
-        setAnswers((prev) => ({
-          ...prev,
-          fullName: prev.fullName ? prev.fullName : (patientPayload.record!.fullName ?? ""),
-        }));
-        return;
-      }
-
-      // Check appointments API
-      const res = await fetch(`/api/appointments?phone=${encodeURIComponent(normalized)}`, { cache: "no-store" });
-      const data = (await res.json()) as { ok?: boolean; appointments?: Array<{ patientName?: string }> };
-      if (res.ok && data.ok && data.appointments?.[0]?.patientName) {
-        setAnswers((prev) => ({
-          ...prev,
-          fullName: prev.fullName ? prev.fullName : (data.appointments![0].patientName ?? ""),
-        }));
-      }
-    } catch {
-      // silently ignore
-    }
-  }
-
-  function canAdvance() {
-    const visibleRequired = (section?.questions ?? []).filter((q) => {
-      if (!q.required) return false;
-      if (q.showIf) return q.showIf(answers);
-      return true;
-    });
-    return visibleRequired.every((q) => {
-      const v = answers[q.id];
-      if (v === undefined || v === null || v === "") return false;
-      // consent toggles must explicitly be true
-      if (q.type === "toggle") return v === true;
-      return true;
-    });
-  }
-
-  function handleNext() {
-    if (sectionIndex < TOTAL_SECTIONS - 1) {
-      setSectionIndex((i) => i + 1);
+    setError("");
+    if (sectionIndex < registrationSections.length - 1) {
+      setSectionIndex((value) => value + 1);
+      setEditingHealth(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      handleSubmit();
-    }
+    } else void submit();
   }
 
-  function handleBack() {
-    if (sectionIndex > 0) setSectionIndex((i) => i - 1);
-    else router.push("/patient");
-  }
-
-  async function handleSubmit() {
+  async function submit() {
+    const submitStartedAt = Date.now();
     setSaving(true);
     setError("");
     try {
       const body = {
         fullName: String(answers.fullName ?? ""),
         phone: String(answers.phone ?? ""),
-        email: answers.email ? String(answers.email) : undefined,
-        dateOfBirth: answers.dateOfBirth ? String(answers.dateOfBirth) : undefined,
-        age: answers.dateOfBirth
-          ? Math.floor((Date.now() - new Date(String(answers.dateOfBirth)).getTime()) / (365.25 * 24 * 3600 * 1000))
-          : undefined,
-        gender: answers.gender ? String(answers.gender) : undefined,
-        heightCm: answers.heightCm ? Number(answers.heightCm) : undefined,
-        weightKg: answers.weightKg ? Number(answers.weightKg) : undefined,
+        age: Number(answers.age),
+        gender: String(answers.gender ?? ""),
+        heightCm: Number(answers.heightCm),
+        weightKg: Number(answers.weightKg),
         bmi: bmi ?? undefined,
-        region: answers.city ? String(answers.city) : undefined,
-        preferredLanguage: answers.preferredLanguage ? String(answers.preferredLanguage) : undefined,
-        dailyActivity: answers.occupation ? String(answers.occupation) : undefined,
-        comorbidities: Array.isArray(answers.medicalHistory) ? answers.medicalHistory : [],
-        currentMeds: answers.currentMedicines ? [String(answers.currentMedicines)] : [],
-        priorSurgery: Boolean(answers.priorSpineSurgery),
-        surgeryDetails: answers.spineSurgeryDetails ? String(answers.spineSurgeryDetails) : undefined,
-        // v4 extra fields passed through as JSON extras
+        region: String(answers.city ?? ""),
+        preferredLanguage: String(answers.preferredLanguage ?? ""),
+        dailyActivity: String(answers.dailyMovement ?? ""),
+        comorbidities: Array.isArray(answers.medicalHistory)
+          ? answers.medicalHistory
+          : [],
+        currentMeds:
+          answers.medicineStatus === "yes" && answers.currentMedicines
+            ? [String(answers.currentMedicines)]
+            : [],
+        priorSurgery: answers.spineSurgeryStatus === "yes",
+        surgeryDetails: answers.spineSurgeryDetails
+          ? String(answers.spineSurgeryDetails)
+          : undefined,
         extras: {
-          country: answers.country,
-          activityLevel: answers.activityLevel,
+          pinCode: answers.pinCode,
           smoking: answers.smoking,
           alcohol: answers.alcohol,
           drugAllergies: answers.drugAllergies,
           otherSurgeries: answers.otherSurgeries,
-          emergencyName: answers.emergencyName,
-          emergencyPhone: answers.emergencyPhone,
-          emergencyRelation: answers.emergencyRelation,
           consentClinicalCare: answers.consentClinicalCare,
           consentPrivacy: answers.consentPrivacy,
           consentRegistry: answers.consentRegistry,
         },
       };
-
       const response = await fetch("/api/patient-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      const payload = (await response.json()) as { ok: boolean; record?: PatientRecord; message?: string };
+      const payload = (await response.json()) as {
+        ok: boolean;
+        record?: PatientRecord;
+        message?: string;
+      };
       if (!response.ok || !payload.ok || !payload.record) {
         setError(payload.message ?? "Registration failed. Please try again.");
         return;
       }
-
-      // Persist locally too so dashboard can read without a DB call
+      const { savePatientRecord } = await import("@/lib/portal-storage");
+      const normalizedPhone = body.phone.replace(/\D/g, "");
+      savePatientRecord({
+        phone: normalizedPhone,
+        fullName: body.fullName,
+        age: body.age,
+        gender: body.gender,
+        heightCm: body.heightCm,
+        weightKg: body.weightKg,
+        bmi: body.bmi,
+        region: body.region,
+        preferredLanguage: body.preferredLanguage,
+        dailyActivity: body.dailyActivity,
+        comorbidities: body.comorbidities,
+        currentMeds: body.currentMeds,
+        profileExtras: body.extras,
+        priorSurgery: body.priorSurgery,
+        surgeryDetails: body.surgeryDetails,
+        consentClinicalCare: true,
+        consentPrivacy: true,
+        consentRegistry: body.extras.consentRegistry === true,
+        consentRecordedAt: new Date().toISOString(),
+        consentVersion: "registration-v1-2026-07-25",
+      });
       if (typeof window !== "undefined") {
-        const { savePatientRecord } = await import("@/lib/portal-storage");
-        savePatientRecord({
-          phone: body.phone.replace(/\D/g, ""),
-          fullName: body.fullName,
-          email: body.email,
-          age: body.age,
-          gender: body.gender,
-          heightCm: body.heightCm,
-          weightKg: body.weightKg,
-          bmi: body.bmi,
-          region: body.region,
-          preferredLanguage: body.preferredLanguage,
-          dailyActivity: body.dailyActivity,
-          comorbidities: body.comorbidities,
-          currentMeds: body.currentMeds,
-          priorSurgery: body.priorSurgery,
-          surgeryDetails: body.surgeryDetails,
+        window.localStorage.setItem(
+          "sei-patient-profile-latest",
+          JSON.stringify({
+            fullName: body.fullName,
+            patientName: body.fullName,
+            phone: normalizedPhone,
+          }),
+        );
+      }
+
+      const elapsed = Date.now() - submitStartedAt;
+      const remainingLoaderTime = 3000 - elapsed;
+      if (remainingLoaderTime > 0) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, remainingLoaderTime);
         });
       }
 
-      setRegistered(payload.record);
+      const questionnaireSessionId = `self-${payload.record.patientId}`;
+      router.push(
+        `/patient/consult/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(normalizedPhone)}`,
+      );
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -327,225 +566,710 @@ export function PatientRegister() {
     }
   }
 
-  if (registered) {
-    return <PatientIdCard record={registered} />;
+  function groupComplete(group: (typeof healthGroups)[number]) {
+    const status = answers[group[1]];
+    return (
+      hasAnswer(status) && (status !== "yes" || hasAnswer(answers[group[2]]))
+    );
+  }
+  function renderDetail(question: WorkflowQuestion) {
+    if (question.type === "multi-select")
+      return (
+        <MultiSelect
+          question={question}
+          value={answers[question.id]}
+          onChange={(value) => setValue(question.id, value)}
+        />
+      );
+    return (
+      <textarea
+        value={String(answers[question.id] ?? "")}
+        onChange={(event) => setValue(question.id, event.target.value)}
+        rows={3}
+        className={`${fieldClass} h-auto min-h-24 resize-y py-3`}
+        placeholder="Type here"
+      />
+    );
+  }
+
+  function AboutChapter() {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <div id="question-fullName" className="md:col-span-2">
+          <FloatingInput
+            label="Full name"
+            required
+            autoComplete="name"
+            value={String(answers.fullName ?? "")}
+            onChange={(event) => setValue("fullName", event.target.value)}
+            aria-label="Full name"
+          />
+        </div>
+        <div id="question-age">
+          <FloatingInput
+            label="Age in years"
+            required
+            inputMode="numeric"
+            type="number"
+            min={1}
+            max={120}
+            value={String(answers.age ?? "")}
+            onChange={(event) =>
+              setValue(
+                "age",
+                event.target.value === "" ? "" : Number(event.target.value),
+              )
+            }
+            aria-label="Age in years"
+          />
+        </div>
+        <div id="question-gender" className="md:col-span-2">
+          <label className="mb-2 block text-sm font-semibold">Gender *</label>
+          <ChoiceGrid
+            question={questions.get("gender")!}
+            value={answers.gender}
+            onChange={(value) => setValue("gender", value)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  function ContactChapter() {
+    return (
+      <div className="grid gap-5">
+        <div id="question-phone">
+          <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
+            <div className={`${fieldClass} flex items-center text-[#58736d]`}>
+              +91
+            </div>
+            <FloatingInput
+              label="Mobile number"
+              required
+              autoComplete="tel"
+              inputMode="tel"
+              value={String(answers.phone ?? "")}
+              onChange={(event) =>
+                setValue("phone", event.target.value.replace(/[^\d ]/g, ""))
+              }
+              aria-label="Mobile number"
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-[color:var(--muted)]">
+            Used for your profile and questionnaire progress.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div id="question-pinCode">
+            <FloatingInput
+              label="Six-digit PIN code"
+              autoComplete="postal-code"
+              inputMode="numeric"
+              maxLength={6}
+              value={String(answers.pinCode ?? "")}
+              onChange={(event) =>
+                setValue(
+                  "pinCode",
+                  event.target.value.replace(/\D/g, "").slice(0, 6),
+                )
+              }
+              aria-label="Six-digit PIN code"
+            />
+            <p className="mt-1.5 text-xs text-[color:var(--muted)]">
+              Optional. Enter if you want city suggestions.
+            </p>
+          </div>
+          <div id="question-city">
+            {pin.localities.length ? (
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-semibold text-[#6d817c]">
+                  City or locality *
+                </span>
+                <select
+                  value={String(answers.city ?? "")}
+                  onChange={(event) => setValue("city", event.target.value)}
+                  className={`${fieldClass} pt-5 pb-1.5`}
+                  aria-label="City or locality"
+                >
+                  <option value={pin.district}>{pin.district}</option>
+                  {pin.localities.map((locality) => (
+                    <option key={locality}>{locality}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <FloatingInput
+                label="City or locality"
+                required
+                autoComplete="address-level2"
+                value={String(answers.city ?? "")}
+                onChange={(event) => setValue("city", event.target.value)}
+                aria-label="City or locality"
+              />
+            )}
+          </div>
+        </div>
+        {pin.status === "loading" ? (
+          <p className="text-xs text-[#58736d]">Checking PIN code…</p>
+        ) : null}
+        {pin.status === "success" ? (
+          <p className="rounded-md border border-[#b8d8d0] bg-[#e8f4f0] px-3 py-2 text-xs font-semibold text-[#176b62]">
+            ✓ Found {pin.district}, {pin.state}. You can still edit the
+            locality.
+          </p>
+        ) : null}
+        {pin.status === "error" ? (
+          <p className="rounded-md border border-[rgba(22,95,192,0.24)] bg-[rgba(22,95,192,0.08)] px-3 py-2 text-xs text-[#0f4e9f]">
+            {pin.message}
+          </p>
+        ) : null}
+        <div id="question-preferredLanguage">
+          <label className="mb-2 block text-sm font-semibold">
+            Which language do you prefer? *
+          </label>
+          <LanguageCloud
+            question={questions.get("preferredLanguage")!}
+            value={answers.preferredLanguage}
+            onChange={(value) => setValue("preferredLanguage", value)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  function DayChapter() {
+    const movement = questions.get("dailyMovement")!;
+    const heightCmValue = Number(answers.heightCm);
+    const hasHeightValue = Number.isFinite(heightCmValue) && heightCmValue > 0;
+    const resolvedHeightCm =
+      hasHeightValue ? heightCmValue : 168;
+    const weightKgValue = Number(answers.weightKg);
+    const hasWeightValue = Number.isFinite(weightKgValue) && weightKgValue > 0;
+    const resolvedWeightKg = hasWeightValue ? weightKgValue : 70;
+    return (
+      <div className="grid gap-5">
+        <section className="rounded-lg border border-[rgba(22,95,192,0.16)] bg-white p-3 sm:p-4">
+          <h2 className="headline text-base font-semibold sm:text-lg">
+            Your measurements
+          </h2>
+          <div className="mt-3 grid gap-5 md:mt-4 md:grid-cols-2">
+            <div id="question-heightCm">
+              {hasHeightValue ? (
+                <p className="mb-2 text-[11px] text-[#5f7671] sm:text-xs">
+                  {resolvedHeightCm} cm • {formatFeetInches(resolvedHeightCm)}
+                </p>
+              ) : null}
+              <FloatingInput
+                label="Height"
+                required
+                inputMode="numeric"
+                type="number"
+                min={100}
+                max={250}
+                value={String(answers.heightCm ?? "")}
+                onChange={(event) =>
+                  setValue(
+                    "heightCm",
+                    event.target.value === "" ? "" : Number(event.target.value),
+                  )
+                }
+                suffix="cm"
+                aria-label="Height"
+              />
+              <input
+                aria-label="Adjust height in centimetres"
+                type="range"
+                min={100}
+                max={250}
+                value={resolvedHeightCm}
+                onChange={(event) =>
+                  setValue("heightCm", Number(event.target.value))
+                }
+                className="mt-2 block w-full accent-[var(--accent)]"
+              />
+            </div>
+            <div id="question-weightKg">
+              <FloatingInput
+                label="Weight"
+                required
+                inputMode="numeric"
+                type="number"
+                min={30}
+                max={200}
+                value={String(answers.weightKg ?? "")}
+                onChange={(event) =>
+                  setValue(
+                    "weightKg",
+                    event.target.value === "" ? "" : Number(event.target.value),
+                  )
+                }
+                suffix="kg"
+                aria-label="Weight"
+              />
+              <input
+                aria-label="Adjust weight in kilograms"
+                type="range"
+                min={30}
+                max={200}
+                value={resolvedWeightKg}
+                onChange={(event) =>
+                  setValue("weightKg", Number(event.target.value))
+                }
+                className="mt-2 block w-full accent-[var(--accent)]"
+              />
+            </div>
+          </div>
+          <div className="mt-3 rounded-md bg-[#e7f3ef] px-3 py-2 text-[13px] text-[#176b62] sm:mt-4 sm:text-sm">
+            BMI:{" "}
+            <strong>{bmi ? bmi.toFixed(1) : "Add height and weight"}</strong>
+          </div>
+        </section>
+        <section id="question-dailyMovement">
+          <h2 className="headline text-lg font-semibold leading-6 sm:text-xl">
+            How does most of your day feel physically? *
+          </h2>
+          <p className="mt-1 text-xs text-[color:var(--muted)]">
+            Choose the scene that comes closest. This is more useful than a job
+            title.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+            {movement.options?.map((option, index) => {
+              const selected = answers.dailyMovement === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setValue("dailyMovement", option.value)}
+                  className={`focus-ring overflow-hidden rounded-md border bg-white text-left ${selected ? "border-[var(--accent)] shadow-[0_0_0_2px_rgba(22,95,192,0.14)]" : "border-[rgba(21,32,43,0.14)]"}`}
+                >
+                  <span className="block h-24">
+                    <RegistrationActivityIllustration
+                      type={activityTypes[index]}
+                      selected={selected}
+                    />
+                  </span>
+                  <span className="flex min-h-11 items-center justify-between px-2.5 py-2 text-xs font-semibold text-[#31534e]">
+                    <span>{option.label}</span>
+                    {selected ? (
+                      <span className="grid h-5 w-5 place-items-center rounded-full bg-[var(--accent)] text-[10px] text-white">
+                        ✓
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+        <section className="grid gap-4 rounded-lg border border-[rgba(22,95,192,0.16)] bg-white p-4 md:grid-cols-2">
+          <div id="question-smoking">
+            <h2 className="mb-2 text-sm font-semibold">
+              Have you ever smoked? *
+            </h2>
+            <OneRowTrafficChoice
+              question={questions.get("smoking")!}
+              value={answers.smoking}
+              onChange={(value) => setValue("smoking", value)}
+            />
+          </div>
+          <div id="question-alcohol">
+            <h2 className="mb-2 text-sm font-semibold">
+              Do you currently drink alcohol? *
+            </h2>
+            <OneRowTrafficChoice
+              question={questions.get("alcohol")!}
+              value={answers.alcohol}
+              onChange={(value) => setValue("alcohol", value)}
+            />
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function HealthChapter() {
+    const firstIncomplete = healthGroups.find(
+      (group) => !groupComplete(group),
+    )?.[1];
+    const activeId = editingHealth ?? firstIncomplete;
+    return (
+      <div className="grid gap-2">
+        {healthGroups.map((group, index) => {
+          const [title, statusId, detailId] = group;
+          const complete = groupComplete(group);
+          const active = activeId === statusId;
+          const statusQuestion = questions.get(statusId)!;
+          const detailQuestion = questions.get(detailId)!;
+          const status = answers[statusId];
+          if (!active)
+            return (
+              <button
+                key={statusId}
+                type="button"
+                onClick={() => setEditingHealth(statusId)}
+                className="focus-ring flex min-h-16 items-center gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-white px-3 py-2 text-left"
+              >
+                <span
+                  className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${complete ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[#eef2f7] text-[#6a7d94]"}`}
+                >
+                  {complete ? "✓" : index + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block text-sm">{title}</strong>
+                  <span className="block truncate text-xs text-[color:var(--muted)]">
+                    {complete
+                      ? status === "yes"
+                        ? "Details added"
+                        : String(
+                            statusQuestion.options?.find(
+                              (option) => option.value === status,
+                            )?.label,
+                          )
+                      : "Up next"}
+                  </span>
+                </span>
+                {complete ? (
+                  <span className="text-xs font-semibold text-[var(--accent)]">
+                    Edit
+                  </span>
+                ) : null}
+              </button>
+            );
+          return (
+            <section
+              key={statusId}
+              id={`question-${statusId}`}
+              className="rounded-md border border-[#62a89f] bg-white shadow-[0_0_0_3px_rgba(33,135,124,0.08)]"
+            >
+              <div className="flex items-center gap-3 border-b border-[rgba(22,95,192,0.12)] px-4 py-3">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">
+                  {index + 1}
+                </span>
+                <div>
+                  <h2 className="text-sm font-semibold">{title}</h2>
+                  <p className="text-xs text-[color:var(--muted)]">
+                    Answer this now
+                  </p>
+                </div>
+              </div>
+              <div className="p-4">
+                <p className="mb-3 text-sm font-semibold">
+                  {statusQuestion.label}
+                </p>
+                <ChoiceGrid
+                  question={statusQuestion}
+                  value={status}
+                  onChange={(value) => {
+                    setValue(statusId, value);
+                    if (value !== "yes") setEditingHealth(null);
+                  }}
+                  compact
+                />
+                {status === "yes" ? (
+                  <div
+                    id={`question-${detailId}`}
+                    className="mt-4 border-t border-[rgba(22,95,192,0.12)] pt-4"
+                  >
+                    <p className="mb-3 text-sm font-semibold">
+                      {detailQuestion.label}
+                    </p>
+                    {renderDetail(detailQuestion)}
+                  </div>
+                ) : null}
+                {complete ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingHealth(null)}
+                    className="focus-ring mt-4 rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs font-semibold text-[var(--accent)]"
+                  >
+                    Save and open next
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+        <div className="mt-2 rounded-md bg-[#0f335e] px-4 py-3 text-white">
+          <p className="text-sm font-semibold">
+            {healthGroups.filter(groupComplete).length} clinical details
+            prepared
+          </p>
+          <p className="mt-0.5 text-xs text-[#c7d9d4]">
+            Your doctor can review these before the consultation.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  function ConsentChapter() {
+    const consentCard = (
+      id: "consentClinicalCare" | "consentPrivacy",
+      title: string,
+      summary: string,
+      points: string[],
+      label: string,
+    ) => (
+      <section
+        id={`question-${id}`}
+        className="rounded-lg border border-[rgba(21,32,43,0.14)] border-l-4 border-l-[var(--accent)] bg-white p-4"
+      >
+        <h2 className="headline text-lg font-semibold">{title}</h2>
+        <p className="mt-1.5 text-sm font-medium text-[#31534e]">{summary}</p>
+        <ul className="mt-2 grid gap-1 text-xs leading-5 text-[#5e7470]">
+          {points.map((point) => (
+            <li key={point} className="flex gap-2">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#7ea19a]" />
+              <span>{point}</span>
+            </li>
+          ))}
+        </ul>
+        <label className="mt-3 flex cursor-pointer gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-[#f4f9ff] p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={answers[id] === true}
+            onChange={(event) => setValue(id, event.target.checked)}
+            className="mt-0.5 h-5 w-5 accent-[var(--accent)]"
+          />
+          <span>{label} *</span>
+        </label>
+      </section>
+    );
+    return (
+      <div className="grid gap-4">
+        {consentCard(
+          "consentClinicalCare",
+          "Care consent",
+          "We need your information to safely treat you.",
+          [
+            "Used by your doctor and care team for consultation and follow-up.",
+            "Not shared for marketing or unrelated purposes.",
+          ],
+          "I agree to use my health information for treatment.",
+        )}
+        {consentCard(
+          "consentPrivacy",
+          "Privacy confirmation",
+          "Your records are protected and confidential.",
+          [
+            "Stored securely with access control.",
+            "Shared only when required for your care or legal obligations.",
+          ],
+          "I understand the privacy notice and agree.",
+        )}
+        <section className="rounded-lg border border-dashed border-[#a98aa2] bg-white p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="headline text-lg font-semibold">
+                Anonymised outcomes research
+              </h2>
+              <p className="mt-1.5 text-sm leading-6 text-[#5e7470]">
+                Optional. Saying no will not affect your care.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#f0e9ef] px-2 py-1 text-[10px] font-semibold text-[#7f5778]">
+              Optional
+            </span>
+          </div>
+          <label className="mt-3 flex cursor-pointer gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-[#f4f9ff] p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={answers.consentRegistry === true}
+              onChange={(event) =>
+                setValue("consentRegistry", event.target.checked)
+              }
+              className="mt-0.5 h-5 w-5 accent-[#8b5b83]"
+            />
+            <span>
+              I allow anonymised data for quality improvement and outcomes
+              research.
+            </span>
+          </label>
+        </section>
+      </div>
+    );
   }
 
   if (!section) return null;
+  const completed = registrationSections.map((item) => chapterComplete(item));
+  const chapterContent =
+    section.id === "reg-about"
+      ? AboutChapter()
+      : section.id === "reg-contact"
+        ? ContactChapter()
+        : section.id === "reg-day"
+          ? DayChapter()
+          : section.id === "reg-health"
+            ? HealthChapter()
+            : ConsentChapter();
+  const onConsentChapter = sectionIndex === registrationSections.length - 1;
+  const requiredConsentsAccepted =
+    answers.consentClinicalCare === true && answers.consentPrivacy === true;
+  const actionDisabled =
+    saving || (onConsentChapter && !requiredConsentsAccepted);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-white">
-      <div className="max-w-lg mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBack} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="flex-1">
-            <p className="text-xs text-gray-400 font-medium">Step {sectionIndex + 1} of {TOTAL_SECTIONS}</p>
-          </div>
-        </div>
-
-        <ProgressBar current={sectionIndex + 1} total={TOTAL_SECTIONS} />
-
-        {/* Section heading */}
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900">{section.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">{section.subtitle}</p>
-        </div>
-
-        {/* Questions */}
-        <div className="space-y-5">
-          {section.questions.map((q) => {
-            const showIf = q.showIf ? q.showIf(answers) : true;
-            if (!showIf) return null;
-
-            const value = answers[q.id];
-
-            if (q.type === "info-link" && q.id === "bmi") {
-              return (
-                <div key={q.id} className="bg-teal-50 border border-teal-100 rounded-xl p-4">
-                  <p className="text-xs font-medium text-teal-700 mb-1">BMI (auto-calculated)</p>
-                  <p className="text-2xl font-bold text-teal-800">
-                    {bmi ? bmi.toFixed(1) : "—"}
-                  </p>
-                  {bmi && (
-                    <p className="text-xs text-teal-600 mt-0.5">
-                      {bmi < 18.5 ? "Underweight" : bmi < 25 ? "Normal weight" : bmi < 30 ? "Overweight" : "Obese"}
-                    </p>
-                  )}
-                </div>
-              );
-            }
-
-            if (q.type === "toggle") {
-              return (
-                <div key={q.id} className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
-                  <span className="text-sm text-gray-700 pr-4">{q.label}</span>
-                  <button
-                    role="switch"
-                    aria-checked={Boolean(value)}
-                    onClick={() => setValue(q.id, !value)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${Boolean(value) ? "bg-teal-600" : "bg-gray-200"}`}
+    <main className="h-screen overflow-hidden bg-[#edf5f1] text-[#173d38] lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+      {saving ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-[rgba(237,245,241,0.9)] backdrop-blur-sm">
+          <div className="w-[min(90vw,320px)] rounded-2xl border border-[rgba(22,95,192,0.16)] bg-white px-5 py-6 text-center shadow-[0_24px_70px_rgba(16,53,103,0.16)]">
+            <div className="relative mx-auto h-20 w-20">
+              <div className="absolute inset-0 rounded-full border-4 border-[#d6ebe6]" />
+              <div className="absolute inset-2 animate-ping rounded-full bg-[#dff4ef]/70" />
+              <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[var(--accent)] border-r-[var(--accent)]" />
+              <div className="absolute inset-0 grid place-items-center">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_8px_16px_rgba(22,95,192,0.2)]">
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="h-6 w-6 animate-pulse"
                   >
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5 ${Boolean(value) ? "translate-x-5" : "translate-x-0.5"}`} />
-                  </button>
-                </div>
-              );
-            }
-
-            if (q.type === "select" || q.type === "radio") {
-              return (
-                <div key={q.id}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {q.label}{q.required && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-                  <select
-                    value={String(value ?? "")}
-                    onChange={(e) => setValue(q.id, e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select…</option>
-                    {q.options?.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-              );
-            }
-
-            if (q.type === "multi-select") {
-              const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
-              return (
-                <div key={q.id}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">{q.label}</label>
-                  <div className="space-y-2">
-                    {q.options?.map((opt) => {
-                      const checked = selected.includes(opt.value);
-                      return (
-                        <label key={opt.value} className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${checked ? "border-teal-500 bg-teal-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              const next = checked ? selected.filter((v) => v !== opt.value) : [...selected, opt.value];
-                              setValue(q.id, next);
-                            }}
-                            className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                          />
-                          <span className="text-sm text-gray-700">{opt.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            }
-
-            if (q.type === "textarea") {
-              return (
-                <div key={q.id}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">{q.label}</label>
-                  <textarea
-                    value={String(value ?? "")}
-                    onChange={(e) => setValue(q.id, e.target.value)}
-                    rows={3}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-                    placeholder="Type here…"
-                  />
-                </div>
-              );
-            }
-
-            // ── Special: Date of Birth — Day / Month / Year dropdowns ──────────
-            if (q.type === "date" && q.id === "dateOfBirth") {
-              const selYear = dobDraft.year;
-              const selMonth = dobDraft.month;
-              const selDay = dobDraft.day;
-
-              const currentYear = new Date().getFullYear();
-              const years = Array.from({ length: 101 }, (_, i) => currentYear - i);
-              const months = [
-                "January","February","March","April","May","June",
-                "July","August","September","October","November","December",
-              ];
-              const daysInMonth = selYear && selMonth
-                ? new Date(Number(selYear), Number(selMonth), 0).getDate()
-                : 31;
-              const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-              return (
-                <div key={q.id}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {q.label}<span className="text-red-500 ml-1">*</span>
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <select
-                      value={selDay}
-                      onChange={(e) => updateDob({ year: selYear, month: selMonth, day: e.target.value })}
-                      className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="">Day</option>
-                      {days.map((d) => <option key={d} value={String(d)}>{d}</option>)}
-                    </select>
-                    <select
-                      value={selMonth}
-                      onChange={(e) => updateDob({ year: selYear, month: e.target.value, day: selDay })}
-                      className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="">Month</option>
-                      {months.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
-                    </select>
-                    <select
-                      value={selYear}
-                      onChange={(e) => updateDob({ year: e.target.value, month: selMonth, day: selDay })}
-                      className="border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="">Year</option>
-                      {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
-                    </select>
-                  </div>
-                </div>
-              );
-            }
-
-            // text / tel / number / date (fallback)
-            return (
-              <div key={q.id}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {q.label}{q.required && <span className="text-red-500 ml-1">*</span>}
-                </label>
-                <input
-                  type={q.type === "number" ? "number" : q.type === "tel" ? "tel" : "text"}
-                  value={String(value ?? "")}
-                  onChange={(e) => setValue(q.id, q.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
-                  onBlur={q.id === "phone" ? (e) => handlePhoneLookup(e.target.value) : undefined}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder={q.type === "tel" ? "10-digit mobile number" : ""}
-                />
+                    <path
+                      fill="currentColor"
+                      d="M12 21c-.26 0-.52-.09-.73-.28l-6.8-6.17a4.75 4.75 0 0 1-.23-6.79 4.9 4.9 0 0 1 6.87-.22L12 8.41l.9-.87a4.9 4.9 0 0 1 6.87.22 4.75 4.75 0 0 1-.23 6.79l-6.8 6.17c-.22.2-.48.28-.74.28Z"
+                    />
+                    <path fill="#ffffff" d="M11 9h2v6h-2z" />
+                    <path fill="#ffffff" d="M9 11h6v2H9z" />
+                  </svg>
+                </span>
               </div>
-            );
-          })}
-        </div>
-
-        {error && (
-          <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700">
-            {error}
+            </div>
+            <p className="mt-4 text-sm font-semibold text-[#244740]">
+              Preparing your care questionnaire...
+            </p>
+            <div className="mt-2 flex items-center justify-center gap-1.5" aria-hidden="true">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]" />
+              <span
+                className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]"
+                style={{ animationDelay: "120ms" }}
+              />
+              <span
+                className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]"
+                style={{ animationDelay: "240ms" }}
+              />
+            </div>
+            <p className="mt-1 text-xs text-[#6a7f7a]">Almost there</p>
           </div>
-        )}
-
-        <div className="mt-8">
-          <button
-            onClick={handleNext}
-            disabled={!canAdvance() || saving}
-            className="w-full bg-teal-600 text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? "Saving…" : sectionIndex < TOTAL_SECTIONS - 1 ? "Next" : "Complete registration"}
-          </button>
         </div>
+      ) : null}
+      <aside className="hidden h-screen overflow-y-auto bg-[#0f335e] px-5 py-8 text-white lg:block">
+        <p className="headline text-xl font-semibold">SpineExpert</p>
+        <p className="mt-2 text-xs leading-5 text-[#bfd3ce]">
+          Build your care profile
+          <br />
+          About 4–6 minutes
+        </p>
+        <nav className="mt-8 grid gap-2" aria-label="Registration chapters">
+          {registrationSections.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => index <= sectionIndex && setSectionIndex(index)}
+              className={`focus-ring flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-xs ${index === sectionIndex ? "border-[#8bcfff] bg-white/10 text-white" : "border-white/15 text-[#d5e8ff]"}`}
+            >
+              <span>{completed[index] ? "✓" : index + 1}</span>
+              <span>{chapterLabels[index]}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <div className="min-w-0 h-screen overflow-y-auto pb-20 sm:pb-24">
+        <header className="sticky top-0 z-20 flex h-11 items-center justify-between border-b border-[rgba(22,95,192,0.14)] bg-white px-3 sm:h-14 sm:px-4 lg:px-8">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="focus-ring rounded-md px-1.5 py-1.5 text-[10px] font-semibold text-[#496b65] sm:px-2 sm:py-2 sm:text-xs"
+          >
+            ← Back
+          </button>
+          <span className="headline text-sm font-semibold sm:text-base lg:hidden">
+            SpineExpert
+          </span>
+          <span className="text-[10px] text-[#627a75] sm:text-xs">
+            Need help?
+          </span>
+        </header>
+        <section className="sticky top-11 z-10 bg-[#0f335e] px-3 py-2 text-white sm:top-14 sm:px-4 sm:py-3 lg:hidden">
+          <div className="flex items-center justify-between text-[9px] text-[#d5e8ff] sm:text-[10px]">
+            <span>YOUR CARE PROFILE</span>
+            <span>{completed.filter(Boolean).length} chapters ready</span>
+          </div>
+          <div className="mt-2 rounded-xl border border-white/15 bg-white/5 px-2 py-2.5">
+            <div className="relative">
+              <div className="absolute left-4 right-4 top-4 h-[2px] bg-white/20" />
+              <div className="relative flex items-start justify-between gap-1">
+                {chapterLabels.map((label, index) => {
+                  const isDone = completed[index];
+                  const isCurrent = index === sectionIndex;
+                  const isReachable = index <= sectionIndex;
+
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      disabled={!isReachable}
+                      onClick={() => isReachable && setSectionIndex(index)}
+                      className="focus-ring flex min-w-0 flex-1 flex-col items-center gap-1 disabled:cursor-not-allowed"
+                      aria-current={isCurrent ? "step" : undefined}
+                    >
+                      <span
+                        className={`grid h-8 w-8 place-items-center rounded-full border text-[11px] font-bold transition ${isCurrent ? "border-[#8bcfff] bg-[#8bcfff] text-[#0f335e] shadow-[0_0_0_3px_rgba(139,207,255,0.24)]" : isDone ? "border-white/45 bg-white/20 text-white" : "border-white/25 bg-white/10 text-[#d5e8ff]"}`}
+                      >
+                        {isCurrent ? "●" : isDone ? "✓" : index + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+        <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4 sm:py-6 md:px-8 md:py-10">
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[var(--accent)] sm:text-[10px]">
+            Chapter {sectionIndex + 1} of {registrationSections.length}
+          </p>
+          <h1 className="headline mt-1.5 text-2xl font-semibold sm:mt-2 sm:text-3xl md:text-4xl">
+            {section.title}
+          </h1>
+          <p className="mt-1.5 max-w-xl text-[13px] leading-5 text-[color:var(--muted)] sm:mt-2 sm:text-sm sm:leading-6">
+            {section.subtitle}
+          </p>
+          <div className="mt-4 sm:mt-6">{chapterContent}</div>
+          {error ? (
+            <div
+              role="alert"
+              className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700 sm:text-sm"
+            >
+              {error}
+            </div>
+          ) : null}
+        </div>
+        <footer className="fixed bottom-0 left-0 right-0 z-20 flex min-h-16 items-center gap-2 border-t border-[rgba(22,95,192,0.16)] bg-white/95 px-3 py-2 backdrop-blur sm:min-h-18 sm:gap-3 sm:px-4 sm:py-3 lg:left-[240px] lg:px-8">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold text-[#31534e] sm:text-xs">
+              {completed.filter(Boolean).length} of 5 chapters ready
+            </p>
+            <p className="text-[9px] text-[#718580] sm:text-[10px]">
+              {onConsentChapter && !requiredConsentsAccepted
+                ? "Select Care consent and Privacy confirmation to enable register"
+                : "Your information remains private"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={actionDisabled}
+            className="focus-ring min-h-11 shrink-0 rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-white hover:bg-[#0e54ab] disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
+          >
+            {saving
+              ? "Registering…"
+              : sectionIndex === registrationSections.length - 1
+                ? "Agree & register"
+                : "Save & continue →"}
+          </button>
+        </footer>
       </div>
-    </div>
+    </main>
   );
 }

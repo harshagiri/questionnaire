@@ -29,7 +29,6 @@ export default async function PreConsultPage({
           sessionId={consultId}
           initialSavedWorkflow={savedWorkflow}
           mode="pre-consult"
-          dashboardHref="/patient"
         />
       </PatientProfileGate>
     </AppShell>
