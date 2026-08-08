@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from "react";
 import { useRouter } from "next/navigation";
 import { RegistrationActivityIllustration } from "@/components/registration-activity-illustration";
 import { registrationSections } from "@/lib/workflow-data";
@@ -23,10 +23,10 @@ const chapterLabels = [
   "Reach you",
   "Your day",
   "Health",
-  "Consent",
+  "Review",
 ];
 const fieldClass =
-  "focus-ring h-11 w-full rounded-md border border-[rgba(22,95,192,0.2)] bg-white px-3 text-[13px] text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)] sm:h-12 sm:px-3.5 sm:text-sm";
+  "focus-ring h-11 w-full rounded-xl border border-[rgba(59,130,246,0.2)] bg-white px-3 text-[13px] text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)] sm:h-12 sm:px-3.5 sm:text-sm";
 const activityTypes = [
   "sitting",
   "standing",
@@ -54,6 +54,18 @@ function formatFeetInches(cm: number) {
   const feet = Math.floor(totalInches / 12);
   const inches = totalInches % 12;
   return `${feet} ft ${inches} in`;
+}
+
+function cmToFeetInches(cm: number) {
+  const totalInches = Math.round(cm / 2.54);
+  return {
+    feet: Math.floor(totalInches / 12),
+    inches: totalInches % 12,
+  };
+}
+
+function feetInchesToCm(feet: number, inches: number) {
+  return Math.round((feet * 12 + inches) * 2.54);
 }
 
 function FloatingInput({
@@ -139,7 +151,7 @@ function ChoiceGrid({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`focus-ring min-h-11 rounded-md border px-3 py-2 text-left text-[13px] font-semibold leading-5 transition sm:min-h-12 sm:py-2.5 sm:text-sm ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:border-[rgba(22,95,192,0.5)]"}`}
+            className={`focus-ring min-h-11 rounded-xl border px-3 py-2 text-left text-[13px] font-semibold leading-5 transition sm:min-h-12 sm:py-2.5 sm:text-sm ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)] hover:border-[rgba(59,130,246,0.5)]"}`}
           >
             <span className="flex items-center gap-2">
               <span
@@ -168,7 +180,7 @@ function LanguageCloud({
   const cloudSizes = ["px-4 py-2", "px-5 py-2.5", "px-4 py-2.5"] as const;
 
   return (
-    <div className="rounded-xl border border-[rgba(22,95,192,0.18)] bg-[linear-gradient(180deg,#f4f9ff_0%,#eaf4ff_100%)] p-3">
+    <div className="rounded-xl border border-[rgba(59,130,246,0.18)] bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] p-3">
       <div className="flex flex-wrap items-center gap-2.5">
         {question.options?.map((option, index) => {
           const selected = value === option.value;
@@ -180,7 +192,7 @@ function LanguageCloud({
               type="button"
               aria-pressed={selected}
               onClick={() => onChange(option.value)}
-              className={`focus-ring rounded-full border text-xs font-semibold transition sm:text-sm ${sizeClass} ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_6px_16px_rgba(22,95,192,0.18)]" : "border-[rgba(21,32,43,0.16)] bg-white text-[color:var(--foreground)] hover:border-[rgba(22,95,192,0.5)] hover:bg-[#f4f9ff]"}`}
+              className={`focus-ring rounded-xl border text-xs font-semibold transition sm:text-sm ${sizeClass} ${selected ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_6px_16px_rgba(59,130,246,0.18)]" : "border-[rgba(21,32,43,0.16)] bg-white text-[color:var(--foreground)] hover:border-[rgba(59,130,246,0.5)] hover:bg-[#eff6ff]"}`}
             >
               {selected ? "✓ " : ""}
               {option.label}
@@ -204,7 +216,7 @@ function OneRowTrafficChoice({
   const toneByIndex = [
     {
       dot: "bg-[#5a84bf]",
-      active: "border-[#9ec0e6] bg-[#eaf4ff] text-[#0f4e9f]",
+      active: "border-[#93c5fd] bg-[#dbeafe] text-[#1d4ed8]",
       idle: "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)]",
     },
     {
@@ -231,7 +243,7 @@ function OneRowTrafficChoice({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`focus-ring min-h-11 rounded-md border px-1.5 py-1.5 text-center text-[11px] font-semibold leading-4 transition sm:min-h-12 sm:px-2 sm:py-2 sm:text-xs ${selected ? tone.active : tone.idle}`}
+            className={`focus-ring min-h-11 rounded-xl border px-1.5 py-1.5 text-center text-[11px] font-semibold leading-4 transition sm:min-h-12 sm:px-2 sm:py-2 sm:text-xs ${selected ? tone.active : tone.idle}`}
           >
             <span className="flex items-center justify-center gap-1.5 sm:gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
@@ -270,7 +282,7 @@ function MultiSelect({
                   : [...selected, option.value],
               )
             }
-            className={`focus-ring rounded-full border px-3 py-2 text-xs font-semibold ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)]"}`}
+            className={`focus-ring rounded-xl border px-3 py-2 text-xs font-semibold ${checked ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.14)] bg-white text-[color:var(--foreground)]"}`}
           >
             {checked ? "✓ " : ""}
             {option.label}
@@ -317,7 +329,11 @@ export function PatientRegister({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingHealth, setEditingHealth] = useState<string | null>(null);
+  const [editingMeasurement, setEditingMeasurement] = useState<"heightCm" | "weightKg" | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const [scrollHintDismissedBySection, setScrollHintDismissedBySection] = useState<Record<string, boolean>>({});
   const [pin, setPin] = useState<PinState>({ status: "idle", localities: [] });
+  const chapterScrollRef = useRef<HTMLDivElement | null>(null);
   const section = registrationSections[sectionIndex];
   const questions = useMemo(
     () =>
@@ -335,6 +351,30 @@ export function PatientRegister({
         : null,
     [answers.heightCm, answers.weightKg],
   );
+
+  const movementLabel = useMemo(() => {
+    const movementQuestion = registrationSections
+      .flatMap((item) => item.questions)
+      .find((question) => question.id === "dailyMovement");
+    const value = String(answers.dailyMovement ?? "");
+    return movementQuestion?.options?.find((option) => option.value === value)?.label ?? "Not selected";
+  }, [answers.dailyMovement]);
+
+  const smokingLabel = useMemo(() => {
+    const question = registrationSections
+      .flatMap((item) => item.questions)
+      .find((item) => item.id === "smoking");
+    const value = String(answers.smoking ?? "");
+    return question?.options?.find((option) => option.value === value)?.label ?? "Not answered";
+  }, [answers.smoking]);
+
+  const alcoholLabel = useMemo(() => {
+    const question = registrationSections
+      .flatMap((item) => item.questions)
+      .find((item) => item.id === "alcohol");
+    const value = String(answers.alcohol ?? "");
+    return question?.options?.find((option) => option.value === value)?.label ?? "Not answered";
+  }, [answers.alcohol]);
 
   useEffect(() => {
     const phone = String(answers.phone ?? "").replace(/\D/g, "");
@@ -421,6 +461,34 @@ export function PatientRegister({
       window.clearTimeout(timer);
     };
   }, [answers.pinCode]);
+
+  useEffect(() => {
+    const host = chapterScrollRef.current;
+    if (!host) return;
+    const sectionId = section.id;
+
+    const syncHint = () => {
+      const remaining = host.scrollHeight - (host.scrollTop + host.clientHeight);
+      const dismissed = scrollHintDismissedBySection[sectionId] === true;
+      if (!dismissed && host.scrollTop > 24) {
+        setScrollHintDismissedBySection((current) =>
+          current[sectionId] ? current : { ...current, [sectionId]: true },
+        );
+        setShowScrollHint(false);
+        return;
+      }
+      setShowScrollHint(remaining > 28 && !dismissed);
+    };
+
+    syncHint();
+    host.addEventListener("scroll", syncHint, { passive: true });
+    window.addEventListener("resize", syncHint);
+
+    return () => {
+      host.removeEventListener("scroll", syncHint);
+      window.removeEventListener("resize", syncHint);
+    };
+  }, [sectionIndex, section.id, answers, editingHealth, editingMeasurement, scrollHintDismissedBySection]);
 
   function setValue(id: string, value: AnswerValue) {
     setAnswers((current) => ({ ...current, [id]: value }));
@@ -746,7 +814,7 @@ export function PatientRegister({
           </p>
         ) : null}
         {pin.status === "error" ? (
-          <p className="rounded-md border border-[rgba(22,95,192,0.24)] bg-[rgba(22,95,192,0.08)] px-3 py-2 text-xs text-[#0f4e9f]">
+          <p className="rounded-md border border-[rgba(59,130,246,0.24)] bg-[rgba(59,130,246,0.08)] px-3 py-2 text-xs text-[#1d4ed8]">
             {pin.message}
           </p>
         ) : null}
@@ -768,83 +836,171 @@ export function PatientRegister({
     const movement = questions.get("dailyMovement")!;
     const heightCmValue = Number(answers.heightCm);
     const hasHeightValue = Number.isFinite(heightCmValue) && heightCmValue > 0;
-    const resolvedHeightCm =
-      hasHeightValue ? heightCmValue : 168;
+    const resolvedHeightCm = hasHeightValue ? heightCmValue : 168;
     const weightKgValue = Number(answers.weightKg);
     const hasWeightValue = Number.isFinite(weightKgValue) && weightKgValue > 0;
-    const resolvedWeightKg = hasWeightValue ? weightKgValue : 70;
+    const resolvedWeightKg = hasWeightValue ? weightKgValue : null;
+    const { feet, inches } = cmToFeetInches(resolvedHeightCm);
+
+    const setHeightFromFeetInches = (nextFeet: number, nextInches: number) => {
+      const nextCm = feetInchesToCm(nextFeet, nextInches);
+      setValue("heightCm", nextCm);
+    };
+
+    const decrementFeet = () => {
+      setHeightFromFeetInches(Math.max(4, feet - 1), inches);
+    };
+
+    const incrementFeet = () => {
+      setHeightFromFeetInches(Math.min(7, feet + 1), inches);
+    };
+
+    const decrementInches = () => {
+      setHeightFromFeetInches(feet, Math.max(0, inches - 1));
+    };
+
+    const incrementInches = () => {
+      setHeightFromFeetInches(feet, Math.min(11, inches + 1));
+    };
+
     return (
       <div className="grid gap-5">
-        <section className="rounded-lg border border-[rgba(22,95,192,0.16)] bg-white p-3 sm:p-4">
+        <section className="rounded-lg border border-[rgba(59,130,246,0.16)] bg-white p-3 sm:p-4">
           <h2 className="headline text-base font-semibold sm:text-lg">
             Your measurements
           </h2>
-          <div className="mt-3 grid gap-5 md:mt-4 md:grid-cols-2">
-            <div id="question-heightCm">
-              {hasHeightValue ? (
-                <p className="mb-2 text-[11px] text-[#5f7671] sm:text-xs">
-                  {resolvedHeightCm} cm • {formatFeetInches(resolvedHeightCm)}
+          <div className="mt-3 overflow-hidden rounded-lg border border-[rgba(59,130,246,0.14)] bg-white">
+            <div id="question-heightCm" className="flex items-center justify-between gap-3 border-b border-[rgba(59,130,246,0.12)] px-3 py-3">
+              <div>
+                <p className="text-sm font-semibold text-[#244740]">Height</p>
+                <p className="text-sm text-[#31534e]">
+                  {hasHeightValue ? `${resolvedHeightCm} cm • ${formatFeetInches(resolvedHeightCm)}` : "Enter height"}
                 </p>
-              ) : null}
-              <FloatingInput
-                label="Height"
-                required
-                inputMode="numeric"
-                type="number"
-                min={100}
-                max={250}
-                value={String(answers.heightCm ?? "")}
-                onChange={(event) =>
-                  setValue(
-                    "heightCm",
-                    event.target.value === "" ? "" : Number(event.target.value),
-                  )
-                }
-                suffix="cm"
-                aria-label="Height"
-              />
-              <input
-                aria-label="Adjust height in centimetres"
-                type="range"
-                min={100}
-                max={250}
-                value={resolvedHeightCm}
-                onChange={(event) =>
-                  setValue("heightCm", Number(event.target.value))
-                }
-                className="mt-2 block w-full accent-[var(--accent)]"
-              />
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMeasurement((current) => (current === "heightCm" ? null : "heightCm"))}
+                className="focus-ring rounded-xl border border-[rgba(59,130,246,0.2)] bg-[#eff6ff] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+              >
+                Edit
+              </button>
             </div>
-            <div id="question-weightKg">
-              <FloatingInput
-                label="Weight"
-                required
-                inputMode="numeric"
-                type="number"
-                min={30}
-                max={200}
-                value={String(answers.weightKg ?? "")}
-                onChange={(event) =>
-                  setValue(
-                    "weightKg",
-                    event.target.value === "" ? "" : Number(event.target.value),
-                  )
-                }
-                suffix="kg"
-                aria-label="Weight"
-              />
-              <input
-                aria-label="Adjust weight in kilograms"
-                type="range"
-                min={30}
-                max={200}
-                value={resolvedWeightKg}
-                onChange={(event) =>
-                  setValue("weightKg", Number(event.target.value))
-                }
-                className="mt-2 block w-full accent-[var(--accent)]"
-              />
+            {editingMeasurement === "heightCm" ? (
+              <div className="border-b border-[rgba(59,130,246,0.12)] px-3 py-3">
+                <p className="mb-2 text-xs font-semibold text-[#31534e]">
+                  Height rotator (feet and inches)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-[rgba(59,130,246,0.18)] bg-[#eff6ff] p-2">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748b]">
+                      Feet
+                    </p>
+                    <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={decrementFeet}
+                        className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-[rgba(21,32,43,0.16)] bg-white text-lg font-semibold text-[#334155]"
+                        aria-label="Decrease feet"
+                      >
+                        -
+                      </button>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.14)] bg-white px-2 py-2 text-center text-sm font-semibold text-[#1e3a8a]">
+                        {feet} ft
+                      </div>
+                      <button
+                        type="button"
+                        onClick={incrementFeet}
+                        className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-[rgba(21,32,43,0.16)] bg-white text-lg font-semibold text-[#334155]"
+                        aria-label="Increase feet"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[rgba(59,130,246,0.18)] bg-[#eff6ff] p-2">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748b]">
+                      Inches
+                    </p>
+                    <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={decrementInches}
+                        className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-[rgba(21,32,43,0.16)] bg-white text-lg font-semibold text-[#334155]"
+                        aria-label="Decrease inches"
+                      >
+                        -
+                      </button>
+                      <div className="rounded-xl border border-[rgba(21,32,43,0.14)] bg-white px-2 py-2 text-center text-sm font-semibold text-[#1e3a8a]">
+                        {inches} in
+                      </div>
+                      <button
+                        type="button"
+                        onClick={incrementInches}
+                        className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-[rgba(21,32,43,0.16)] bg-white text-lg font-semibold text-[#334155]"
+                        aria-label="Increase inches"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <FloatingInput
+                  label="Height"
+                  required
+                  inputMode="numeric"
+                  type="number"
+                  min={100}
+                  max={250}
+                  value={String(answers.heightCm ?? "")}
+                  onChange={(event) =>
+                    setValue(
+                      "heightCm",
+                      event.target.value === "" ? "" : Number(event.target.value),
+                    )
+                  }
+                  suffix="cm"
+                  aria-label="Height"
+                />
+              </div>
+            ) : null}
+
+            <div id="question-weightKg" className="flex items-center justify-between gap-3 px-3 py-3">
+              <div>
+                <p className="text-sm font-semibold text-[#244740]">Weight</p>
+                <p className="text-sm text-[#31534e]">
+                  {hasWeightValue && resolvedWeightKg ? `${resolvedWeightKg} kg` : "Enter weight"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMeasurement((current) => (current === "weightKg" ? null : "weightKg"))}
+                className="focus-ring rounded-xl border border-[rgba(59,130,246,0.2)] bg-[#eff6ff] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+              >
+                Edit
+              </button>
             </div>
+            {editingMeasurement === "weightKg" ? (
+              <div className="px-3 pb-3">
+                <FloatingInput
+                  label="Weight"
+                  required
+                  inputMode="numeric"
+                  type="number"
+                  min={30}
+                  max={200}
+                  value={String(answers.weightKg ?? "")}
+                  onChange={(event) =>
+                    setValue(
+                      "weightKg",
+                      event.target.value === "" ? "" : Number(event.target.value),
+                    )
+                  }
+                  suffix="kg"
+                  aria-label="Weight"
+                />
+              </div>
+            ) : null}
           </div>
           <div className="mt-3 rounded-md bg-[#e7f3ef] px-3 py-2 text-[13px] text-[#176b62] sm:mt-4 sm:text-sm">
             BMI:{" "}
@@ -868,7 +1024,7 @@ export function PatientRegister({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setValue("dailyMovement", option.value)}
-                  className={`focus-ring overflow-hidden rounded-md border bg-white text-left ${selected ? "border-[var(--accent)] shadow-[0_0_0_2px_rgba(22,95,192,0.14)]" : "border-[rgba(21,32,43,0.14)]"}`}
+                  className={`focus-ring overflow-hidden rounded-xl border bg-white text-left ${selected ? "border-[var(--accent)] shadow-[0_0_0_2px_rgba(59,130,246,0.14)]" : "border-[rgba(21,32,43,0.14)]"}`}
                 >
                   <span className="block h-24">
                     <RegistrationActivityIllustration
@@ -889,7 +1045,7 @@ export function PatientRegister({
             })}
           </div>
         </section>
-        <section className="grid gap-4 rounded-lg border border-[rgba(22,95,192,0.16)] bg-white p-4 md:grid-cols-2">
+        <section className="grid gap-4 rounded-lg border border-[rgba(59,130,246,0.16)] bg-white p-4 md:grid-cols-2">
           <div id="question-smoking">
             <h2 className="mb-2 text-sm font-semibold">
               Have you ever smoked? *
@@ -935,7 +1091,7 @@ export function PatientRegister({
                 key={statusId}
                 type="button"
                 onClick={() => setEditingHealth(statusId)}
-                className="focus-ring flex min-h-16 items-center gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-white px-3 py-2 text-left"
+                className="focus-ring flex min-h-16 items-center gap-3 rounded-xl border border-[rgba(59,130,246,0.16)] bg-white px-3 py-2 text-left"
               >
                 <span
                   className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${complete ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[#eef2f7] text-[#6a7d94]"}`}
@@ -969,7 +1125,7 @@ export function PatientRegister({
               id={`question-${statusId}`}
               className="rounded-md border border-[#62a89f] bg-white shadow-[0_0_0_3px_rgba(33,135,124,0.08)]"
             >
-              <div className="flex items-center gap-3 border-b border-[rgba(22,95,192,0.12)] px-4 py-3">
+              <div className="flex items-center gap-3 border-b border-[rgba(59,130,246,0.12)] px-4 py-3">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent)]">
                   {index + 1}
                 </span>
@@ -996,7 +1152,7 @@ export function PatientRegister({
                 {status === "yes" ? (
                   <div
                     id={`question-${detailId}`}
-                    className="mt-4 border-t border-[rgba(22,95,192,0.12)] pt-4"
+                    className="mt-4 border-t border-[rgba(59,130,246,0.12)] pt-4"
                   >
                     <p className="mb-3 text-sm font-semibold">
                       {detailQuestion.label}
@@ -1008,7 +1164,7 @@ export function PatientRegister({
                   <button
                     type="button"
                     onClick={() => setEditingHealth(null)}
-                    className="focus-ring mt-4 rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs font-semibold text-[var(--accent)]"
+                    className="focus-ring mt-4 rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-xs font-semibold text-[var(--accent)]"
                   >
                     Save and open next
                   </button>
@@ -1017,12 +1173,12 @@ export function PatientRegister({
             </section>
           );
         })}
-        <div className="mt-2 rounded-md bg-[#0f335e] px-4 py-3 text-white">
+        <div className="mt-2 rounded-md bg-[linear-gradient(132deg,#1e3a8a_0%,#1d4ed8_48%,#60a5fa_100%)] px-4 py-3 text-white">
           <p className="text-sm font-semibold">
             {healthGroups.filter(groupComplete).length} clinical details
             prepared
           </p>
-          <p className="mt-0.5 text-xs text-[#c7d9d4]">
+          <p className="mt-0.5 text-xs text-[#dbeafe]">
             Your doctor can review these before the consultation.
           </p>
         </div>
@@ -1031,6 +1187,36 @@ export function PatientRegister({
   }
 
   function ConsentChapter() {
+    const openChapter = (index: number) => {
+      setSectionIndex(index);
+      setEditingHealth(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const summaryCard = (
+      title: string,
+      lines: string[],
+      onEdit: () => void,
+    ) => (
+      <section className="rounded-lg border border-[rgba(21,32,43,0.12)] bg-white p-4 shadow-[0_8px_20px_rgba(16,53,103,0.05)]">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="headline text-lg font-semibold">{title}</h2>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="focus-ring rounded-xl border border-[rgba(59,130,246,0.18)] bg-[#eff6ff] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+          >
+            Edit
+          </button>
+        </div>
+        <div className="mt-2 grid gap-1 text-sm text-[#35524d]">
+          {lines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      </section>
+    );
+
     const consentCard = (
       id: "consentClinicalCare" | "consentPrivacy",
       title: string,
@@ -1052,7 +1238,7 @@ export function PatientRegister({
             </li>
           ))}
         </ul>
-        <label className="mt-3 flex cursor-pointer gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-[#f4f9ff] p-3 text-sm">
+        <label className="mt-3 flex cursor-pointer gap-3 rounded-xl border border-[rgba(59,130,246,0.16)] bg-[#eff6ff] p-3 text-sm">
           <input
             type="checkbox"
             checked={answers[id] === true}
@@ -1065,6 +1251,50 @@ export function PatientRegister({
     );
     return (
       <div className="grid gap-4">
+        <section className="rounded-lg border border-[rgba(59,130,246,0.16)] bg-white p-4">
+          <h2 className="headline text-2xl font-semibold">Review & confirm</h2>
+          <p className="mt-1.5 text-sm leading-6 text-[#5e7470]">
+            Please review your information before we create your profile. You can edit any section.
+          </p>
+        </section>
+
+        {summaryCard(
+          "About you",
+          [
+            String(answers.fullName || "Name not provided"),
+            `${answers.age ? `${answers.age} years` : "Age not set"} • ${String(answers.gender || "Gender not set")}`,
+          ],
+          () => openChapter(0),
+        )}
+
+        {summaryCard(
+          "Reach you",
+          [
+            `+91 ${String(answers.phone || "")}`.trim(),
+            `${String(answers.preferredLanguage || "Language not set")} • ${String(answers.city || "City not set")}`,
+          ],
+          () => openChapter(1),
+        )}
+
+        {summaryCard(
+          "Your day",
+          [
+            `${answers.heightCm ? `${answers.heightCm} cm` : "Height not set"} • ${answers.weightKg ? `${answers.weightKg} kg` : "Weight not set"} • BMI ${bmi ? bmi.toFixed(1) : "-"}`,
+            `Mostly: ${movementLabel}`,
+          ],
+          () => openChapter(2),
+        )}
+
+        {summaryCard(
+          "Lifestyle snapshot",
+          [
+            `Smoking: ${smokingLabel}`,
+            `Drinking: ${alcoholLabel}`,
+            `Day physically feels like: ${movementLabel}`,
+          ],
+          () => openChapter(3),
+        )}
+
         {consentCard(
           "consentClinicalCare",
           "Care consent",
@@ -1099,14 +1329,14 @@ export function PatientRegister({
               Optional
             </span>
           </div>
-          <label className="mt-3 flex cursor-pointer gap-3 rounded-md border border-[rgba(22,95,192,0.16)] bg-[#f4f9ff] p-3 text-sm">
+          <label className="mt-3 flex cursor-pointer gap-3 rounded-xl border border-[rgba(59,130,246,0.16)] bg-[#eff6ff] p-3 text-sm">
             <input
               type="checkbox"
               checked={answers.consentRegistry === true}
               onChange={(event) =>
                 setValue("consentRegistry", event.target.checked)
               }
-              className="mt-0.5 h-5 w-5 accent-[#8b5b83]"
+              className="mt-0.5 h-5 w-5 accent-[var(--accent)]"
             />
             <span>
               I allow anonymised data for quality improvement and outcomes
@@ -1135,18 +1365,22 @@ export function PatientRegister({
     answers.consentClinicalCare === true && answers.consentPrivacy === true;
   const actionDisabled =
     saving || (onConsentChapter && !requiredConsentsAccepted);
+  const sectionTitle = onConsentChapter ? "Review & confirm" : section.title;
+  const sectionSubtitle = onConsentChapter
+    ? "Please review your information before we create your profile. You can edit any details."
+    : section.subtitle;
 
   return (
-    <main className="h-screen overflow-hidden bg-white text-[14px] text-[#173d38] lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+    <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_5%_10%,#eaf5ff_0%,#f7fafe_38%,#f8fafc_100%)] text-[14px] text-[#1f2937] lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       {saving ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-[rgba(255,255,255,0.92)] backdrop-blur-sm">
-          <div className="w-[min(90vw,320px)] rounded-2xl border border-[rgba(22,95,192,0.16)] bg-white px-5 py-6 text-center shadow-[0_24px_70px_rgba(16,53,103,0.16)]">
+          <div className="w-[min(90vw,320px)] rounded-2xl border border-[rgba(59,130,246,0.16)] bg-white px-5 py-6 text-center shadow-[0_24px_70px_rgba(16,53,103,0.16)]">
             <div className="relative mx-auto h-20 w-20">
-              <div className="absolute inset-0 rounded-full border-4 border-[#d6ebe6]" />
-              <div className="absolute inset-2 animate-ping rounded-full bg-[#dff4ef]/70" />
+              <div className="absolute inset-0 rounded-full border-4 border-[#dbeafe]" />
+              <div className="absolute inset-2 animate-ping rounded-full bg-[#bfdbfe]/70" />
               <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[var(--accent)] border-r-[var(--accent)]" />
               <div className="absolute inset-0 grid place-items-center">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_8px_16px_rgba(22,95,192,0.2)]">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_8px_16px_rgba(59,130,246,0.2)]">
                   <svg
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -1162,7 +1396,7 @@ export function PatientRegister({
                 </span>
               </div>
             </div>
-            <p className="mt-4 text-sm font-semibold text-[#244740]">
+            <p className="mt-4 text-sm font-semibold text-[#1e3a8a]">
               Preparing your care questionnaire...
             </p>
             <div className="mt-2 flex items-center justify-center gap-1.5" aria-hidden="true">
@@ -1176,13 +1410,13 @@ export function PatientRegister({
                 style={{ animationDelay: "240ms" }}
               />
             </div>
-            <p className="mt-1 text-xs text-[#6a7f7a]">Almost there</p>
+            <p className="mt-1 text-xs text-[#64748b]">Almost there</p>
           </div>
         </div>
       ) : null}
-      <aside className="hidden h-screen overflow-y-auto bg-[#0f335e] px-5 py-8 text-white lg:block">
+      <aside className="hidden h-screen overflow-y-auto bg-[linear-gradient(160deg,#1e3a8a_0%,#1d4ed8_58%,#60a5fa_100%)] px-5 py-8 text-white lg:block">
         <p className="headline text-xl font-semibold">SpineExpert</p>
-        <p className="mt-2 text-xs leading-5 text-[#bfd3ce]">
+        <p className="mt-2 text-xs leading-5 text-[#dbeafe]">
           Build your care profile
           <br />
           About 4–6 minutes
@@ -1193,7 +1427,7 @@ export function PatientRegister({
               key={item.id}
               type="button"
               onClick={() => index <= sectionIndex && setSectionIndex(index)}
-              className={`focus-ring flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-xs ${index === sectionIndex ? "border-[#8bcfff] bg-white/10 text-white" : "border-white/15 text-[#d5e8ff]"}`}
+              className={`focus-ring flex min-h-12 items-center gap-3 rounded-xl border px-3 text-left text-xs ${index === sectionIndex ? "border-[#93c5fd] bg-white/10 text-white" : "border-white/15 text-[#dbeafe]"}`}
             >
               <span>{completed[index] ? "✓" : index + 1}</span>
               <span>{chapterLabels[index]}</span>
@@ -1201,24 +1435,24 @@ export function PatientRegister({
           ))}
         </nav>
       </aside>
-      <div className="min-w-0 h-screen overflow-y-auto pb-20 sm:pb-24">
-        <header className="sticky top-0 z-20 flex h-11 items-center justify-between border-b border-[rgba(22,95,192,0.14)] bg-white px-3 sm:h-14 sm:px-4 lg:px-8">
+      <div ref={chapterScrollRef} className="min-w-0 h-screen overflow-y-auto pb-20 sm:pb-24">
+        <header className="sticky top-0 z-20 flex h-11 items-center justify-between border-b border-[rgba(59,130,246,0.14)] bg-white px-3 sm:h-14 sm:px-4 lg:px-8">
           <button
             type="button"
             onClick={handleBack}
-            className="focus-ring rounded-md px-1.5 py-1.5 text-[10px] font-semibold text-[#496b65] sm:px-2 sm:py-2 sm:text-xs"
+            className="focus-ring rounded-xl px-1.5 py-1.5 text-[10px] font-semibold text-[#1d4ed8] sm:px-2 sm:py-2 sm:text-xs"
           >
             ← Back
           </button>
           <span className="headline text-sm font-semibold sm:text-base lg:hidden">
             SpineExpert
           </span>
-          <span className="text-[10px] text-[#627a75] sm:text-xs">
+          <span className="text-[10px] text-[#64748b] sm:text-xs">
             Need help?
           </span>
         </header>
-        <section className="sticky top-11 z-10 bg-[#0f335e] px-3 py-2 text-white sm:top-14 sm:px-4 sm:py-3 lg:hidden">
-          <div className="flex items-center justify-between text-[9px] text-[#d5e8ff] sm:text-[10px]">
+        <section className="sticky top-11 z-10 bg-[linear-gradient(160deg,#1e3a8a_0%,#1d4ed8_58%,#60a5fa_100%)] px-3 py-2 text-white sm:top-14 sm:px-4 sm:py-3 lg:hidden">
+          <div className="flex items-center justify-between text-[9px] text-[#dbeafe] sm:text-[10px]">
             <span>YOUR CARE PROFILE</span>
             <span>{completed.filter(Boolean).length} chapters ready</span>
           </div>
@@ -1241,7 +1475,7 @@ export function PatientRegister({
                       aria-current={isCurrent ? "step" : undefined}
                     >
                       <span
-                        className={`grid h-8 w-8 place-items-center rounded-full border text-[11px] font-bold transition ${isCurrent ? "border-[#8bcfff] bg-[#8bcfff] text-[#0f335e] shadow-[0_0_0_3px_rgba(139,207,255,0.24)]" : isDone ? "border-white/45 bg-white/20 text-white" : "border-white/25 bg-white/10 text-[#d5e8ff]"}`}
+                        className={`grid h-8 w-8 place-items-center rounded-full border text-[11px] font-bold transition ${isCurrent ? "border-[#93c5fd] bg-[#93c5fd] text-[#1e3a8a] shadow-[0_0_0_3px_rgba(147,197,253,0.24)]" : isDone ? "border-white/45 bg-white/20 text-white" : "border-white/25 bg-white/10 text-[#dbeafe]"}`}
                       >
                         {isCurrent ? "●" : isDone ? "✓" : index + 1}
                       </span>
@@ -1257,10 +1491,10 @@ export function PatientRegister({
             Chapter {sectionIndex + 1} of {registrationSections.length}
           </p>
           <h1 className="headline mt-1.5 text-2xl font-semibold sm:mt-2 sm:text-3xl md:text-4xl">
-            {section.title}
+            {sectionTitle}
           </h1>
           <p className="mt-1.5 max-w-xl text-[13px] leading-5 text-[color:var(--muted)] sm:mt-2 sm:text-sm sm:leading-6">
-            {section.subtitle}
+            {sectionSubtitle}
           </p>
           <div className="mt-4 sm:mt-6">{chapterContent}</div>
           {error ? (
@@ -1272,7 +1506,21 @@ export function PatientRegister({
             </div>
           ) : null}
         </div>
-        <footer className="fixed bottom-0 left-0 right-0 z-20 flex min-h-16 items-center gap-2 border-t border-[rgba(22,95,192,0.16)] bg-white/95 px-3 py-2 backdrop-blur sm:min-h-18 sm:gap-3 sm:px-4 sm:py-3 lg:left-[240px] lg:px-8">
+        {showScrollHint ? (
+          <button
+            type="button"
+            onClick={() =>
+              chapterScrollRef.current?.scrollBy({ top: 360, behavior: "smooth" })
+            }
+            aria-label="Scroll down"
+            className="focus-ring fixed bottom-24 right-4 z-30 grid h-11 w-11 place-items-center rounded-full border border-[rgba(59,130,246,0.28)] bg-white/95 text-[var(--accent)] shadow-[0_10px_24px_rgba(37,99,235,0.24)] backdrop-blur animate-bounce sm:bottom-28 sm:right-6 lg:right-8"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : null}
+        <footer className="fixed bottom-0 left-0 right-0 z-20 flex min-h-16 items-center gap-2 border-t border-[rgba(59,130,246,0.16)] bg-white/95 px-3 py-2 backdrop-blur sm:min-h-18 sm:gap-3 sm:px-4 sm:py-3 lg:left-[240px] lg:px-8">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold text-[#31534e] sm:text-xs">
               {completed.filter(Boolean).length} of 5 chapters ready
@@ -1287,12 +1535,12 @@ export function PatientRegister({
             type="button"
             onClick={handleNext}
             disabled={actionDisabled}
-            className="focus-ring min-h-11 shrink-0 rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-white hover:bg-[#0e54ab] disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
+            className="focus-ring min-h-11 shrink-0 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
           >
             {saving
               ? "Registering…"
               : sectionIndex === registrationSections.length - 1
-                ? "Agree & register"
+                ? "Create my profile →"
                 : "Save & continue →"}
           </button>
         </footer>

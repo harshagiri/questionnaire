@@ -26,6 +26,16 @@ const appointmentStatusUpdateSchema = z.object({
   status: z.enum(appointmentStatuses),
 });
 
+const appointmentUpdateSchema = z.object({
+  id: z.string().min(1),
+  doctorId: z.string().min(1),
+  appointmentDate: z.string().min(10),
+  appointmentTime: z.string().min(2),
+  appointmentType: z.string().min(2).optional(),
+  notes: z.string().optional(),
+  status: z.enum(appointmentStatuses).optional(),
+});
+
 type AppointmentPayload = {
   id: string;
   consultSessionId: string;
@@ -33,6 +43,7 @@ type AppointmentPayload = {
   patientName: string;
   patientPhone: string;
   doctorId: string;
+  doctorProfileId?: string;
   doctorName: string;
   appointmentDate: string;
   appointmentTime: string;
@@ -119,6 +130,7 @@ function toAppointmentPayload(appointment: {
   patientName: string;
   patientPhone: string;
   doctorId: string;
+  doctorProfileId?: string | null;
   doctorName: string;
   appointmentDate: Date;
   appointmentTime: string;
@@ -139,6 +151,7 @@ function toAppointmentPayload(appointment: {
     patientName: appointment.patientName,
     patientPhone: appointment.patientPhone,
     doctorId: appointment.doctorId,
+    doctorProfileId: appointment.doctorProfileId ?? undefined,
     doctorName: formatDoctorDisplayName(appointment.doctorName),
     appointmentDate: appointment.appointmentDate.toISOString().slice(0, 10),
     appointmentTime: appointment.appointmentTime,
@@ -277,16 +290,48 @@ async function createOrUpdatePatientUser(
 }
 
 async function resolveDoctor(tx: AppointmentTx, doctorId: string) {
-  const doctor = await tx.doctorProfile.findUnique({
+  const doctorByProfileId = await tx.doctorProfile.findUnique({
     where: { id: doctorId },
     include: { user: true },
   });
 
-  if (!doctor) {
+  if (doctorByProfileId) {
+    return doctorByProfileId;
+  }
+
+  const doctorByUserId = await tx.doctorProfile.findFirst({
+    where: { userId: doctorId },
+    include: { user: true },
+  });
+
+  if (doctorByUserId) {
+    return doctorByUserId;
+  }
+
+  if (!doctorByProfileId && !doctorByUserId) {
     throw new Error("Doctor not found");
   }
 
-  return doctor;
+  return doctorByUserId as NonNullable<typeof doctorByUserId>;
+}
+
+async function attachDoctorProfileIds(appointments: AppointmentPayload[]) {
+  if (!prisma || appointments.length === 0) {
+    return appointments;
+  }
+
+  const uniqueDoctorUserIds = Array.from(new Set(appointments.map((appointment) => appointment.doctorId)));
+  const profiles = await prisma.doctorProfile.findMany({
+    where: { userId: { in: uniqueDoctorUserIds } },
+    select: { id: true, userId: true },
+  });
+
+  const profileIdByUserId = new Map(profiles.map((profile) => [profile.userId, profile.id]));
+
+  return appointments.map((appointment) => ({
+    ...appointment,
+    doctorProfileId: profileIdByUserId.get(appointment.doctorId),
+  }));
 }
 
 async function listDatabaseAppointments(phone?: string | null, date?: string | null) {
@@ -432,9 +477,11 @@ export async function GET(request: Request) {
       appointments.map((appointment) => appointment.consultSessionId || appointment.id),
     );
 
+    const appointmentsWithProfiles = await attachDoctorProfileIds(appointments);
+
     return NextResponse.json({
       ok: true,
-      appointments: appointments.map((appointment) => ({
+      appointments: appointmentsWithProfiles.map((appointment) => ({
         ...appointment,
         promSummary: promBySession.get(appointment.consultSessionId || appointment.id),
       })),
@@ -529,21 +576,24 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: true,
-        appointment: toAppointmentPayload({
-          id: createdAppointment.id,
-          consultSessionId: createdAppointment.consultSessionId,
-          patientName: createdAppointment.patientName,
-          patientPhone: createdAppointment.patientPhone,
-          doctorId: createdAppointment.doctorId,
-          doctorName: createdAppointment.doctorName,
-          appointmentDate: createdAppointment.appointmentDate,
-          appointmentTime: createdAppointment.appointmentTime,
-          appointmentType: createdAppointment.appointmentType,
-          status: createdAppointment.status,
-          notes: createdAppointment.notes,
-          createdAt: createdAppointment.createdAt,
-          updatedAt: createdAppointment.updatedAt,
-        }),
+        appointment: {
+          ...toAppointmentPayload({
+            id: createdAppointment.id,
+            consultSessionId: createdAppointment.consultSessionId,
+            patientName: createdAppointment.patientName,
+            patientPhone: createdAppointment.patientPhone,
+            doctorId: createdAppointment.doctorId,
+            doctorName: createdAppointment.doctorName,
+            appointmentDate: createdAppointment.appointmentDate,
+            appointmentTime: createdAppointment.appointmentTime,
+            appointmentType: createdAppointment.appointmentType,
+            status: createdAppointment.status,
+            notes: createdAppointment.notes,
+            createdAt: createdAppointment.createdAt,
+            updatedAt: createdAppointment.updatedAt,
+          }),
+          doctorProfileId: input.doctorId,
+        },
         consultLink: toConsultLink(
           createdAppointment.consultSessionId,
           createdAppointment.id,
@@ -555,6 +605,93 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create appointment";
+    return NextResponse.json({ ok: false, message }, { status: 409 });
+  }
+}
+
+export async function PUT(request: Request) {
+  if (!prisma) {
+    return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
+  }
+
+  const body = await request.json();
+  const parsed = appointmentUpdateSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, errors: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const input = parsed.data;
+  const appointmentDateTime = normalizeDateTime(input.appointmentDate, input.appointmentTime);
+
+  if (!appointmentDateTime) {
+    return NextResponse.json({ ok: false, message: "Invalid appointment date or time" }, { status: 400 });
+  }
+
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const doctor = await resolveDoctor(tx, input.doctorId);
+
+      return tx.appointment.update({
+        where: { id: input.id },
+        data: {
+          doctorId: doctor.user.id,
+          doctorName: doctor.name,
+          appointmentDate: appointmentDateTime,
+          appointmentTime: input.appointmentTime.trim(),
+          appointmentType: input.appointmentType?.trim() || "new",
+          notes: input.notes?.trim() || null,
+          status: (input.status ?? "booked") as never,
+        },
+      });
+    });
+
+    const updatedAppointment = updated as unknown as {
+      id: string;
+      consultSessionId: string | null;
+      consultId?: string | null;
+      patientName: string;
+      patientPhone: string;
+      doctorId: string;
+      doctorName: string;
+      appointmentDate: Date;
+      appointmentTime: string;
+      appointmentType: string;
+      status: string;
+      notes: string | null;
+      videoConsultLink?: string | null;
+      preConsultLink?: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+
+    return NextResponse.json({
+      ok: true,
+      appointment: {
+        ...toAppointmentPayload({
+          id: updatedAppointment.id,
+          consultSessionId: updatedAppointment.consultSessionId,
+          consultId: updatedAppointment.consultId,
+          patientName: updatedAppointment.patientName,
+          patientPhone: updatedAppointment.patientPhone,
+          doctorId: updatedAppointment.doctorId,
+          doctorName: updatedAppointment.doctorName,
+          appointmentDate: updatedAppointment.appointmentDate,
+          appointmentTime: updatedAppointment.appointmentTime,
+          appointmentType: updatedAppointment.appointmentType,
+          status: updatedAppointment.status,
+          notes: updatedAppointment.notes,
+          videoConsultLink: updatedAppointment.videoConsultLink,
+          preConsultLink: updatedAppointment.preConsultLink,
+          createdAt: updatedAppointment.createdAt,
+          updatedAt: updatedAppointment.updatedAt,
+        }),
+        doctorProfileId: input.doctorId,
+      },
+      storage: "database",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not update appointment";
     return NextResponse.json({ ok: false, message }, { status: 409 });
   }
 }

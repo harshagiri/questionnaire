@@ -14,9 +14,11 @@ function maskPhone(phone: string) {
 export function PatientOtpGate({
   consultId,
   phone,
+  nextPath,
 }: {
   consultId?: string;
   phone: string;
+  nextPath?: string;
 }) {
   const router = useRouter();
   const [otp, setOtp] = useState("");
@@ -26,6 +28,11 @@ export function PatientOtpGate({
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
 
   function continueToQuestionnaire() {
+    if (nextPath) {
+      router.push(nextPath);
+      return;
+    }
+
     if (!consultId) {
       router.push(`/patient/book?journey=1${normalizedPhone ? `&phone=${encodeURIComponent(normalizedPhone)}` : ""}`);
       return;

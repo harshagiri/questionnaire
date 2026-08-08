@@ -6,10 +6,10 @@
   --muted: #365270;
   --surface: rgba(244, 250, 255, 0.84);
   --surface-strong: #f8fcff;
-  --border: rgba(26, 84, 156, 0.24);
-  --accent: #165fc0;
-  --accent-soft: #d8eaff;
-  --accent-warm: #3a97e0;
+  --border: rgba(59, 130, 246, 0.24);
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --accent-warm: #60a5fa;
   --theme-shadow-sm: 0 10px 26px rgba(19, 68, 128, 0.12);
   --theme-shadow-md: 0 18px 48px rgba(19, 68, 128, 0.16);
   --theme-shadow-lg: 0 28px 84px rgba(16, 53, 103, 0.2);

@@ -155,28 +155,28 @@ const sideOptions: SideOption[] = [
     label: "Right",
     helper: "Right-sided symptoms",
     icon: "right",
-    imageSrc: "/illustrations/pain-map/side-options/right.svg",
+    imageSrc: "/illustrations/pain-map/side-options-v2/right.png",
   },
   {
     id: "left",
     label: "Left",
     helper: "Left-sided symptoms",
     icon: "left",
-    imageSrc: "/illustrations/pain-map/side-options/left.svg",
+    imageSrc: "/illustrations/pain-map/side-options-v2/left.png",
   },
   {
     id: "both",
     label: "Both sides equally",
     helper: "Both sides feel similar",
     icon: "both",
-    imageSrc: "/illustrations/pain-map/side-options/both.svg",
+    imageSrc: "/illustrations/pain-map/side-options-v2/both.png",
   },
   {
     id: "midline",
     label: "Midline / central",
     helper: "Mostly central symptoms",
     icon: "midline",
-    imageSrc: "/illustrations/pain-map/side-options/midline.svg",
+    imageSrc: "/illustrations/pain-map/side-options-v2/midline.png",
   },
 ];
 
@@ -539,6 +539,125 @@ const spineHealthCardOptions: Array<{ value: number; imageSrc: string; label: st
   { value: 10, imageSrc: "/illustrations/pain-map/spine-health-cards/spine-v2-10.png", label: "10" },
 ];
 
+const odiPainIntensityCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-0.png", label: "No pain" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-1.png", label: "Very mild" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-2.png", label: "Moderate" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-3.png", label: "Fairly severe" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-4.png", label: "Very severe" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-pain-intensity-cards/odi-pain-5.png", label: "Worst possible" },
+];
+
+const odiPersonalCareCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-0.png", label: "No extra pain" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-1.png", label: "Normal care with extra pain" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-2.png", label: "Slow and careful" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-3.png", label: "Need some help" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-4.png", label: "Need daily help" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-personal-care-cards/odi-pc-5.png", label: "Unable to self-care" },
+];
+
+const odiLiftingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-0.png", label: "Lift heavy weights normally" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-1.png", label: "Heavy lifting with extra pain" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-2.png", label: "Heavy from floor prevented" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-3.png", label: "Only light to medium" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-4.png", label: "Very light only" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-lifting-cards/odi-lift-5.png", label: "Cannot lift at all" },
+];
+
+const odiWalkingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-0.png", label: "Walk any distance" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-1.png", label: "Up to 1 mile" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-2.png", label: "Up to 0.5 mile" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-3.png", label: "Up to 0.25 mile" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-4.png", label: "Need stick/crutches" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-walking-cards/odi-walk-5.png", label: "Mostly bed-bound" },
+];
+
+const odiSittingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-0.png", label: "Any chair, any duration" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-1.png", label: "Favorite chair only" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-2.png", label: "Up to 1 hour" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-3.png", label: "Up to 30 minutes" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-4.png", label: "Up to 10 minutes" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-sitting-cards/odi-sit-5.png", label: "Cannot sit" },
+];
+
+const odiStandingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-0.png", label: "Stand as long as needed" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-1.png", label: "Standing with extra pain" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-2.png", label: "Up to 1 hour" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-3.png", label: "Up to 30 minutes" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-4.png", label: "Up to 10 minutes" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-standing-cards/odi-stand-5.png", label: "Cannot stand" },
+];
+
+const odiSleepingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-0.png", label: "Sleep undisturbed" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-1.png", label: "Occasionally disturbed" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-2.png", label: "Sleep less than 6 hours" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-3.png", label: "Sleep less than 4 hours" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-4.png", label: "Sleep less than 2 hours" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-sleeping-cards/odi-sleep-5.png", label: "Cannot sleep" },
+];
+
+const odiSexLifeCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-0.png", label: "Normal, no extra pain" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-1.png", label: "Normal with some pain" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-2.png", label: "Nearly normal, painful" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-3.png", label: "Severely restricted" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-4.png", label: "Nearly absent" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-sex-life-cards/odi-sex-5.png", label: "Prevented entirely" },
+];
+
+const odiSocialLifeCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-0.png", label: "Normal social life" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-1.png", label: "Normal but painful" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-2.png", label: "Limited only in energetic interests" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-3.png", label: "Go out less often" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-4.png", label: "Restricted to home" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-social-life-cards/odi-social-5.png", label: "Almost no social life" },
+];
+
+const odiTravellingCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "0", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-0.png", label: "Travel anywhere" },
+  { value: "1", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-1.png", label: "Travel with extra pain" },
+  { value: "2", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-2.png", label: "Can manage 2+ hour journeys" },
+  { value: "3", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-3.png", label: "Journeys under 1 hour" },
+  { value: "4", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-4.png", label: "Necessary short journeys only" },
+  { value: "5", imageSrc: "/illustrations/pain-map/odi-travelling-cards/odi-travel-5.png", label: "Treatment travel only" },
+];
+
+const myelopathyHandTasksCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "normal", imageSrc: "/illustrations/pain-map/myelopathy-hand-cards/hand-1.png", label: "Normal" },
+  { value: "slight", imageSrc: "/illustrations/pain-map/myelopathy-hand-cards/hand-2.png", label: "Slight clumsiness" },
+  { value: "noticeable", imageSrc: "/illustrations/pain-map/myelopathy-hand-cards/hand-3.png", label: "Noticeable difficulty" },
+  { value: "significant", imageSrc: "/illustrations/pain-map/myelopathy-hand-cards/hand-4.png", label: "Significant impairment" },
+];
+
+const myelopathyBalanceCardOptions: Array<{ value: string; imageSrc: string; label: string }> = [
+  { value: "normal", imageSrc: "/illustrations/pain-map/myelopathy-balance-cards/balance-1.png", label: "Normal" },
+  { value: "mild", imageSrc: "/illustrations/pain-map/myelopathy-balance-cards/balance-2.png", label: "Mild unsteadiness" },
+  { value: "frequent", imageSrc: "/illustrations/pain-map/myelopathy-balance-cards/balance-3.png", label: "Frequent imbalance" },
+  { value: "needs-support", imageSrc: "/illustrations/pain-map/myelopathy-balance-cards/balance-4.png", label: "Needs support to walk" },
+];
+
+const legacyDeckCardOptionMap: Record<string, Array<{ value: string; imageSrc: string; label: string }>> = {
+  odiPainIntensity: odiPainIntensityCardOptions,
+  odiPersonalCare: odiPersonalCareCardOptions,
+  odiLifting: odiLiftingCardOptions,
+  odiWalking: odiWalkingCardOptions,
+  odiSitting: odiSittingCardOptions,
+  odiStanding: odiStandingCardOptions,
+  odiSleeping: odiSleepingCardOptions,
+  odiSexLife: odiSexLifeCardOptions,
+  odiSocialLife: odiSocialLifeCardOptions,
+  odiTravelling: odiTravellingCardOptions,
+  myelopathyHandTasks: myelopathyHandTasksCardOptions,
+  myelopathyBalance: myelopathyBalanceCardOptions,
+};
+
 const wrapIndex = (index: number, total: number) => ((index % total) + total) % total;
 
 const circularDistance = (index: number, activeIndex: number, total: number) => {
@@ -551,37 +670,37 @@ const riskOptions: RiskOption[] = [
   {
     id: "bladder-bowel",
     label: "New bladder or bowel change",
-    imageSrc: "/gamification-crops/risk-q1/icon-01-bladder-bowel.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/bladder-bowel.png",
   },
   {
     id: "rapid-weakness",
     label: "Rapid leg weakness or numbness",
-    imageSrc: "/gamification-crops/risk-q1/icon-02-rapid-weakness.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/rapid-weakness.png",
   },
   {
     id: "fever-spine",
     label: "Fever with severe spinal pain",
-    imageSrc: "/gamification-crops/risk-q1/icon-03-fever-spine.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/fever-spine.png",
   },
   {
     id: "fall-accident",
     label: "Recent fall or accident",
-    imageSrc: "/gamification-crops/risk-q1/icon-04-fall-accident.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/fall-accident.png",
   },
   {
     id: "cancer-history",
     label: "Known cancer history",
-    imageSrc: "/gamification-crops/risk-q1/icon-05-cancer-history.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/cancer-history.png",
   },
   {
     id: "weight-loss",
     label: "Unintentional weight loss",
-    imageSrc: "/gamification-crops/risk-q1/icon-06-weight-loss.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/weight-loss.png",
   },
   {
     id: "none",
     label: "None of these",
-    imageSrc: "/gamification-crops/risk-q1/icon-07-none.jpg",
+    imageSrc: "/illustrations/pain-map/safety-first-options/none.png",
   },
 ];
 
@@ -856,6 +975,7 @@ export function OneTimeQuestionnaireMock({
   const [ndiSleepingFrontIndex, setNdiSleepingFrontIndex] = useState(0);
   const [ndiRecreationFrontIndex, setNdiRecreationFrontIndex] = useState(0);
   const [spineHealthFrontIndex, setSpineHealthFrontIndex] = useState(0);
+  const [legacyDeckFrontIndexByQuestion, setLegacyDeckFrontIndexByQuestion] = useState<Record<string, number>>({});
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finalSubmitError, setFinalSubmitError] = useState<string | null>(null);
   const [finalSubmitted, setFinalSubmitted] = useState(false);
@@ -881,6 +1001,7 @@ export function OneTimeQuestionnaireMock({
   const ndiSleepingDragStartX = useRef<number | null>(null);
   const ndiRecreationDragStartX = useRef<number | null>(null);
   const spineHealthDragStartX = useRef<number | null>(null);
+  const legacyDeckDragStartX = useRef<number | null>(null);
   const painScoreDragStartX = useRef<number | null>(null);
   const painScoreSwipeHandled = useRef(false);
   const [onsetFrontIndex, setOnsetFrontIndex] = useState(0);
@@ -1383,6 +1504,36 @@ export function OneTimeQuestionnaireMock({
   }, [basePreConsultAnswers, legacyAnswers]);
 
   const legacyQuestion = legacyQuestions[legacyQuestionIndex];
+  const activeLegacyDeckOptions = legacyQuestion ? legacyDeckCardOptionMap[legacyQuestion.id] : undefined;
+  const activeLegacyDeckFrontIndex = legacyQuestion ? (legacyDeckFrontIndexByQuestion[legacyQuestion.id] ?? 0) : 0;
+
+  const goLegacyDeckNext = () => {
+    if (!legacyQuestion || !activeLegacyDeckOptions) return;
+    setLegacyDeckFrontIndexByQuestion((current) => {
+      const nextIndex = wrapIndex((current[legacyQuestion.id] ?? 0) + 1, activeLegacyDeckOptions.length);
+      return { ...current, [legacyQuestion.id]: nextIndex };
+    });
+  };
+
+  const goLegacyDeckPrev = () => {
+    if (!legacyQuestion || !activeLegacyDeckOptions) return;
+    setLegacyDeckFrontIndexByQuestion((current) => {
+      const nextIndex = wrapIndex((current[legacyQuestion.id] ?? 0) - 1, activeLegacyDeckOptions.length);
+      return { ...current, [legacyQuestion.id]: nextIndex };
+    });
+  };
+
+  const onLegacyDeckPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    legacyDeckDragStartX.current = event.clientX;
+  };
+
+  const onLegacyDeckPointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if (legacyDeckDragStartX.current === null) return;
+    const delta = event.clientX - legacyDeckDragStartX.current;
+    if (delta >= SWIPE_THRESHOLD) goLegacyDeckPrev();
+    if (delta <= -SWIPE_THRESHOLD) goLegacyDeckNext();
+    legacyDeckDragStartX.current = null;
+  };
 
   const isLegacyAnswered = (value: LegacyAnswerValue | undefined) => {
     if (Array.isArray(value)) {
@@ -1505,91 +1656,105 @@ export function OneTimeQuestionnaireMock({
   };
 
   const handleNext = () => {
+    if (isSubmittingFinal || finalSubmitted) {
+      return;
+    }
+
+    const proceedTo = (advance: () => void) => {
+      advance();
+    };
+
     if (step === "risk" && selectedRiskIds.length > 0) {
-      setStep("reason");
+      proceedTo(() => setStep("reason"));
       return;
     }
 
     if (step === "reason" && selectedReasonIds.length > 0) {
-      setStep("pain-map");
+      proceedTo(() => setStep("pain-map"));
       return;
     }
 
     if (step === "pain-map" && selectedLabels.length > 0) {
-      if (shouldAskSideQuestion) {
-        setStep("side");
-      } else {
-        setStep("duration");
-      }
+      proceedTo(() => {
+        if (shouldAskSideQuestion) {
+          setStep("side");
+        } else {
+          setStep("duration");
+        }
+      });
       return;
     }
 
     if (step === "side" && selectedSide) {
-      setStep("duration");
+      proceedTo(() => setStep("duration"));
       return;
     }
 
     if (step === "duration" && selectedDuration) {
-      setStep("onset");
+      proceedTo(() => setStep("onset"));
       return;
     }
 
     if (step === "onset" && selectedOnset) {
-      setStep("pain-score");
+      proceedTo(() => setStep("pain-score"));
       return;
     }
 
     if (step === "pain-score" && selectedPainScore !== null) {
-      setStep("pattern");
+      proceedTo(() => setStep("pattern"));
       return;
     }
 
     if (step === "pattern" && selectedPattern) {
-      setStep("change-overall");
+      proceedTo(() => setStep("change-overall"));
       return;
     }
 
     if (step === "change-overall" && selectedChangeOverall) {
-      setStep("radiating");
+      proceedTo(() => setStep("radiating"));
       return;
     }
 
     if (step === "radiating" && selectedRadiating) {
-      setStep("numbness");
+      proceedTo(() => setStep("numbness"));
       return;
     }
 
     if (step === "numbness" && selectedNumbness) {
-      setStep("pain-worse-with");
+      proceedTo(() => setStep("pain-worse-with"));
       return;
     }
 
     if (step === "pain-worse-with") {
-      setStep("pain-improves-with");
+      proceedTo(() => setStep("pain-improves-with"));
       return;
     }
 
     if (step === "pain-improves-with") {
-      setStep("treatments-tried");
+      proceedTo(() => setStep("treatments-tried"));
       return;
     }
 
     if (step === "treatments-tried") {
-      setStep("treatment-helped");
+      proceedTo(() => setStep("treatment-helped"));
       return;
     }
 
     if (step === "treatment-helped" && selectedTreatmentHelped) {
       if (legacyQuestions.length > 0) {
-        setLegacyQuestionIndex(0);
-        setStep("legacy-followup");
+        proceedTo(() => {
+          setLegacyQuestionIndex(0);
+          setStep("legacy-followup");
+        });
       }
       return;
     }
 
     if (step === "legacy-followup" && legacyQuestion) {
       if (legacyQuestionIndex < legacyQuestions.length - 1) {
-        setLegacyQuestionIndex((current) => current + 1);
+        proceedTo(() => {
+          setLegacyQuestionIndex((current) => current + 1);
+        });
       } else {
         if (isSubmittingFinal || finalSubmitted) {
           return;
@@ -1805,132 +1970,136 @@ export function OneTimeQuestionnaireMock({
 
   const promScore = finalPromScore ?? resolvedPromScore;
   const promPercent = promScore.percent === null ? null : Math.round(promScore.percent);
-  const followupAnsweredCount = legacyQuestions.filter((question) => isLegacyAnswered(legacyAnswers[question.id])).length;
-  const summaryBullets = [
-    selectedRadiating && selectedRadiating !== "none" ? `Radiating pain is reported as ${selectedRadiating}.` : null,
-    selectedNumbness && selectedNumbness !== "none" ? `Numbness or tingling is ${selectedNumbness}.` : null,
-    selectedChangeOverall ? `Overall trend is ${selectedChangeOverall.replace(/-/g, " ")}.` : null,
-    selectedTreatmentHelped ? `Prior treatment response is ${selectedTreatmentHelped.replace(/-/g, " ")}.` : null,
-  ].filter(Boolean) as string[];
-  const aiSummaryText =
-    `Your responses are consistent with ${promScore.severity.toLowerCase()} ${promScore.instrument === "NDI" ? "neck-related" : "back-related"} disability. ` +
-    (summaryBullets.length > 0
-      ? `${summaryBullets.join(" ")} Your clinician will correlate these findings with examination before recommending treatment.`
-      : "Your clinician will correlate these findings with examination before recommending treatment.");
 
-  const scoreGroupMeta = [
-    { key: "pain", label: "Pain", color: "#ef4444", matches: ["pain"] },
-    { key: "function", label: "Function", color: "#f97316", matches: ["function", "lifting", "walking", "standing", "travelling", "social"] },
-    { key: "sleep", label: "Sleep", color: "#8b5cf6", matches: ["sleep"] },
-    { key: "work", label: "Work", color: "#3b82f6", matches: ["work"] },
-    { key: "driving", label: "Driving", color: "#06b6d4", matches: ["driving"] },
-    { key: "reading", label: "Reading", color: "#22c55e", matches: ["reading"] },
-    { key: "personal-care", label: "Personal Care", color: "#84cc16", matches: ["personal", "care"] },
-    { key: "other", label: "Other", color: "#14b8a6", matches: [] },
+  const impactBand = (() => {
+    if (promPercent === null) return { label: "Impact not available", tone: "#64748b", color: "#f59e0b", subtitle: "Please complete all required items to compute your impact score." };
+    if (promPercent >= 67) return { label: "High impact", tone: "#dc2626", color: "#ef4444", subtitle: "Your symptoms are significantly affecting your daily function." };
+    if (promPercent >= 34) return { label: "Moderate impact", tone: "#ea580c", color: "#f97316", subtitle: "Your symptoms are affecting your daily activities moderately." };
+    return { label: "Mild impact", tone: "#ca8a04", color: "#f59e0b", subtitle: "Your symptoms are currently having a mild impact on daily life." };
+  })();
+
+  const impactedAreasText =
+    selectedLabels.length === 0
+      ? "general spinal areas"
+      : selectedLabels.length === 1
+        ? selectedLabels[0]
+        : selectedLabels.length === 2
+          ? `${selectedLabels[0]} and ${selectedLabels[1]}`
+          : `${selectedLabels.slice(0, -1).join(", ")}, and ${selectedLabels[selectedLabels.length - 1]}`;
+
+  const movementTriggers = selectedPainWorse
+    .map((id) => painWorseOptions.find((option) => option.id === id)?.label.toLowerCase())
+    .filter(Boolean) as string[];
+  const movementText =
+    movementTriggers.length === 0
+      ? "daily movements"
+      : movementTriggers.length === 1
+        ? movementTriggers[0]
+        : movementTriggers.length === 2
+          ? `${movementTriggers[0]} and ${movementTriggers[1]}`
+          : `${movementTriggers.slice(0, 2).join(", ")}, and ${movementTriggers[2]}`;
+
+  const summaryDateLabel = new Date().toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const painLocationText = selectedLabels.length
+    ? `Pain mainly in ${impactedAreasText.toLowerCase()}.`
+    : "Pain mainly in general spinal areas.";
+  const activityText = `You are experiencing more limitation with ${movementText}.`;
+  const radiatingText = selectedRadiating && selectedRadiating !== "none" ? `Radiating pain is ${selectedRadiating}.` : "No radiating pain reported.";
+  const numbnessText = selectedNumbness && selectedNumbness !== "none" ? `Numbness or tingling is ${selectedNumbness}.` : "No numbness or tingling reported.";
+  const trendText = selectedChangeOverall ? `Overall trend appears ${selectedChangeOverall.replace(/-/g, " ")}.` : "Overall trend information not available.";
+
+  const summaryRows = [
+    { key: "pain-location", title: "Pain location", text: painLocationText, icon: "🦴", badgeClass: "bg-[#ffe9e9] text-[#ef4444]" },
+    { key: "activity", title: "Activity limitation", text: activityText, icon: "🚶", badgeClass: "bg-[#fff1df] text-[#f59e0b]" },
+    { key: "radiating", title: "Radiating pain", text: radiatingText, icon: "🖐", badgeClass: "bg-[#fff7df] text-[#f59e0b]" },
+    { key: "numbness", title: "Numbness or tingling", text: numbnessText, icon: "≈", badgeClass: "bg-[#fff6dd] text-[#d97706]" },
+    { key: "trend", title: "Overall trend", text: trendText, icon: "↗", badgeClass: "bg-[#eaf1ff] text-[#2563eb]" },
   ] as const;
-
-  const scoreBreakdownRows = (() => {
-    const buckets = scoreGroupMeta.map((group) => ({ ...group, values: [] as number[] }));
-
-    for (const item of promScore.itemScores) {
-      if (item.score === null) continue;
-      const normalized = item.key.toLowerCase();
-      const percent = Math.round((item.score / 5) * 100);
-      const match = buckets.find((group) =>
-        group.matches.length > 0 && group.matches.some((token) => normalized.includes(token)),
-      );
-      (match ?? buckets[buckets.length - 1]).values.push(percent);
-    }
-
-    return buckets
-      .filter((group) => group.values.length > 0)
-      .map((group) => ({
-        key: group.key,
-        label: group.label,
-        color: group.color,
-        percent: Math.round(group.values.reduce((sum, value) => sum + value, 0) / group.values.length),
-      }));
-  })();
-
-  const scoreToneClass = (() => {
-    if (promPercent === null) return "bg-[#edf2f8] text-[#335472]";
-    if (promPercent <= 20) return "bg-[#dcfce7] text-[#166534]";
-    if (promPercent <= 40) return "bg-[#fef3c7] text-[#92400e]";
-    if (promPercent <= 60) return "bg-[#fee2e2] text-[#b42318]";
-    return "bg-[#fde2e2] text-[#912018]";
-  })();
 
   if (finalSubmitted) {
     return (
-      <main className="pain-screen min-h-[100svh] px-3 py-4 text-[#1f456e] sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-        <section className="mx-auto w-full max-w-[1160px] overflow-hidden rounded-[2rem] border border-[#d5e5f7] bg-white p-4 shadow-[0_28px_90px_rgba(22,63,108,0.16)] sm:p-5 lg:p-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.1em] text-[#205fb3]">Submitted successfully</p>
-          <h1 className="headline mt-1 text-2xl font-semibold text-[#0f2642] sm:text-3xl">Your score card is ready</h1>
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-            <article className="rounded-2xl border border-[#d8e6f5] bg-[linear-gradient(180deg,#ffffff,#f7fbff)] p-3.5 sm:p-4">
-              <p className="text-lg font-semibold text-[#163f6a]">AI Summary</p>
-              <p className="mt-2 text-sm leading-6 text-[#2b4c6e]">{aiSummaryText}</p>
-              <div className="mt-3 inline-flex items-center rounded-xl bg-[#e8f1ff] px-3 py-1.5 text-xs font-semibold text-[#1b4f8e]">
-                This is not a diagnosis
+      <main className="pain-screen min-h-[100svh] bg-[#f4f8ff] px-3 py-3 text-[#1f456e] sm:px-5 sm:py-4 lg:px-8 lg:py-5">
+        <section className="mx-auto w-full max-w-[980px] rounded-[2rem] border border-[#dde7f6] bg-[#f8fbff] p-3 shadow-[0_24px_80px_rgba(24,64,112,0.12)] sm:p-4 lg:p-5">
+          <header className="mb-3 text-center">
+            <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[60px_minmax(0,1fr)_60px]">
+              <button type="button" aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full border border-[#e2eaf7] bg-white text-xl text-[#20406a] shadow-sm sm:h-12 sm:w-12">
+                ‹
+              </button>
+              <div>
+                <h1 className="headline text-xl font-semibold leading-tight text-[#162c4d] sm:text-2xl">Assessment Summary</h1>
+                <p className="mt-1 text-xs text-[#6b7f9d] sm:text-sm">{summaryDateLabel}</p>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <div className="rounded-lg bg-white px-2.5 py-2 text-center">
-                  <p className="text-[#6b86a3]">Instrument</p>
-                  <p className="mt-0.5 font-semibold text-[#173e67]">{promScore.instrument}</p>
-                </div>
-                <div className="rounded-lg bg-white px-2.5 py-2 text-center">
-                  <p className="text-[#6b86a3]">Severity</p>
-                  <p className="mt-0.5 font-semibold text-[#173e67]">{promScore.severity}</p>
-                </div>
-                <div className="rounded-lg bg-white px-2.5 py-2 text-center">
-                  <p className="text-[#6b86a3]">PROM items</p>
-                  <p className="mt-0.5 font-semibold text-[#173e67]">{promScore.answeredItems}/{promScore.expectedItems}</p>
-                </div>
-                <div className="rounded-lg bg-white px-2.5 py-2 text-center">
-                  <p className="text-[#6b86a3]">Follow-up</p>
-                  <p className="mt-0.5 font-semibold text-[#173e67]">{followupAnsweredCount}/{legacyQuestions.length}</p>
-                </div>
-              </div>
-            </article>
+              <button type="button" aria-label="Share" className="grid h-11 w-11 place-items-center rounded-full border border-[#e2eaf7] bg-white text-lg text-[#20406a] shadow-sm sm:h-12 sm:w-12">
+                ⤴
+              </button>
+            </div>
+          </header>
 
-            <article className="rounded-2xl border border-[#d8e6f5] bg-white p-3.5 sm:p-4">
-              <p className="text-lg font-semibold text-[#163f6a]">Score Breakdown</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start">
-                <div className="mx-auto flex w-full max-w-[180px] flex-col items-center">
-                  <div
-                    className="grid h-[150px] w-[150px] place-items-center rounded-full"
-                    style={{
-                      background: `conic-gradient(#ef5a64 0% ${promPercent ?? 0}%, #d7e7fb ${promPercent ?? 0}% 100%)`,
-                    }}
-                  >
-                    <div className="grid h-[114px] w-[114px] place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(24,73,120,0.08)]">
-                      <p className="text-3xl font-semibold text-[#163f6a]">{promPercent === null ? "-" : `${promPercent}%`}</p>
-                      <p className="mt-0.5 text-sm font-semibold text-[#365777]">
-                        {promScore.totalScore} / {promScore.maxScore || promScore.expectedItems * 5}
-                      </p>
-                    </div>
+          <article className="rounded-[1.7rem] border border-[#ffd8d8] bg-white px-4 py-4 shadow-[0_12px_34px_rgba(236,91,91,0.1)] sm:px-5 sm:py-5">
+            <div className="grid grid-cols-[minmax(0,0.95fr)_1px_minmax(0,1.05fr)] items-stretch gap-3 sm:gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-[#1b3360] sm:text-xl">Overall Score</h2>
+                <p className="mt-3 text-3xl font-semibold leading-none text-[#ef3f3f] sm:text-5xl">{promPercent ?? "-"}</p>
+                <p className="mt-1 text-xl font-semibold leading-none text-[#6c7f9b] sm:text-3xl">/100</p>
+                <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#ffe7e7] px-3 py-1.5 text-base font-semibold text-[#ef3f3f] sm:px-4 sm:py-2 sm:text-xl">
+                  <span aria-hidden="true">↗</span>
+                  {impactBand.label}
+                </span>
+              </div>
+
+              <div className="w-px bg-[#e8eef8]" aria-hidden="true" />
+
+              <div className="overflow-hidden rounded-xl bg-white">
+                <div className="flex items-center gap-3 border-b border-[#e8eef8] px-1 py-3 sm:py-4">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#ecf2ff] text-xl">📋</span>
+                  <div>
+                    <p className="text-xs text-[#5f7390] sm:text-sm">Instrument</p>
+                    <p className="text-lg font-semibold text-[#1c345c] sm:text-xl">{promScore.instrument}</p>
                   </div>
-                  <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${scoreToneClass}`}>{promScore.severity}</p>
                 </div>
 
-                <div className="space-y-2">
-                  {scoreBreakdownRows.map((row) => (
-                    <div key={row.key} className="grid grid-cols-[minmax(82px,1fr)_minmax(120px,2fr)_42px] items-center gap-2 text-xs sm:text-sm">
-                      <span className="font-medium text-[#294a69]">{row.label}</span>
-                      <span className="h-2 overflow-hidden rounded-full bg-[#e7edf5]">
-                        <span
-                          className="block h-full rounded-full"
-                          style={{ width: `${row.percent}%`, backgroundColor: row.color }}
-                        />
-                      </span>
-                      <span className="text-right font-semibold text-[#375979]">{row.percent}%</span>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-3 border-b border-[#e8eef8] px-1 py-3 sm:py-4">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#fff3df] text-xl">⚠</span>
+                  <div>
+                    <p className="text-xs text-[#5f7390] sm:text-sm">Severity</p>
+                    <p className="text-lg font-semibold leading-tight text-[#ef3f3f] sm:text-xl">{promScore.severity}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 px-1 py-3 sm:py-4">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e6f8ea] text-xl">🎯</span>
+                  <div>
+                    <p className="text-xs text-[#5f7390] sm:text-sm">Score</p>
+                    <p className="text-lg font-semibold text-[#2f9c47] sm:text-xl">{promScore.totalScore} / {promScore.maxScore || promScore.expectedItems * 5}</p>
+                  </div>
                 </div>
               </div>
-            </article>
-          </div>
+            </div>
+          </article>
+
+          <article className="mt-4 rounded-[1.7rem] border border-[#dee7f7] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(37,84,142,0.08)] sm:px-5 sm:py-5">
+            <h2 className="text-xl font-semibold text-[#1a345d] sm:text-2xl">Summary</h2>
+
+            <div className="mt-3 divide-y divide-[#e8eef8]">
+              {summaryRows.map((row) => (
+                <div key={row.key} className="flex items-start gap-3 py-3">
+                  <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-lg ${row.badgeClass}`}>{row.icon}</span>
+                  <div>
+                    <p className="text-lg font-semibold leading-tight text-[#1f365d] sm:text-xl">{row.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-[#304c72] sm:text-sm sm:leading-6">{row.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
         </section>
       </main>
     );
@@ -2291,9 +2460,9 @@ export function OneTimeQuestionnaireMock({
                   <h1 className="headline mt-1 text-3xl font-semibold text-[#0f2642] sm:text-4xl">How strong is the pain right now?</h1>
                 </div>
 
-                <div className="pain-score-shell mt-6 flex-1">
+                <div className="pain-worse-stack-shell mt-5 flex-1">
                   <div
-                    className="pain-score-track"
+                    className="pain-worse-space"
                     role="radiogroup"
                     aria-label="Pain score from 0 to 10"
                     onPointerDown={onPainScorePointerDown}
@@ -2304,60 +2473,51 @@ export function OneTimeQuestionnaireMock({
                       painScoreSwipeHandled.current = false;
                     }}
                   >
-                    {painScoreOptions.map((score) => {
-                      const active = painScoreFront === score;
-                      const scoreWord = painScoreWords[score];
-                      const toneHue = Math.max(5, 114 - score * 10);
-                      const tone = `hsl(${toneHue} 68% 42%)`;
-                      const anchorScore = painScoreFront;
-                      const distance = score - anchorScore;
+                    {painScoreOptions.map((score, index) => {
+                      const distance = circularDistance(index, painScoreFront, painScoreOptions.length);
                       const absDistance = Math.abs(distance);
-                      const direction = distance === 0 ? 0 : distance > 0 ? 1 : -1;
-
                       if (absDistance > 5) return null;
+
+                      const isFront = distance === 0;
+                      const active = selectedPainScore === score;
 
                       return (
                         <button
                           key={score}
                           type="button"
                           role="radio"
-                          aria-checked={selectedPainScore === score}
-                          aria-label={`Pain score ${score}: ${scoreWord}`}
+                          aria-checked={active}
+                          aria-label={`Pain score ${score}: ${painScoreWords[score]}`}
+                          className={`pain-worse-card pain-worse-card-info ${isFront ? "pain-worse-card-front" : ""} ${active ? "pain-worse-card-active" : ""}`}
                           onClick={() => {
                             if (painScoreSwipeHandled.current) {
                               painScoreSwipeHandled.current = false;
                               return;
                             }
+
+                            if (isFront) {
+                              setSelectedPainScore(score);
+                              return;
+                            }
+
                             setPainScoreFront(score);
-                            setSelectedPainScore(score);
                           }}
-                          className={`pain-score-card ${active ? "pain-score-card-active" : ""}`}
-                          style={{
-                            ["--pain-tone" as string]: tone,
-                            transform: active
-                              ? "translateX(0px) translateY(-12px) scale(1)"
-                              : `translateX(${direction * (88 + (absDistance - 1) * 5)}px) translateY(${7 + absDistance * 1.5}px) scale(${0.88 - Math.min((absDistance - 1) * 0.012, 0.04)})`,
-                            zIndex: active ? 140 : 80 - absDistance,
-                            opacity: active ? 1 : 0.96,
-                          }}
+                          style={getStackCardStyle(distance, Math.min(absDistance, 3), isFront)}
                         >
-                          <span className="pain-score-number">{score}</span>
-                          <span className={`pain-score-word ${active ? "pain-score-word-active" : ""}`}>{scoreWord}</span>
-                          {active ? <span className="pain-score-state">{scoreWord}</span> : null}
+                          <span className={`swipe-option-title ${active ? "swipe-option-title-active" : ""}`}>{score}/10</span>
+                          <span className="swipe-option-helper">{painScoreWords[score]}</span>
                           <span className="pain-score-face" aria-hidden="true">
                             <PainFaceIcon score={score} />
-                            {active ? <PainOrbitTicks score={score} /> : null}
+                            {isFront ? <PainOrbitTicks score={score} /> : null}
+                          </span>
+                          <span className={`pain-worse-check-chip ${active ? "pain-worse-check-chip-active" : ""}`} aria-hidden="true">
+                            {active ? "✓" : ""}
                           </span>
                         </button>
                       );
                     })}
                   </div>
-
-                  <div className="pain-score-axis">
-                    <span>0 - No pain</span>
-                    <span>Worst imaginable - 10</span>
-                  </div>
-
+                  <p className="pain-worse-hint">Swipe left or right, then tap the front card to choose your pain score.</p>
                   {selectedPainScore !== null ? (
                     <p className="pain-score-selected">Selected: <strong>{selectedPainScore}</strong></p>
                   ) : null}
@@ -2696,7 +2856,7 @@ export function OneTimeQuestionnaireMock({
                     const index = treatmentHelpedOptions.findIndex((entry) => entry.id === option.id);
                     const distance = circularDistance(index, treatmentHelpedFrontIndex, treatmentHelpedOptions.length);
                     const absDistance = Math.abs(distance);
-                    if (absDistance > 0) return null;
+                    if (absDistance > 3) return null;
 
                     const isFront = distance === 0;
                     const active = selectedTreatmentHelped === option.id;
@@ -3336,6 +3496,60 @@ export function OneTimeQuestionnaireMock({
                     </div>
                     <p className="pain-worse-hint">Swipe left or right, then tap the front card to select one option.</p>
                   </div>
+                ) : activeLegacyDeckOptions ? (
+                  <div className="pain-worse-stack-shell mt-5 flex-1">
+                    <div
+                      className="pain-worse-space"
+                      role="radiogroup"
+                      aria-label={`${legacyQuestion?.label ?? "Legacy"} options`}
+                      onPointerDown={onLegacyDeckPointerDown}
+                      onPointerUp={onLegacyDeckPointerUp}
+                      onPointerCancel={() => {
+                        legacyDeckDragStartX.current = null;
+                      }}
+                    >
+                      {activeLegacyDeckOptions.map((option, index) => {
+                        const distance = circularDistance(index, activeLegacyDeckFrontIndex, activeLegacyDeckOptions.length);
+                        const absDistance = Math.abs(distance);
+                        if (absDistance > 3) return null;
+
+                        const isFront = distance === 0;
+                        const active = String(legacyAnswers[legacyQuestion?.id ?? ""] ?? "") === option.value;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            aria-label={option.label}
+                            className={`pain-worse-card ${isFront ? "pain-worse-card-front" : ""} ${active ? "pain-worse-card-active" : ""}`}
+                            onClick={() => {
+                              if (!legacyQuestion) return;
+                              if (isFront) {
+                                setLegacyAnswers((current) => ({ ...current, [legacyQuestion.id]: option.value }));
+                                return;
+                              }
+
+                              setLegacyDeckFrontIndexByQuestion((current) => ({
+                                ...current,
+                                [legacyQuestion.id]: index,
+                              }));
+                            }}
+                            style={getStackCardStyle(distance, absDistance, isFront)}
+                          >
+                            <span className="pain-worse-art" aria-hidden="true">
+                              <Image src={option.imageSrc} alt="" fill className="object-contain" sizes="(max-width: 640px) 74vw, 360px" />
+                            </span>
+                            <span className={`pain-worse-check-chip ${active ? "pain-worse-check-chip-active" : ""}`} aria-hidden="true">
+                              {active ? "✓" : ""}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="pain-worse-hint">Swipe left or right, then tap the front card to select one option.</p>
+                  </div>
                 ) : legacyQuestion?.type === "range" ? (
                   <div className="mt-5 rounded-2xl border border-[#d5e3f3] bg-white px-4 py-4 shadow-sm">
                     <div className="mb-2 text-sm font-semibold text-[#1f456e]">
@@ -3405,7 +3619,9 @@ export function OneTimeQuestionnaireMock({
             }`}
             disabled={nextDisabled}
           >
-            {isFinalStep ? (isSubmittingFinal ? "Finishing..." : finalSubmitted ? "Submitted ✓" : "Finish ✓") : "Next →"}
+            {isFinalStep
+              ? (isSubmittingFinal ? "Finishing..." : finalSubmitted ? "Submitted ✓" : "Finish ✓")
+              : "Next →"}
           </button>
         </div>
         {finalSubmitError ? <p className="mt-2 text-center text-sm font-medium text-[#b42318]">{finalSubmitError}</p> : null}

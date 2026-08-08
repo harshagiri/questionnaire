@@ -42,13 +42,27 @@ type BookedResult = {
   videoConsultUrl: string;
 };
 
+type ExistingAppointment = {
+  id: string;
+  consultId: string;
+  consultSessionId: string;
+  doctorId: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentType: string;
+  status: string;
+  preConsultLink?: string;
+  videoConsultLink?: string;
+};
+
 type ConsultMode = "clinic" | "video";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DAY_SHORT_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function resolveDoctorSpecialty(doctor: DoctorOption) {
-  const rawBio = String(doctor.bio ?? "").trim();
+function resolveDoctorSpecialty(doctor?: DoctorOption | null) {
+  const rawBio = String(doctor?.bio ?? "").trim();
   if (!rawBio) {
     return "Spine Specialist";
   }
@@ -236,9 +250,13 @@ function ConfirmationScreen({ result, onDone }: { result: BookedResult; onDone: 
 export function PatientBookAppointment({
   phone,
   journeyMode = false,
+  manageMode = false,
+  targetAppointmentId,
 }: {
   phone: string;
   journeyMode?: boolean;
+  manageMode?: boolean;
+  targetAppointmentId?: string;
 }) {
   const router = useRouter();
   const [bookingStep, setBookingStep] = useState<"doctors" | "schedule" | "checkout">("doctors");
@@ -252,8 +270,11 @@ export function PatientBookAppointment({
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const [booked, setBooked] = useState<BookedResult | null>(null);
+  const [existingAppointment, setExistingAppointment] = useState<ExistingAppointment | null>(null);
 
   const patientRecord = findPatientRecordByPhone(phone);
   const selectedDoctor = useMemo(
@@ -332,6 +353,95 @@ export function PatientBookAppointment({
     void loadDoctors();
   }, []);
 
+  useEffect(() => {
+    async function loadExistingAppointment() {
+      if (!manageMode || !phone) {
+        return;
+      }
+
+      setLoadingExisting(true);
+      setError("");
+
+      try {
+        const response = await fetch(`/api/appointments?phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          appointments?: Array<{
+            id: string;
+            consultId?: string;
+            consultSessionId?: string;
+            doctorId: string;
+            doctorProfileId?: string;
+            doctorName: string;
+            appointmentDate: string;
+            appointmentTime: string;
+            appointmentType: string;
+            status: string;
+            preConsultLink?: string;
+            videoConsultLink?: string;
+          }>;
+        };
+
+        if (!response.ok || !payload.ok) {
+          setError("Could not load existing appointments right now.");
+          return;
+        }
+
+        const now = new Date();
+        const upcoming = (payload.appointments ?? [])
+          .filter((appointment) => appointment.status !== "cancelled")
+          .filter((appointment) => {
+            const when = new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
+            return !Number.isNaN(when.getTime()) && when.getTime() >= now.getTime() - 30 * 60 * 1000;
+          })
+          .sort((a, b) => {
+            const left = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+            const right = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+            return left - right;
+          });
+
+        const selected = targetAppointmentId
+          ? upcoming.find((appointment) => appointment.id === targetAppointmentId) ?? null
+          : upcoming[0] ?? null;
+
+        if (!selected) {
+          setError("No upcoming appointment found for this phone number.");
+          return;
+        }
+
+        const appointment: ExistingAppointment = {
+          id: selected.id,
+          consultId: selected.consultId ?? selected.consultSessionId ?? selected.id,
+          consultSessionId: selected.consultSessionId ?? selected.consultId ?? selected.id,
+          doctorId: selected.doctorProfileId ?? selected.doctorId,
+          doctorName: selected.doctorName,
+          appointmentDate: selected.appointmentDate,
+          appointmentTime: selected.appointmentTime,
+          appointmentType: selected.appointmentType,
+          status: selected.status,
+          preConsultLink: selected.preConsultLink,
+          videoConsultLink: selected.videoConsultLink,
+        };
+
+        setExistingAppointment(appointment);
+        setForm({
+          doctorId: appointment.doctorId,
+          doctorName: appointment.doctorName,
+          appointmentDate: appointment.appointmentDate,
+          appointmentTime: appointment.appointmentTime,
+        });
+        setConsultMode(appointment.appointmentType.toLowerCase().includes("video") ? "video" : "clinic");
+        setBookingStep("schedule");
+      } catch {
+        setError("Could not load existing appointments right now.");
+      } finally {
+        setLoadingExisting(false);
+      }
+    }
+
+    void loadExistingAppointment();
+  }, [manageMode, phone, targetAppointmentId]);
+
   function setField(key: keyof BookingForm, value: string) {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
@@ -405,71 +515,133 @@ export function PatientBookAppointment({
         return;
       }
 
-      const consultId = generateConsultId();
-      const origin = window.location.origin;
-      const preConsultUrl = `${origin}/patient/consult/${consultId}`;
-      const videoConsultUrl = `https://meet.spinexpert.ai/consult/${consultId}`;
+      const isUpdatingExisting = Boolean(manageMode && existingAppointment?.id);
 
-      const body = {
-        patientName,
-        patientPhone: phone,
-        doctorId: form.doctorId,
-        appointmentDate: form.appointmentDate,
-        appointmentTime: form.appointmentTime,
-        appointmentType: "new",
-        consultSessionId: consultId,
-        consultId,
-        videoConsultLink: videoConsultUrl,
-        preConsultLink: preConsultUrl,
-        status: "booked",
-        notes: "",
-      };
+      let bookedResult: BookedResult;
 
-      const res = await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      if (isUpdatingExisting && existingAppointment) {
+        const updateResponse = await fetch("/api/appointments", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: existingAppointment.id,
+            doctorId: form.doctorId,
+            appointmentDate: form.appointmentDate,
+            appointmentTime: form.appointmentTime,
+            appointmentType: consultMode === "video" ? "video" : "new",
+            status: "booked",
+            notes: "",
+          }),
+        });
 
-      const payload = (await res.json()) as { ok?: boolean; appointment?: { id?: string } };
+        const updatePayload = (await updateResponse.json().catch(() => null)) as {
+          ok?: boolean;
+          message?: string;
+          appointment?: {
+            id?: string;
+            consultId?: string;
+            consultSessionId?: string;
+            preConsultLink?: string;
+            videoConsultLink?: string;
+          };
+        };
 
-      if (!res.ok || !payload.ok) {
-        const now = new Date().toISOString();
-        saveAppointment({
-          sessionId: consultId,
-          consultId,
-          patientRecordId: patientRecord?.patientId,
+        if (!updateResponse.ok || !updatePayload?.ok) {
+          setError(updatePayload?.message ?? "Could not update appointment.");
+          return;
+        }
+
+        const effectiveConsultId =
+          updatePayload.appointment?.consultId
+          ?? updatePayload.appointment?.consultSessionId
+          ?? existingAppointment.consultId;
+
+        bookedResult = {
+          consultId: effectiveConsultId,
+          appointmentId: updatePayload.appointment?.id ?? existingAppointment.id,
+          doctorName: form.doctorName,
+          date: form.appointmentDate,
+          time: form.appointmentTime,
+          preConsultUrl: updatePayload.appointment?.preConsultLink ?? existingAppointment.preConsultLink ?? `${window.location.origin}/patient/consult/${effectiveConsultId}`,
+          videoConsultUrl: updatePayload.appointment?.videoConsultLink ?? existingAppointment.videoConsultLink ?? `https://meet.spinexpert.ai/consult/${effectiveConsultId}`,
+        };
+      } else {
+        const consultId = generateConsultId();
+        const origin = window.location.origin;
+        const preConsultUrl = `${origin}/patient/consult/${consultId}`;
+        const videoConsultUrl = `https://meet.spinexpert.ai/consult/${consultId}`;
+
+        const body = {
           patientName,
           patientPhone: phone,
-          doctorName: form.doctorName,
           doctorId: form.doctorId,
           appointmentDate: form.appointmentDate,
           appointmentTime: form.appointmentTime,
-          appointmentType: "new",
-          status: "booked",
-          notes: "",
+          appointmentType: consultMode === "video" ? "video" : "new",
+          consultSessionId: consultId,
+          consultId,
           videoConsultLink: videoConsultUrl,
           preConsultLink: preConsultUrl,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+          status: "booked",
+          notes: "",
+        };
 
-      const bookedResult = {
-        consultId,
-        appointmentId: payload.appointment?.id ?? consultId,
-        doctorName: form.doctorName,
-        date: form.appointmentDate,
-        time: form.appointmentTime,
-        preConsultUrl,
-        videoConsultUrl,
-      };
+        const res = await fetch("/api/appointments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const payload = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          message?: string;
+          appointment?: { id?: string };
+        } | null;
+
+        if (!res.ok || !payload?.ok) {
+          if (!res.ok && payload?.message) {
+            setError(payload.message);
+            return;
+          }
+
+          const now = new Date().toISOString();
+          saveAppointment({
+            sessionId: consultId,
+            consultId,
+            patientRecordId: patientRecord?.patientId,
+            patientName,
+            patientPhone: phone,
+            doctorName: form.doctorName,
+            doctorId: form.doctorId,
+            appointmentDate: form.appointmentDate,
+            appointmentTime: form.appointmentTime,
+            appointmentType: consultMode === "video" ? "video" : "new",
+            status: "booked",
+            notes: "",
+            videoConsultLink: videoConsultUrl,
+            preConsultLink: preConsultUrl,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+
+        bookedResult = {
+          consultId,
+          appointmentId: payload?.appointment?.id ?? consultId,
+          doctorName: form.doctorName,
+          date: form.appointmentDate,
+          time: form.appointmentTime,
+          preConsultUrl,
+          videoConsultUrl,
+        };
+      }
 
       if (journeyMode) {
         const normalizedPhone = phone.replace(/\D/g, "");
+        const journeyConsultId = bookedResult.consultId;
         if (typeof window !== "undefined") {
           window.localStorage.setItem(
-            `sei-patient-journey:${consultId}`,
+            `sei-patient-journey:${journeyConsultId}`,
             JSON.stringify({
               ...bookedResult,
               phone: normalizedPhone,
@@ -509,17 +681,18 @@ export function PatientBookAppointment({
         }
 
         if (!profileComplete) {
-          router.push(`/register?journey=1&consultId=${encodeURIComponent(consultId)}&phone=${encodeURIComponent(normalizedPhone)}`);
+          router.push(`/register?journey=1&consultId=${encodeURIComponent(journeyConsultId)}&phone=${encodeURIComponent(normalizedPhone)}`);
           return;
         }
 
-        router.push(`/patient/otp?consultId=${encodeURIComponent(consultId)}&phone=${encodeURIComponent(normalizedPhone)}&journey=1`);
+        router.push(`/patient/otp?consultId=${encodeURIComponent(journeyConsultId)}&phone=${encodeURIComponent(normalizedPhone)}&journey=1`);
         return;
       }
 
       setBooked(bookedResult);
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (exception) {
+      const message = exception instanceof Error ? exception.message : "Network error. Please try again.";
+      setError(message || "Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -527,6 +700,45 @@ export function PatientBookAppointment({
 
   if (booked) {
     return <ConfirmationScreen result={booked} onDone={() => router.push("/patient")} />;
+  }
+
+  async function handleCancelExistingAppointment() {
+    if (!existingAppointment?.id) {
+      return;
+    }
+
+    const confirmed = window.confirm("Cancel your upcoming appointment?");
+    if (!confirmed) {
+      return;
+    }
+
+    setCancelling(true);
+    setError("");
+    try {
+      const response = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: existingAppointment.id,
+          status: "cancelled",
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; message?: string };
+
+      if (!response.ok || !payload.ok) {
+        setError(payload.message ?? "Could not cancel appointment.");
+        return;
+      }
+
+      setExistingAppointment(null);
+      setForm({ doctorId: "", doctorName: "", appointmentDate: "", appointmentTime: "" });
+      setBookingStep("doctors");
+    } catch {
+      setError("Could not cancel appointment right now.");
+    } finally {
+      setCancelling(false);
+    }
   }
 
   return (
@@ -547,6 +759,30 @@ export function PatientBookAppointment({
             {bookingStep === "doctors" ? "Find doctor" : bookingStep === "schedule" ? "Choose slot" : "Review & pay"}
           </span>
         </div>
+
+        {manageMode ? (
+          <div className="mb-2.5 rounded-xl bg-blue-50 px-3 py-2 ring-1 ring-[rgba(59,130,246,0.2)]">
+            {loadingExisting ? (
+              <p className="text-sm text-blue-700">Loading your upcoming appointment...</p>
+            ) : existingAppointment ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-blue-800">
+                  Upcoming appointment: {formatDoctorDisplayName(existingAppointment.doctorName)} on {existingAppointment.appointmentDate} at {existingAppointment.appointmentTime}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCancelExistingAppointment}
+                  disabled={cancelling}
+                  className="shrink-0 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60"
+                >
+                  {cancelling ? "Cancelling..." : "Cancel"}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-blue-700">No upcoming appointment found. You can book a new one below.</p>
+            )}
+          </div>
+        ) : null}
 
         <div className="rounded-2xl bg-white/92 p-2 shadow-[0_8px_18px_rgba(60,93,154,0.08)] backdrop-blur">
           {bookingStep === "doctors" ? (
@@ -656,7 +892,7 @@ export function PatientBookAppointment({
                   <p className="truncate text-lg font-semibold text-gray-900">
                     {formatDoctorDisplayName(selectedDoctor?.name ?? "Selected doctor")}
                   </p>
-                  <p className="truncate text-[13px] text-gray-700">{resolveDoctorSpecialty(selectedDoctor as DoctorOption)}</p>
+                  <p className="truncate text-[13px] text-gray-700">{resolveDoctorSpecialty(selectedDoctor)}</p>
                   <p className="mt-0.5 text-[13px] text-gray-600">{selectedDoctor ? getDoctorExperienceYears(selectedDoctor) : 0} years experience</p>
                 </div>
               </div>
@@ -745,7 +981,7 @@ export function PatientBookAppointment({
                   />
                   <div>
                     <p className="text-[18px] font-semibold leading-6 text-gray-900">{formatDoctorDisplayName(selectedDoctor?.name ?? "Doctor")}</p>
-                    <p className="text-[13px] leading-5 text-blue-900/85">{resolveDoctorSpecialty(selectedDoctor as DoctorOption)}</p>
+                    <p className="text-[13px] leading-5 text-blue-900/85">{resolveDoctorSpecialty(selectedDoctor)}</p>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2 border-t border-gray-100 pt-3 text-sm text-gray-700">
@@ -826,7 +1062,7 @@ export function PatientBookAppointment({
               disabled={!canSubmit()}
               className="w-full rounded-xl bg-blue-700 py-3.5 px-6 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Continue to review
+              {manageMode && existingAppointment ? "Review update" : "Continue to review"}
             </button>
           ) : (
             <div className="flex items-center gap-3">
@@ -841,7 +1077,11 @@ export function PatientBookAppointment({
                 disabled={!canSubmit() || submitting}
                 className="w-full rounded-xl bg-[linear-gradient(90deg,#2563eb,#1d4ed8)] py-3.5 px-6 font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {submitting ? "Booking..." : consultMode === "video" ? "Pay & Confirm Video Consult" : "Pay & Confirm Clinic Visit"}
+                {submitting
+                  ? (manageMode && existingAppointment ? "Updating..." : "Booking...")
+                  : (manageMode && existingAppointment
+                    ? "Update appointment"
+                    : (consultMode === "video" ? "Pay & Confirm Video Consult" : "Pay & Confirm Clinic Visit"))}
               </button>
             </div>
           )}

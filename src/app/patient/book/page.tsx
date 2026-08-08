@@ -11,10 +11,12 @@ export const metadata = {
 export default async function PatientBookPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ journey?: string }>;
+  searchParams?: Promise<{ journey?: string; manage?: string; appointmentId?: string }>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const journeyMode = resolvedSearchParams?.journey === "1";
+  const manageMode = resolvedSearchParams?.manage === "1";
+  const appointmentId = resolvedSearchParams?.appointmentId;
   const cookieStore = await cookies();
   const role = cookieStore.get("se_role")?.value;
   const name = cookieStore.get("se_name")?.value;
@@ -33,7 +35,7 @@ export default async function PatientBookPage({
         <PatientBookAppointment phone={phone} journeyMode />
       ) : (
         <PatientProfileGate phone={phone}>
-          <PatientBookAppointment phone={phone} />
+          <PatientBookAppointment phone={phone} manageMode={manageMode} targetAppointmentId={appointmentId} />
         </PatientProfileGate>
       )}
     </AppShell>

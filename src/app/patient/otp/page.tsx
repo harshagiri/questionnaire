@@ -10,7 +10,7 @@ export const metadata = {
 export default async function PatientOtpPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ consultId?: string; phone?: string; journey?: string }>;
+  searchParams?: Promise<{ consultId?: string; phone?: string; journey?: string; next?: string }>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const cookieStore = await cookies();
@@ -26,7 +26,7 @@ export default async function PatientOtpPage({
 
   return (
     <AppShell role="patient">
-      <PatientOtpGate consultId={resolvedSearchParams?.consultId} phone={phone} />
+      <PatientOtpGate consultId={resolvedSearchParams?.consultId} phone={phone} nextPath={resolvedSearchParams?.next} />
     </AppShell>
   );
 }
