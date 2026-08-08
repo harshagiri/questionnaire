@@ -8,22 +8,34 @@ export const metadata = {
   title: "Book Appointment — SpineExpert",
 };
 
-export default async function PatientBookPage() {
+export default async function PatientBookPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ journey?: string }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const journeyMode = resolvedSearchParams?.journey === "1";
   const cookieStore = await cookies();
   const role = cookieStore.get("se_role")?.value;
   const name = cookieStore.get("se_name")?.value;
+  const phoneCookie = cookieStore.get("se_phone")?.value;
 
   if (!role || role !== "patient") {
-    redirect("/?role=patient&next=/patient/book");
+    const nextPath = journeyMode ? "/patient/book?journey=1" : "/patient/book";
+    redirect(`/?role=patient&next=${encodeURIComponent(nextPath)}`);
   }
 
-  const phone = (name ?? "").replace(/\D/g, "");
+  const phone = (phoneCookie ?? name ?? "").replace(/\D/g, "");
 
   return (
     <AppShell role="patient">
-      <PatientProfileGate phone={phone}>
-        <PatientBookAppointment phone={phone} />
-      </PatientProfileGate>
+      {journeyMode ? (
+        <PatientBookAppointment phone={phone} journeyMode />
+      ) : (
+        <PatientProfileGate phone={phone}>
+          <PatientBookAppointment phone={phone} />
+        </PatientProfileGate>
+      )}
     </AppShell>
   );
 }

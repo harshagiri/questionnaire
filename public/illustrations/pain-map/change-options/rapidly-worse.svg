@@ -1,0 +1,22 @@
+<svg width="520" height="760" viewBox="0 0 520 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(276 360) rotate(90) scale(220 180)">
+      <stop stop-color="#FF7878" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FF7878" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#304E73"/>
+      <stop offset="1" stop-color="#1F3E62"/>
+    </linearGradient>
+  </defs>
+  <rect width="520" height="760" fill="white" fill-opacity="0.001"/>
+  <ellipse cx="278" cy="360" rx="176" ry="160" fill="url(#g)"/>
+  <circle cx="300" cy="180" r="38" fill="url(#body)"/>
+  <path d="M260 236c14-22 36-28 62-22l-8 56 10 122-40 16-52-2 20-124 8-46Z" fill="url(#body)"/>
+  <path d="M232 406c-16 32-22 66-26 118h36l18-98" fill="url(#body)"/>
+  <path d="M324 390c8 42 14 92 16 134h-34l-20-122" fill="url(#body)"/>
+  <path d="M214 524 192 702h40l22-146" fill="url(#body)"/>
+  <path d="M292 524 314 702h-40l-20-146" fill="url(#body)"/>
+  <path d="M80 304c38 122 140 192 276 230" stroke="#F14A4A" stroke-width="14" stroke-linecap="round"/>
+  <path d="M346 504l18 44-46-2" stroke="#F14A4A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

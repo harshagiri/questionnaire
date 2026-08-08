@@ -21,6 +21,132 @@ const redFlagKeys = [
   "redFlagWeightLoss",
 ];
 
+const expandedAnswerStageQuestionIds = new Set([
+  "q7PainPattern",
+  "q8Trend",
+  "q9RadiatingPain",
+  "q10Numbness",
+  "q11Weakness",
+  "q12PainWorsens",
+  "q13PainImproves",
+  "q14TreatmentTried",
+]);
+
+const swipeDeckQuestionIds = new Set([
+  "q7PainPattern",
+  "q8Trend",
+  "q9RadiatingPain",
+  "q10Numbness",
+  "q11Weakness",
+  "q12PainWorsens",
+  "q13PainImproves",
+  "q14TreatmentTried",
+]);
+
+const swipeQuestionMeta: Record<string, Record<string, { imageSrc?: string; helper?: string; fullImage?: boolean }>> = {
+  q7PainPattern: {
+    intermittent: {
+      imageSrc: "/illustrations/pain-map/pattern-options/intermittent.png",
+      helper: "Comes and goes with pain-free periods.",
+    },
+    activity: {
+      imageSrc: "/illustrations/pain-map/pattern-options/activity.png",
+      helper: "Worse with movement, better with rest.",
+    },
+    constant: {
+      imageSrc: "/illustrations/pain-map/pattern-options/constant.png",
+      helper: "Present most of the time.",
+    },
+    night: {
+      imageSrc: "/illustrations/pain-map/pattern-options/night.png",
+      helper: "Can wake you from sleep.",
+    },
+  },
+  q8Trend: {
+    improving: { imageSrc: "/illustrations/pain-map/change-options/improving.png" },
+    stable: { imageSrc: "/illustrations/pain-map/change-options/stable.png" },
+    "slowly-worse": { imageSrc: "/illustrations/pain-map/change-options/slowly-worse.png" },
+    "rapidly-worse": { imageSrc: "/illustrations/pain-map/change-options/rapidly-worse.png" },
+  },
+  q9RadiatingPain: {
+    no: {
+      imageSrc: "/illustrations/pain-map/radiating-options/no-radiating.png",
+      helper: "Pain stays in one area and does not travel.",
+    },
+    occasional: {
+      imageSrc: "/illustrations/pain-map/radiating-options/occasional.png",
+      helper: "Comes and goes into the arm or leg.",
+    },
+    frequent: {
+      imageSrc: "/illustrations/pain-map/radiating-options/frequent.png",
+      helper: "Often travels into the arm or leg.",
+    },
+    constant: {
+      imageSrc: "/illustrations/pain-map/radiating-options/constant.png",
+      helper: "Constant and traveling into the limb.",
+    },
+  },
+  q10Numbness: {
+    none: {
+      imageSrc: "/illustrations/pain-map/numbness-options/none.png",
+      helper: "No numbness or tingling.",
+    },
+    occasional: {
+      imageSrc: "/illustrations/pain-map/numbness-options/occasional.png",
+      helper: "Comes and goes.",
+    },
+    frequent: {
+      imageSrc: "/illustrations/pain-map/numbness-options/frequent.png",
+      helper: "Happens often.",
+    },
+    constant: {
+      imageSrc: "/illustrations/pain-map/numbness-options/constant.png",
+      helper: "Present most of the time.",
+    },
+  },
+  q11Weakness: {
+    none: { helper: "No weakness in arm, hand, leg, or foot." },
+    mild: { helper: "Mild weakness at times." },
+    moderate: { helper: "Noticeable weakness affecting daily tasks." },
+    progressive: { helper: "Weakness is worsening over time." },
+  },
+  q12PainWorsens: {
+    sitting: { imageSrc: "/illustrations/pain-map/pain-worse-options/sitting.png", fullImage: true },
+    standing: { imageSrc: "/illustrations/pain-map/pain-worse-options/standing.png", fullImage: true },
+    walking: { imageSrc: "/illustrations/pain-map/pain-worse-options/walking.png", fullImage: true },
+    "forward-bend": { imageSrc: "/illustrations/pain-map/pain-worse-options/forward-bending.png", fullImage: true },
+    "backward-bend": { imageSrc: "/illustrations/pain-map/pain-worse-options/backward-bending.png", fullImage: true },
+    lifting: { imageSrc: "/illustrations/pain-map/pain-worse-options/lifting.png", fullImage: true },
+    coughing: { imageSrc: "/illustrations/pain-map/pain-worse-options/coughing-sneezing.png", fullImage: true },
+  },
+  q13PainImproves: {
+    rest: { imageSrc: "/illustrations/pain-map/pain-improves-options/rest-lying-down.png", fullImage: true },
+    walking: { imageSrc: "/illustrations/pain-map/pain-improves-options/walking.png", fullImage: true },
+    "position-change": { imageSrc: "/illustrations/pain-map/pain-improves-options/changing-position.png", fullImage: true },
+    medicines: { imageSrc: "/illustrations/pain-map/pain-improves-options/medicines.png", fullImage: true },
+    "heat-cold": { imageSrc: "/illustrations/pain-map/pain-improves-options/heat-cold.png", fullImage: true },
+    nothing: { imageSrc: "/illustrations/pain-map/pain-improves-options/nothing-gives-relief.png", fullImage: true },
+  },
+  q14TreatmentTried: {
+    medicines: { imageSrc: "/illustrations/pain-map/treatments-options/medicines-painkillers.png", fullImage: true },
+    physio: { imageSrc: "/illustrations/pain-map/treatments-options/physiotherapy-rehab.png", fullImage: true },
+    injection: { imageSrc: "/illustrations/pain-map/treatments-options/injection-nerve-block.png", fullImage: true },
+    surgery: { imageSrc: "/illustrations/pain-map/treatments-options/surgery.png", fullImage: true },
+    alternative: { imageSrc: "/illustrations/pain-map/treatments-options/alternative-therapy.png", fullImage: true },
+    none: { imageSrc: "/illustrations/pain-map/treatments-options/none-yet.png", fullImage: true },
+  },
+};
+
+function wrapSwipeIndex(index: number, total: number) {
+  return ((index % total) + total) % total;
+}
+
+function getSwipeDistance(index: number, activeIndex: number, total: number) {
+  const forward = (index - activeIndex + total) % total;
+  const backward = forward - total;
+  return Math.abs(backward) < forward ? backward : forward;
+}
+
 const celebrationConfetti = [
   { left: "8%", delay: "0ms", color: "#165fc0", size: "10px", drift: "-18px", rotate: "28deg" },
   { left: "14%", delay: "220ms", color: "#5ab5ff", size: "7px", drift: "22px", rotate: "-18deg" },
@@ -162,6 +288,14 @@ function getSectionIntro(sectionId: string, sectionTitle: string) {
 
 function formatDisplayLabel(label: string) {
   return label.trim();
+}
+
+function shouldUseExpandedAnswerStage(questionId: string) {
+  return expandedAnswerStageQuestionIds.has(questionId);
+}
+
+function shouldUseSwipeDeckQuestion(questionId: string) {
+  return swipeDeckQuestionIds.has(questionId);
 }
 
 function getSectionVisual(sectionId: string) {
@@ -522,7 +656,9 @@ export function PatientWorkflow({
   const [sectionTransition, setSectionTransition] = useState<{ from: number; to: number } | null>(null);
   const [validationMessage, setValidationMessage] = useState("");
   const [profileBmi, setProfileBmi] = useState<number | null>(null);
+  const [swipeFrontIndexByQuestion, setSwipeFrontIndexByQuestion] = useState<Record<string, number>>({});
   const questionAreaRef = useRef<HTMLDivElement | null>(null);
+  const swipeDragStartXRef = useRef<number | null>(null);
   const skippedInitialAutosaveRef = useRef(false);
   const latestDraftRef = useRef<{
     sessionId: string;
@@ -1216,6 +1352,20 @@ export function PatientWorkflow({
     </div>
   );
 
+  const optionCardClass = (active: boolean, roomy = false) =>
+    `focus-ring w-full border text-left font-semibold transition-all duration-150 active:scale-[0.99] ${roomy ? "rounded-[1.2rem] px-4 py-4 text-base" : "rounded-2xl px-3.5 py-3 text-sm"} ${
+      active
+        ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_8px_20px_rgba(22,95,192,0.14)]"
+        : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:border-[rgba(22,95,192,0.45)] hover:bg-[rgba(22,95,192,0.06)]"
+    }`;
+
+  const optionIndicatorClass = (active: boolean) =>
+    `grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold transition ${
+      active
+        ? "bg-[var(--accent)] text-white"
+        : "border border-[rgba(21,32,43,0.22)] bg-white text-transparent"
+    }`;
+
   const renderRedFlagSection = () => (
     <article className="section-reveal rounded-[1.15rem] bg-[linear-gradient(180deg,rgba(90,181,255,0.12),rgba(255,255,255,0.98))] p-4">
       <div className="flex items-center justify-center gap-3 border-b border-[rgba(22,95,192,0.2)] pb-3">
@@ -1242,9 +1392,12 @@ export function PatientWorkflow({
             <button
               type="button"
               onClick={() => setValue(question.id, answers[question.id] === true ? false : true)}
-              className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(22,95,192,0.08)]"}`}
+              className={`mx-auto max-w-md ${optionCardClass(answers[question.id] === true)}`}
             >
-              <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(question.label)}</span>
+              <span className="flex w-full items-center justify-between gap-3">
+                <span className="min-w-0 text-sm font-medium leading-6 [overflow-wrap:anywhere]">{formatDisplayLabel(question.label)}</span>
+                <span className={optionIndicatorClass(answers[question.id] === true)} aria-hidden="true">✓</span>
+              </span>
             </button>
           </div>
         ))}
@@ -1266,9 +1419,12 @@ export function PatientWorkflow({
             type="button"
             aria-label={formatDisplayLabel(redFlagNoneQuestion.label)}
             onClick={() => setValue(redFlagNoneQuestion.id, answers.redFlagNone === true ? false : true)}
-            className={`focus-ring mx-auto flex w-full max-w-md items-center justify-center rounded-xl border px-3 py-3 text-center transition ${answers.redFlagNone === true ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[rgba(21,32,43,0.12)] bg-white hover:bg-[rgba(22,95,192,0.08)]"}`}
+            className={`mx-auto max-w-md ${optionCardClass(answers.redFlagNone === true)}`}
           >
-            <span className="min-w-0 text-sm font-medium leading-6 text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(redFlagNoneQuestion.label)}</span>
+            <span className="flex w-full items-center justify-between gap-3">
+              <span className="min-w-0 text-sm font-medium leading-6 [overflow-wrap:anywhere]">{formatDisplayLabel(redFlagNoneQuestion.label)}</span>
+              <span className={optionIndicatorClass(answers.redFlagNone === true)} aria-hidden="true">✓</span>
+            </span>
           </button>
         </div>
       ) : null}
@@ -1303,22 +1459,158 @@ export function PatientWorkflow({
   );
 
   const renderQuestionInput = (question: (typeof visibleQuestions)[number]) => {
+    const useExpandedStage = mode === "pre-consult" || shouldUseExpandedAnswerStage(question.id);
+    const useSwipeDeck = mode === "pre-consult" && shouldUseSwipeDeckQuestion(question.id);
+
+    if (useSwipeDeck && question.options && question.options.length > 0) {
+      const options = question.options;
+      const optionsLength = options.length;
+      const rawFrontIndex = swipeFrontIndexByQuestion[question.id] ?? 0;
+      const frontIndex = wrapSwipeIndex(rawFrontIndex, optionsLength);
+      const isMultiSelect = question.type === "multi-select";
+      const selectedValues = Array.isArray(answers[question.id])
+        ? (answers[question.id] as string[])
+        : typeof answers[question.id] === "string"
+          ? [String(answers[question.id])]
+          : [];
+
+      const setFrontIndex = (nextIndex: number) => {
+        setSwipeFrontIndexByQuestion((current) => ({
+          ...current,
+          [question.id]: wrapSwipeIndex(nextIndex, optionsLength),
+        }));
+      };
+
+      const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        swipeDragStartXRef.current = event.clientX;
+      };
+
+      const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (swipeDragStartXRef.current === null) {
+          return;
+        }
+        const deltaX = event.clientX - swipeDragStartXRef.current;
+        swipeDragStartXRef.current = null;
+
+        if (Math.abs(deltaX) < 34) {
+          return;
+        }
+
+        if (deltaX < 0) {
+          setFrontIndex(frontIndex + 1);
+          return;
+        }
+
+        setFrontIndex(frontIndex - 1);
+      };
+
+      const onPointerCancel = () => {
+        swipeDragStartXRef.current = null;
+      };
+
+      return (
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col">
+          <div
+            className="relative flex min-h-[clamp(286px,50vh,560px)] flex-1 overflow-hidden rounded-[1.2rem] px-2 sm:min-h-[clamp(332px,56vh,680px)] sm:px-3 lg:min-h-[clamp(360px,60vh,760px)] lg:px-4"
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            role={isMultiSelect ? "group" : "radiogroup"}
+            aria-label={question.label}
+          >
+            {options.map((option, index) => {
+              const distance = getSwipeDistance(index, frontIndex, optionsLength);
+              const absDistance = Math.abs(distance);
+
+              if (absDistance > 3) {
+                return null;
+              }
+
+              const isFront = distance === 0;
+              const meta = swipeQuestionMeta[question.id]?.[option.value];
+              const isActive = isMultiSelect ? selectedValues.includes(option.value) : answers[question.id] === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role={isMultiSelect ? undefined : "radio"}
+                  aria-checked={isMultiSelect ? undefined : isActive}
+                  aria-pressed={isMultiSelect ? isActive : undefined}
+                  onClick={() => {
+                    if (!isFront) {
+                      setFrontIndex(index);
+                      return;
+                    }
+
+                    if (isMultiSelect) {
+                      toggleMultiSelectValue(question, option.value);
+                      return;
+                    }
+
+                    setValue(question.id, option.value);
+                  }}
+                  className={`absolute left-1/2 top-1/2 flex w-[min(55vw,202px)] max-w-[202px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[1rem] border bg-white shadow-[0_12px_24px_rgba(26,84,136,0.14)] transition-[transform,opacity,border-color,box-shadow] duration-300 ease-out sm:w-[min(48vw,225px)] sm:max-w-[225px] lg:w-[min(46vw,241px)] lg:max-w-[241px] ${meta?.fullImage ? "aspect-[166/186]" : "aspect-[166/186] p-2"} ${isFront ? "border-[#8db6e2] shadow-[0_14px_30px_rgba(30,92,162,0.18)]" : "border-[#d4e3f3]"} ${isActive ? "border-[#205fb3] shadow-[0_0_0_2px_rgba(36,104,194,0.62),0_18px_34px_rgba(29,86,158,0.26)]" : ""}`}
+                  style={{
+                    transform: `translate(calc(-50% + ${distance * 112}px), calc(-50% + ${absDistance * 9}px)) translateZ(${236 - absDistance * 74}px) rotateY(${distance * -11}deg) scale(${isFront ? 1 : 0.84})`,
+                    zIndex: 110 - absDistance,
+                    opacity: absDistance > 2 ? 0.6 : 1,
+                  }}
+                >
+                  {meta?.fullImage && meta.imageSrc ? (
+                    <span className="relative block h-full w-full">
+                      <Image src={meta.imageSrc} alt="" fill className="object-contain" sizes="(max-width: 640px) 74vw, 360px" />
+                    </span>
+                  ) : (
+                    <span className="grid h-full w-full content-start justify-items-center gap-1.5 p-1 text-center">
+                      <span className={`text-[0.88rem] font-bold leading-tight sm:text-[0.96rem] ${isActive ? "text-[#2f7ce7]" : "text-[#1a3558]"}`}>
+                        {formatDisplayLabel(option.label)}
+                      </span>
+                      {meta?.helper ? (
+                        <span className="max-w-[18ch] text-[0.72rem] leading-snug text-[#5b7391] sm:text-[0.82rem]">
+                          {meta.helper}
+                        </span>
+                      ) : null}
+                      {meta?.imageSrc ? (
+                        <span className={`relative mt-1 block overflow-hidden rounded-[0.82rem] bg-[radial-gradient(circle_at_50%_42%,rgba(233,241,253,0.95)_0%,rgba(248,252,255,0.45)_80%)] ${question.id === "q8Trend" ? "aspect-[3/4] w-[min(100%,160px)] sm:w-[min(100%,188px)]" : "aspect-[4/3] w-[min(100%,170px)] sm:w-[min(100%,210px)]"}`}>
+                          <Image src={meta.imageSrc} alt="" fill className="object-contain" sizes="(max-width: 640px) 72vw, 240px" />
+                        </span>
+                      ) : null}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-center text-[0.8rem] leading-snug text-[#3f6489] sm:text-[0.9rem]">
+            Swipe left or right, then tap the front card to select {isMultiSelect ? "all that apply" : "one option"}.
+          </p>
+        </div>
+      );
+    }
+
     if (question.type === "toggle") {
       return (
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+        <div className={`mx-auto flex w-full flex-col ${useExpandedStage ? "max-w-3xl gap-3 sm:gap-4" : "max-w-md gap-2"}`}>
           <button
             type="button"
             onClick={() => setValue(question.id, true)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === true ? "selected-answer border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
+            className={optionCardClass(answers[question.id] === true, useExpandedStage)}
           >
-            Yes
+            <span className="flex items-center justify-between gap-3">
+              <span>Yes</span>
+              <span className={optionIndicatorClass(answers[question.id] === true)} aria-hidden="true">✓</span>
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setValue(question.id, false)}
-            className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${answers[question.id] === false ? "selected-answer border-[rgba(21,32,43,0.12)] bg-[rgba(21,32,43,0.06)] text-[color:var(--foreground)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
+            className={optionCardClass(answers[question.id] === false, useExpandedStage)}
           >
-            No
+            <span className="flex items-center justify-between gap-3">
+              <span>No</span>
+              <span className={optionIndicatorClass(answers[question.id] === false)} aria-hidden="true">✓</span>
+            </span>
           </button>
         </div>
       );
@@ -1329,7 +1621,7 @@ export function PatientWorkflow({
       const selectedValues = Array.isArray(currentAnswer) ? currentAnswer : currentAnswer ? [String(currentAnswer)] : [];
 
       return (
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+        <div className={`mx-auto flex w-full flex-col ${useExpandedStage ? "max-w-3xl gap-3 sm:gap-4" : "max-w-md gap-2"}`}>
           {question.options?.map((option) => {
             const checked = selectedValues.includes(option.value);
 
@@ -1338,9 +1630,12 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => toggleMultiSelectValue(question, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${checked ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
+                className={optionCardClass(checked, useExpandedStage)}
               >
-                {formatDisplayLabel(option.label)}
+                <span className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{formatDisplayLabel(option.label)}</span>
+                  <span className={optionIndicatorClass(checked)} aria-hidden="true">✓</span>
+                </span>
               </button>
             );
           })}
@@ -1350,7 +1645,7 @@ export function PatientWorkflow({
 
     if (question.type === "radio" || question.type === "select") {
       return (
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+        <div className={`mx-auto flex w-full flex-col ${useExpandedStage ? "max-w-3xl gap-3 sm:gap-4" : "max-w-md gap-2"}`}>
           {question.options?.map((option) => {
             const active = answers[question.id] === option.value;
 
@@ -1359,9 +1654,12 @@ export function PatientWorkflow({
                 key={option.value}
                 type="button"
                 onClick={() => setValue(question.id, option.value)}
-                className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
+                className={optionCardClass(active, useExpandedStage)}
               >
-                {formatDisplayLabel(option.label)}
+                <span className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{formatDisplayLabel(option.label)}</span>
+                  <span className={optionIndicatorClass(active)} aria-hidden="true">✓</span>
+                </span>
               </button>
             );
           })}
@@ -1373,7 +1671,7 @@ export function PatientWorkflow({
       const currentValue = typeof answers[question.id] === "number" ? Number(answers[question.id]) : question.min ?? 0;
 
       return (
-        <div className="mx-auto w-full max-w-md rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-4 shadow-sm">
+        <div className={`mx-auto w-full rounded-2xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-4 shadow-sm ${useExpandedStage ? "max-w-3xl" : "max-w-md"}`}>
           <div className="mb-3 flex items-center justify-center">
             <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm font-semibold text-[var(--accent)]">
               Selected: {currentValue}
@@ -1462,9 +1760,12 @@ export function PatientWorkflow({
                     key={option.value}
                     type="button"
                     onClick={() => setValue("painLocation", option.value)}
-                    className={`focus-ring w-full rounded-full border px-4 py-2.5 text-center text-sm font-semibold transition ${active ? "selected-answer border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.12)] bg-white text-[color:var(--foreground)] hover:bg-[rgba(22,95,192,0.08)]"}`}
+                    className={optionCardClass(active)}
                   >
-                    {option.label}
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 [overflow-wrap:anywhere]">{option.label}</span>
+                      <span className={optionIndicatorClass(active)} aria-hidden="true">✓</span>
+                    </span>
                   </button>
                 );
               })}
@@ -1518,8 +1819,10 @@ export function PatientWorkflow({
       return renderPainMapPage();
     }
 
+    const useExpandedAnswerStage = mode === "pre-consult" || shouldUseExpandedAnswerStage(currentQuestion.id);
+
     return (
-      <div className="section-reveal rounded-[1.25rem] bg-white p-4 sm:p-5">
+      <div className={`section-reveal rounded-[1.25rem] bg-white p-4 sm:p-5 ${useExpandedAnswerStage ? "flex h-full min-h-0 flex-col" : ""}`}>
         <div className="flex items-center justify-center gap-3 border-b border-[rgba(21,32,43,0.08)] pb-3">
           <div className="min-w-0 w-full text-center">
             <div className="mt-1 flex items-center justify-center gap-2">
@@ -1530,12 +1833,19 @@ export function PatientWorkflow({
           </div>
         </div>
 
-        <div className="mt-4 space-y-4 text-center">
+        <div className={`mt-4 text-center ${useExpandedAnswerStage ? "flex min-h-0 flex-1 flex-col" : "space-y-4"}`}>
           <div className="space-y-2">
             <label className="block text-2xl font-semibold leading-tight text-[color:var(--foreground)] [overflow-wrap:anywhere]">{formatDisplayLabel(currentQuestion.label)}</label>
             {currentQuestion.helpText ? <p className="mx-auto max-w-2xl text-sm leading-6 text-[color:var(--muted)]">{currentQuestion.helpText}</p> : null}
           </div>
-          <div>{renderQuestionInput(currentQuestion)}</div>
+
+          {useExpandedAnswerStage ? (
+            <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-[1.3rem] border border-[rgba(21,32,43,0.08)] bg-[linear-gradient(180deg,#fbfdff_0%,#f2f7fc_100%)] px-3 py-3 sm:px-4 sm:py-4">
+              <div className="flex min-h-0 flex-1 items-center justify-center">{renderQuestionInput(currentQuestion)}</div>
+            </div>
+          ) : (
+            <div>{renderQuestionInput(currentQuestion)}</div>
+          )}
         </div>
 
         {validationMessage ? <p className="mt-4 text-sm font-semibold text-[color:#165fc0]">{validationMessage}</p> : null}
@@ -1701,7 +2011,7 @@ export function PatientWorkflow({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden pb-16 sm:pb-20">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden bg-white pb-16 text-[14px] sm:pb-20">
       {finalizingSubmission ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(21,32,43,0.48)] p-4 backdrop-blur-[2px]">
           <div className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 text-center shadow-[0_24px_70px_rgba(21,32,43,0.28)] sm:p-6">
@@ -1804,7 +2114,7 @@ export function PatientWorkflow({
         </button>
       ) : null}
 
-      <section ref={questionAreaRef} className="flex min-h-0 flex-1 flex-col rounded-[1.1rem] bg-[rgba(255,255,255,0.72)] p-3.5 sm:rounded-[1.75rem] sm:p-4 lg:p-8">
+      <section ref={questionAreaRef} className="flex min-h-0 flex-1 flex-col rounded-[1.1rem] bg-white p-3.5 sm:rounded-[1.75rem] sm:p-4 lg:p-8">
         {redFlagTriggered && section.id === "red-flags" ? (
           <div className="rounded-xl border border-[rgba(22,95,192,0.24)] bg-[rgba(22,95,192,0.12)] p-3 text-xs leading-6 text-[color:var(--foreground)]">
             One or more red flags are positive. The clinic should review this case before continuing routine intake.

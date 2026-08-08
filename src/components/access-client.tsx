@@ -63,7 +63,7 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
                 key={card.role}
                 type="button"
                 onClick={() => setSelectedRole(card.role)}
-                className={`focus-ring rounded-[1.35rem] border p-4 text-left transition ${selectedRole === card.role ? "border-[var(--accent)] bg-[rgba(15,118,110,0.08)]" : "border-[rgba(21,32,43,0.12)] bg-white"}`}
+                className={`focus-ring rounded-[1.35rem] border p-4 text-left transition ${selectedRole === card.role ? "border-[var(--accent)] bg-[rgba(22,95,192,0.08)]" : "border-[rgba(21,32,43,0.12)] bg-white"}`}
               >
                 <div className="text-lg font-semibold">{card.label}</div>
                 <div className="mt-1 text-sm text-[color:var(--muted)]">{card.note}</div>
@@ -80,7 +80,7 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
               className="focus-ring w-full rounded-2xl border border-[rgba(21,32,43,0.12)] px-4 py-3 outline-none"
             />
             <label className="block text-sm font-semibold text-[color:var(--foreground)]">Session note</label>
-            <div className="rounded-2xl bg-[rgba(15,118,110,0.06)] px-4 py-3 text-sm leading-7 text-[color:var(--muted)]">
+            <div className="rounded-2xl bg-[rgba(22,95,192,0.06)] px-4 py-3 text-sm leading-7 text-[color:var(--muted)]">
               Role access is enforced by cookie-backed route guards.
             </div>
           </div>
@@ -104,10 +104,10 @@ export function AccessClient({ searchParams }: { searchParams: { next?: string; 
                 <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Patient Access</div>
                 <h2 className="headline mt-2 text-3xl font-semibold">Request code from reception desk</h2>
               </div>
-              <span className="rounded-full bg-[rgba(15,118,110,0.08)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">No SMS / WhatsApp required</span>
+              <span className="rounded-full bg-[rgba(22,95,192,0.08)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">No SMS / WhatsApp required</span>
             </div>
 
-            <div className="mt-5 rounded-[1.5rem] border border-[rgba(15,118,110,0.16)] bg-[linear-gradient(180deg,rgba(15,118,110,0.08),rgba(255,255,255,0.88))] p-5">
+            <div className="mt-5 rounded-[1.5rem] border border-[rgba(22,95,192,0.16)] bg-[linear-gradient(180deg,rgba(22,95,192,0.08),rgba(255,255,255,0.88))] p-5">
               <div className="text-sm text-[color:var(--muted)]">Temporary access code</div>
               <div className="mt-2 text-xl font-semibold text-[var(--accent)]">{patientCopy}</div>
               <div className="mt-2 text-sm text-[color:var(--muted)]">Reception can view and rotate your code for your registered phone number. Codes expire automatically.</div>

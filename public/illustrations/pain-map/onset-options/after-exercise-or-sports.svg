@@ -1,0 +1,35 @@
+<svg width="640" height="520" viewBox="0 0 640 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 250) rotate(90) scale(250 310)">
+      <stop stop-color="#F4FFF6"/>
+      <stop offset="1" stop-color="#E2F5E7"/>
+    </radialGradient>
+    <linearGradient id="shape" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#B8F0AE"/>
+      <stop offset="1" stop-color="#62BD68"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="520" rx="32" fill="url(#bg)"/>
+  <ellipse cx="322" cy="260" rx="214" ry="184" fill="#EFFBF1"/>
+  <ellipse cx="322" cy="418" rx="134" ry="24" fill="#D7EFDB"/>
+
+  <g transform="translate(178 128)">
+    <circle cx="170" cy="58" r="28" fill="url(#shape)"/>
+    <path d="M162 88c34 18 46 58 38 104" stroke="url(#shape)" stroke-width="28" stroke-linecap="round"/>
+    <path d="M188 122c44 8 76 0 106-26" stroke="url(#shape)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M196 184c44 8 70 34 88 76" stroke="url(#shape)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M176 188c-36 28-66 36-104 36" stroke="url(#shape)" stroke-width="22" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(390 276)">
+    <circle cx="66" cy="66" r="56" fill="#DDF7E2"/>
+    <circle cx="66" cy="66" r="42" fill="none" stroke="#54AF60" stroke-width="10"/>
+    <path d="M66 24c14 14 14 70 0 84M24 66c14-14 70-14 84 0" stroke="#54AF60" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(392 326) rotate(-10)">
+    <rect width="164" height="62" rx="28" fill="#DDF7E2"/>
+    <text x="82" y="39" text-anchor="middle" fill="#2D8D47" font-family="Arial, sans-serif" font-size="27" font-weight="700">sports</text>
+  </g>
+</svg>

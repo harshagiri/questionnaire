@@ -597,7 +597,7 @@ export function QuestionnaireFlow({
           <p className="max-w-2xl text-base leading-8 text-[color:var(--muted)] sm:text-lg">
             This flow adapts to the selected role and keeps the same questionnaire UI across patient and doctor paths.
           </p>
-          <div className="rounded-3xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
+          <div className="rounded-3xl border border-[rgba(22,95,192,0.16)] bg-[rgba(22,95,192,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
             Confidentiality statement: your information is only used for care coordination, screening review, and operational tracking by authorized roles.
           </div>
           <div className="flex flex-wrap gap-3">
@@ -637,7 +637,7 @@ export function QuestionnaireFlow({
             <span className="rounded-full bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">Review answers</span>
             <h2 className="headline mt-4 text-3xl font-semibold sm:text-4xl">Please confirm your submission</h2>
           </div>
-          <div className="rounded-2xl bg-[rgba(15,118,110,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
+          <div className="rounded-2xl bg-[rgba(22,95,192,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
             Completion {completion}%
           </div>
         </div>
@@ -659,7 +659,7 @@ export function QuestionnaireFlow({
             </section>
           ))}
           {bmi ? (
-            <div className="rounded-3xl border border-[rgba(15,118,110,0.18)] bg-[rgba(15,118,110,0.06)] p-4 shadow-sm">
+            <div className="rounded-3xl border border-[rgba(22,95,192,0.18)] bg-[rgba(22,95,192,0.06)] p-4 shadow-sm">
               <div className="text-sm font-semibold text-[var(--accent)]">Auto calculation</div>
               <div className="mt-2 text-2xl font-semibold">BMI {bmi}</div>
               <div className="mt-1 text-sm text-[color:var(--muted)]">Shown to both patient and doctor for quick clinical context.</div>
@@ -753,7 +753,7 @@ export function QuestionnaireFlow({
             </div>
           ) : null}
         </div>
-        <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(15,118,110,0.12),rgba(255,255,255,0.8))] p-5">
+        <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(22,95,192,0.12),rgba(255,255,255,0.8))] p-5">
           <div className="space-y-3">
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">Post-submit actions</div>
             {[
@@ -788,7 +788,7 @@ export function QuestionnaireFlow({
                 Editing submitted form{submittedCompletionSnapshot !== null ? ` (${submittedCompletionSnapshot}% at submit)` : ""}
               </span>
             ) : null}
-            <div className="rounded-lg bg-[rgba(15,118,110,0.08)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">
+            <div className="rounded-lg bg-[rgba(22,95,192,0.08)] px-3 py-2 text-sm font-semibold text-[var(--accent)]">
               {completion}% complete
             </div>
           </div>
@@ -865,7 +865,7 @@ export function QuestionnaireFlow({
             <h2 className="headline mt-4 text-3xl font-semibold sm:text-4xl">{definition.title}</h2>
           <p className="mt-2 max-w-3xl text-base text-[color:var(--muted)]">{definition.subtitle}</p>
         </div>
-                <div className="hidden rounded-2xl bg-[rgba(15,118,110,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)] sm:block">
+                <div className="hidden rounded-2xl bg-[rgba(22,95,192,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)] sm:block">
           {completion}% complete
         </div>
       </div>
@@ -921,7 +921,7 @@ export function QuestionnaireFlow({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[rgba(15,118,110,0.16)] bg-[rgba(15,118,110,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
+            <div className="rounded-2xl border border-[rgba(22,95,192,0.16)] bg-[rgba(22,95,192,0.06)] p-4 text-sm leading-7 text-[color:var(--foreground)]">
               Navigation hint: if you need to pause, come back to the same session link and continue where you left off.
             </div>
           </aside>

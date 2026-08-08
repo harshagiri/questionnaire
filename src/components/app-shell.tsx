@@ -46,6 +46,8 @@ export async function AppShell({ children, role }: AppShellProps) {
 
   const displayName = sessionName?.trim() || `${roleLabel ?? "User"}`;
 
+  const mainBackgroundClass = resolvedRole === "doctor" ? "bg-white" : "";
+
   return (
     <div className="relative flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[rgba(238,247,255,0.86)] backdrop-blur-xl">
@@ -78,7 +80,7 @@ export async function AppShell({ children, role }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-10">
+      <main className={`mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-10 ${mainBackgroundClass}`}>
         {children}
       </main>
 

@@ -81,7 +81,7 @@ export function PatientProfileGate({
           The questionnaire unlocks only after your full profile is completed and a permanent patient profile is ready.
         </p>
         <div className="mt-4 flex gap-2">
-          <a href="/register" className="rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">
+          <a href="/register" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             Complete profile
           </a>
           <a href="/patient" className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">

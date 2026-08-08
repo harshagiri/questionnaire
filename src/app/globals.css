@@ -240,6 +240,18 @@ input, select, textarea, .focus-ring {
   max-width: 100%;
 }
 
+/* Keep controls visually consistent across screens. */
+input,
+select,
+textarea,
+button,
+[role="button"],
+.focus-ring {
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 /* Unify common utility-based surfaces around the blue theme. */
 .bg-white {
   background-color: rgba(248, 252, 255, 0.94) !important;

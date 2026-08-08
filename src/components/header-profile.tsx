@@ -19,36 +19,27 @@ type PatientProfile = {
 
 export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessionAvatar }: HeaderProfileProps) {
   const pathname = usePathname();
+  const canUseDom = typeof window !== "undefined";
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const patientProfileRaw = useSyncExternalStore(
     () => () => undefined,
     () => {
-      if (role !== "patient") {
+      if (role !== "patient" || !canUseDom) {
         return null;
       }
 
       const sessionId = pathname.split("/").filter(Boolean).at(-1);
-      return sessionId ? window.localStorage.getItem(`sei-patient-profile:${sessionId}`) : null;
+      const scopedProfile = sessionId ? window.localStorage.getItem(`sei-patient-profile:${sessionId}`) : null;
+      if (scopedProfile) {
+        return scopedProfile;
+      }
+
+      return window.localStorage.getItem("sei-patient-profile-latest");
     },
     () => null,
   );
   const patientProfile = useMemo(() => {
-    if (!patientProfileRaw) {
-      if (role !== "patient") {
-        return null;
-      }
-
-      const latestRaw = window.localStorage.getItem("sei-patient-profile-latest");
-      if (!latestRaw) {
-        return null;
-      }
-
-      try {
-        return JSON.parse(latestRaw) as PatientProfile;
-      } catch {
-        return null;
-      }
-    }
+    if (!patientProfileRaw) return null;
 
     try {
       return JSON.parse(patientProfileRaw) as PatientProfile;

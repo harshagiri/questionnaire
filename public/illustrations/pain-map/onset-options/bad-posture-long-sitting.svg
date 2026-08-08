@@ -1,0 +1,38 @@
+<svg width="640" height="520" viewBox="0 0 640 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 250) rotate(90) scale(250 310)">
+      <stop stop-color="#F4FFF6"/>
+      <stop offset="1" stop-color="#E2F5E7"/>
+    </radialGradient>
+    <linearGradient id="shape" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#B8F0AE"/>
+      <stop offset="1" stop-color="#62BD68"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="520" rx="32" fill="url(#bg)"/>
+  <ellipse cx="322" cy="260" rx="214" ry="184" fill="#EFFBF1"/>
+  <ellipse cx="322" cy="418" rx="134" ry="24" fill="#D7EFDB"/>
+
+  <g transform="translate(164 148)">
+    <rect x="36" y="122" width="108" height="98" rx="20" fill="#D6F0DB"/>
+    <rect x="22" y="210" width="136" height="18" rx="9" fill="#66B86A"/>
+    <circle cx="192" cy="28" r="30" fill="url(#shape)"/>
+    <path d="M186 58c44 16 72 42 76 82" stroke="url(#shape)" stroke-width="28" stroke-linecap="round"/>
+    <path d="M246 142h70" stroke="url(#shape)" stroke-width="26" stroke-linecap="round"/>
+    <path d="M256 140v84" stroke="url(#shape)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M182 112v76" stroke="url(#shape)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M182 190c-8 28-24 44-44 54" stroke="url(#shape)" stroke-width="22" stroke-linecap="round"/>
+  </g>
+
+  <g stroke="#61B867" stroke-width="8" stroke-linecap="round" opacity="0.95">
+    <path d="M462 222l24-8"/>
+    <path d="M470 252l24 0"/>
+    <path d="M460 282l24 10"/>
+  </g>
+
+  <g transform="translate(390 326) rotate(-10)">
+    <rect width="176" height="62" rx="28" fill="#DDF7E2"/>
+    <text x="88" y="39" text-anchor="middle" fill="#2D8D47" font-family="Arial, sans-serif" font-size="27" font-weight="700">posture</text>
+  </g>
+</svg>

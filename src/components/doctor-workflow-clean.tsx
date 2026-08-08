@@ -330,8 +330,8 @@ function getPromSeverityTone(summary?: PromDisplaySummary) {
   }
 
   return {
-    badgeClass: "border-emerald-300 bg-emerald-50 text-emerald-800",
-    panelClass: "border-emerald-300 bg-emerald-50 text-emerald-900",
+    badgeClass: "border-blue-300 bg-blue-50 text-blue-800",
+    panelClass: "border-blue-300 bg-blue-50 text-blue-900",
     focusLabel: "Minimal disability",
   };
 }
@@ -1470,12 +1470,12 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     const highDisabilityCount = filteredPatients.filter((patient) => getPromUrgencyRank(patient.promSummary) >= 2).length;
 
     return (
-      <section className="rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
+      <section className="rounded-[2rem] border border-white/70 bg-white p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
         <div className="rounded-[1.5rem] border border-[rgba(21,32,43,0.08)] bg-white p-6 shadow-[0_10px_24px_rgba(21,32,43,0.08)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Doctor queue</div>
           <h2 className="headline mt-1 text-2xl font-semibold">Patient list</h2>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full border border-[rgba(21,32,43,0.12)] bg-[rgba(248,245,240,0.65)] px-2.5 py-1 font-semibold text-[color:var(--foreground)]">
+            <span className="rounded-full border border-[rgba(21,32,43,0.12)] bg-white px-2.5 py-1 font-semibold text-[color:var(--foreground)]">
               Total {queueTotal}
             </span>
             <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-semibold text-red-700">
@@ -1505,7 +1505,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             </label>
           </div>
 
-          <div className="mt-4 rounded-xl border border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.45)] p-3 lg:hidden">
+          <div className="mt-4 rounded-xl border border-[rgba(21,32,43,0.08)] bg-white p-3 lg:hidden">
             <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
               Sort (mobile/tablet)
               <select
@@ -1536,7 +1536,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
           {!isLoadingPatients && !patientsError && filteredPatients.length > 0 ? (
             <>
               <div className="mt-4 hidden overflow-hidden rounded-xl border border-[rgba(21,32,43,0.08)] lg:block">
-                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_110px_120px_130px_minmax(0,1fr)] bg-[rgba(248,245,240,0.7)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_110px_120px_130px_minmax(0,1fr)] bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
                   <div>Patient</div>
                   <div>PROM</div>
                   <div>Status</div>
@@ -1603,7 +1603,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                         <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${promTone.badgeClass}`}>
                           {formatPromSummary(patient.promSummary)}
                         </span>
-                        <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-[rgba(248,245,240,0.6)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]">
+                        <span className="rounded-full border border-[rgba(21,32,43,0.14)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]">
                           {patient.status}
                         </span>
                       </div>
@@ -1624,8 +1624,8 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   }
 
   return (
-    <section className="space-y-5 rounded-[2rem] border border-white/70 bg-[rgba(255,255,255,0.9)] p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
-      <div className="sticky top-16 z-20 rounded-xl border border-[rgba(15,118,110,0.16)] bg-[linear-gradient(135deg,rgba(15,118,110,0.12),rgba(255,255,255,0.94)_45%,rgba(255,138,91,0.1))] p-1 backdrop-blur sm:top-[4.75rem]">
+    <section className="space-y-5 rounded-[2rem] border border-white/70 bg-white p-4 shadow-[0_24px_80px_rgba(21,32,43,0.12)] sm:p-6">
+      <div className="sticky top-16 z-20 rounded-xl border border-[rgba(22,95,192,0.16)] bg-white p-1 backdrop-blur sm:top-[4.75rem]">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -1651,7 +1651,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
           <button
             type="button"
             onClick={openPatientAiSummary}
-            className="focus-ring inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-[rgba(15,118,110,0.12)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
+            className="focus-ring inline-flex items-center gap-2 rounded-full border border-[rgba(21,32,43,0.14)] bg-[rgba(22,95,192,0.12)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)]"
           >
             AI Summary
           </button>
@@ -1675,7 +1675,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                 className={`flex items-center justify-between gap-3 rounded-lg border px-2.5 py-2 ${
                   item.isProm
                     ? `${selectedPromTone.panelClass} border-current/25`
-                    : "border-[rgba(21,32,43,0.08)] bg-[rgba(248,245,240,0.55)]"
+                    : "border-[rgba(21,32,43,0.08)] bg-white"
                 }`}
               >
                 <dt className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${item.isProm ? "text-current" : "text-[color:var(--muted)]"}`}>
@@ -1730,11 +1730,11 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                     const isExpanded = expandedPatientSectionId === section.id;
                     const colorBand =
                       index % 4 === 0
-                        ? "from-teal-50 to-cyan-50 border-teal-200"
+                        ? "from-blue-50 to-cyan-50 border-blue-200"
                         : index % 4 === 1
                           ? "from-amber-50 to-orange-50 border-amber-200"
                           : index % 4 === 2
-                            ? "from-emerald-50 to-lime-50 border-emerald-200"
+                            ? "from-blue-50 to-blue-50 border-blue-200"
                             : "from-sky-50 to-indigo-50 border-sky-200";
 
                     return (
@@ -1821,7 +1821,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       ) : (
         <div>
           {doctorSummaryGenerating ? (
-            <div className="mb-3 rounded-xl border border-[rgba(15,118,110,0.2)] bg-[rgba(15,118,110,0.08)] px-3 py-2 text-xs font-semibold text-[var(--accent)]">
+            <div className="mb-3 rounded-xl border border-[rgba(22,95,192,0.2)] bg-[rgba(22,95,192,0.08)] px-3 py-2 text-xs font-semibold text-[var(--accent)]">
               Generating doctor AI summary...
             </div>
           ) : null}
@@ -1895,7 +1895,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
 
               {!aiSummaryLoading && !aiSummaryError && aiSummary ? (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-[rgba(15,118,110,0.22)] bg-[linear-gradient(135deg,rgba(15,118,110,0.1),rgba(255,255,255,0.96)_40%,rgba(255,138,91,0.12))] p-4">
+                  <div className="rounded-2xl border border-[rgba(22,95,192,0.22)] bg-[linear-gradient(135deg,rgba(22,95,192,0.1),rgba(255,255,255,0.96)_40%,rgba(255,138,91,0.12))] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Clinical AI Summary</div>
                       <div className="flex items-center gap-2">
@@ -1924,7 +1924,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                     {aiSummarySectionsByPriority.primarySections.map((section, index) => (
                       <section
                         key={`primary-${section.title}-${index}`}
-                        className="rounded-xl border border-[rgba(15,118,110,0.22)] bg-[rgba(15,118,110,0.08)] px-4 py-3"
+                        className="rounded-xl border border-[rgba(22,95,192,0.22)] bg-[rgba(22,95,192,0.08)] px-4 py-3"
                       >
                         <h4 className="text-sm font-semibold text-[color:var(--foreground)]">{section.title}</h4>
                         <ul className="mt-2 space-y-1.5 text-sm text-[color:var(--foreground)]">
@@ -1941,7 +1941,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                     {aiSummarySectionsByPriority.secondarySections.map((section, index) => (
                       <section
                         key={`secondary-${section.title}-${index}`}
-                        className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-[rgba(248,245,240,0.48)] px-4 py-3"
+                        className="rounded-xl border border-[rgba(21,32,43,0.1)] bg-white px-4 py-3"
                       >
                         <h4 className="text-sm font-semibold text-[color:var(--foreground)]">{section.title}</h4>
                         <ul className="mt-2 space-y-1.5 text-sm text-[color:var(--muted)]">
@@ -1956,7 +1956,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
                     ))}
                   </div>
 
-                  <details className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-[rgba(248,245,240,0.65)] px-4 py-3">
+                  <details className="rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-4 py-3">
                     <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
                       AI briefing stats
                     </summary>

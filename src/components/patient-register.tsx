@@ -281,8 +281,17 @@ function MultiSelect({
   );
 }
 
-export function PatientRegister() {
+export function PatientRegister({
+  journeyMode = false,
+  consultId,
+  phoneFromJourney,
+}: {
+  journeyMode?: boolean;
+  consultId?: string;
+  phoneFromJourney?: string;
+}) {
   const router = useRouter();
+  const normalizedJourneyPhone = String(phoneFromJourney ?? "").replace(/\D/g, "");
   const [sectionIndex, setSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>(() => {
     if (typeof window === "undefined") return {};
@@ -298,10 +307,11 @@ export function PatientRegister() {
         profile.fullName ?? profile.patientName ?? "",
       ).trim();
       const phone = String(profile.phone ?? "").replace(/\D/g, "");
-      return { ...(fullName ? { fullName } : {}), ...(phone ? { phone } : {}) };
+      const fallbackPhone = normalizedJourneyPhone || phone;
+      return { ...(fullName ? { fullName } : {}), ...(fallbackPhone ? { phone: fallbackPhone } : {}) };
     } catch {
       window.localStorage.removeItem("sei-patient-profile-latest");
-      return {};
+      return normalizedJourneyPhone ? { phone: normalizedJourneyPhone } : {};
     }
   });
   const [saving, setSaving] = useState(false);
@@ -434,7 +444,15 @@ export function PatientRegister() {
     );
   }
   function handleBack() {
-    if (sectionIndex === 0) router.push("/patient");
+    if (sectionIndex === 0) {
+      if (journeyMode) {
+        const phone = String(answers.phone ?? normalizedJourneyPhone ?? "").replace(/\D/g, "");
+        const backHref = `/patient/book?journey=1${phone ? `&phone=${encodeURIComponent(phone)}` : ""}`;
+        router.push(backHref);
+      } else {
+        router.push("/patient");
+      }
+    }
     else {
       setSectionIndex((value) => value - 1);
       setEditingHealth(null);
@@ -555,10 +573,19 @@ export function PatientRegister() {
         });
       }
 
-      const questionnaireSessionId = `self-${payload.record.patientId}`;
-      router.push(
-        `/patient/consult/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(normalizedPhone)}`,
-      );
+      if (journeyMode) {
+        const encodedPhone = encodeURIComponent(normalizedPhone);
+        if (consultId) {
+          router.push(`/patient/otp?consultId=${encodeURIComponent(consultId)}&phone=${encodedPhone}&journey=1`);
+        } else {
+          router.push(`/patient/book?journey=1&phone=${encodedPhone}`);
+        }
+      } else {
+        const questionnaireSessionId = `self-${payload.record.patientId}`;
+        router.push(
+          `/patient/consult/${encodeURIComponent(questionnaireSessionId)}?phone=${encodeURIComponent(normalizedPhone)}`,
+        );
+      }
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -1110,9 +1137,9 @@ export function PatientRegister() {
     saving || (onConsentChapter && !requiredConsentsAccepted);
 
   return (
-    <main className="h-screen overflow-hidden bg-[#edf5f1] text-[#173d38] lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+    <main className="h-screen overflow-hidden bg-white text-[14px] text-[#173d38] lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       {saving ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-[rgba(237,245,241,0.9)] backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-[rgba(255,255,255,0.92)] backdrop-blur-sm">
           <div className="w-[min(90vw,320px)] rounded-2xl border border-[rgba(22,95,192,0.16)] bg-white px-5 py-6 text-center shadow-[0_24px_70px_rgba(16,53,103,0.16)]">
             <div className="relative mx-auto h-20 w-20">
               <div className="absolute inset-0 rounded-full border-4 border-[#d6ebe6]" />

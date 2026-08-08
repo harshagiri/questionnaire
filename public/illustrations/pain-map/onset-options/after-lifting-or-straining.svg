@@ -1,0 +1,43 @@
+<svg width="640" height="520" viewBox="0 0 640 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 250) rotate(90) scale(250 310)">
+      <stop stop-color="#F4FFF6"/>
+      <stop offset="1" stop-color="#E2F5E7"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#B8F3AE"/>
+      <stop offset="1" stop-color="#59BC65"/>
+    </linearGradient>
+    <linearGradient id="box" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#A7D47B"/>
+      <stop offset="1" stop-color="#6B8E42"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="520" rx="32" fill="url(#bg)"/>
+  <ellipse cx="324" cy="258" rx="214" ry="184" fill="#EFFBF1"/>
+  <ellipse cx="320" cy="420" rx="132" ry="24" fill="#D7EFDB"/>
+
+  <circle cx="372" cy="142" r="40" fill="url(#body)"/>
+  <path d="M350 178c-44 34-67 78-72 146" stroke="url(#body)" stroke-width="34" stroke-linecap="round"/>
+  <path d="M356 206c56 4 94 38 116 76" stroke="url(#body)" stroke-width="32" stroke-linecap="round"/>
+  <path d="M286 328c-44 34-52 60-50 88" stroke="url(#body)" stroke-width="30" stroke-linecap="round"/>
+  <path d="M430 294c10 44 4 82-8 118" stroke="url(#body)" stroke-width="30" stroke-linecap="round"/>
+
+  <g transform="translate(376 230)">
+    <rect x="0" y="0" width="140" height="108" rx="10" fill="url(#box)"/>
+    <path d="M0 0 68 26 68 132 0 108Z" fill="#7EA84E" opacity="0.8"/>
+    <path d="M140 0 68 26 0 0" stroke="#88B35A" stroke-width="4"/>
+  </g>
+
+  <g stroke="#61B867" stroke-width="8" stroke-linecap="round" opacity="0.95">
+    <path d="M236 280l-24-10"/>
+    <path d="M228 314h-26"/>
+    <path d="M238 346l-24 12"/>
+  </g>
+
+  <g transform="translate(398 326) rotate(-10)">
+    <rect width="156" height="62" rx="28" fill="#DDF7E2"/>
+    <text x="78" y="39" text-anchor="middle" fill="#2D8D47" font-family="Arial, sans-serif" font-size="27" font-weight="700">lifting</text>
+  </g>
+</svg>

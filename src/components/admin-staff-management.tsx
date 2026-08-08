@@ -80,13 +80,13 @@ function ReceptionistAssignments({ receptionistEmail }: { receptionistEmail: str
         {allDoctors.map((doc) => {
           const checked = assignedIds.has(doc.id);
           return (
-            <label key={doc.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-teal-400 bg-teal-50" : "border-gray-200 hover:border-gray-300"}`}>
+            <label key={doc.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-blue-400 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
               <input
                 type="checkbox"
                 checked={checked}
                 disabled={saving === doc.id}
                 onChange={() => toggle(doc.id)}
-                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm text-gray-700">{formatDoctorDisplayName(doc.name)}</span>
               {doc.registrationNumber && <span className="text-xs text-gray-400 ml-auto">{doc.registrationNumber}</span>}
@@ -141,13 +141,13 @@ function DoctorPicker({
         return (
           <label
             key={doc.id}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-teal-400 bg-teal-50" : "border-gray-200 hover:border-gray-300"}`}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-blue-400 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
           >
             <input
               type="checkbox"
               checked={checked}
               onChange={() => onChange(checked ? selected.filter((id) => id !== doc.id) : [...selected, doc.id])}
-              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <span className="text-sm text-gray-700 flex-1">{formatDoctorDisplayName(doc.name)}</span>
             {doc.registrationNumber && <span className="text-xs text-gray-400">{doc.registrationNumber}</span>}
@@ -216,7 +216,7 @@ function UserForm({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={resolvedAvatar} alt="Preview" className="h-10 w-10 rounded-full object-cover border border-white shadow-sm" />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-teal-100 text-xs font-semibold text-teal-700 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-blue-100 text-xs font-semibold text-blue-700 shadow-sm">
             {form.displayName.trim().slice(0, 2).toUpperCase() || role.slice(0, 2).toUpperCase()}
           </div>
         )}
@@ -499,7 +499,7 @@ function RoleSection({
                         className="h-9 w-9 shrink-0 rounded-full object-cover border border-white shadow-sm"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white bg-teal-100 text-[11px] font-semibold text-teal-700 shadow-sm">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white bg-blue-100 text-[11px] font-semibold text-blue-700 shadow-sm">
                         {user.displayName.trim().slice(0, 2).toUpperCase() || role.slice(0, 2).toUpperCase()}
                       </div>
                     )}
@@ -507,7 +507,7 @@ function RoleSection({
                       <p className="text-sm font-semibold truncate">{user.displayName}</p>
                       <p className="text-xs text-[color:var(--muted)] truncate">{user.email}</p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${user.isActive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${user.isActive ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
                     <button

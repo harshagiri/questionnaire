@@ -1,18 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { AppRole } from "@/lib/rbac";
 
 type StaffRole = Exclude<AppRole, "patient">;
-
-type PlatformStat = {
-  label: string;
-  value: string;
-  note: string;
-  progress: number;
-};
 
 const staffRoles: Array<{ role: StaffRole; label: string }> = [
   { role: "doctor", label: "Doctor" },
@@ -40,99 +33,8 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   const [activeTab, setActiveTab] = useState<"patient" | "staff">(
     requestedRole === "patient" ? "patient" : "staff",
   );
-  const [platformStats, setPlatformStats] = useState<PlatformStat[]>([]);
-  const [statsLoading, setStatsLoading] = useState(true);
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadPlatformStats() {
-      try {
-        setStatsLoading(true);
-        const response = await fetch("/api/metrics", { cache: "no-store" });
-        const payload = (await response.json().catch(() => null)) as
-          | {
-              ok?: boolean;
-              metrics?: {
-                summary?: {
-                  totalPatients?: number;
-                  completedPatients?: number;
-                  completionRate?: number;
-                  averageBmi?: number;
-                  totalDoctors?: number;
-                  totalRegionsServed?: number;
-                };
-              };
-            }
-          | null;
-
-        if (!active) {
-          return;
-        }
-
-        const summary = payload?.metrics?.summary;
-        const headlineStats: PlatformStat[] = [
-          {
-            label: "Total patients screened",
-            value: String(summary?.completedPatients ?? 0),
-            note: "Submitted patient screenings",
-            progress: Math.min(100, Number(summary?.completedPatients ?? 0)),
-          },
-          {
-            label: "Total doctors",
-            value: String(summary?.totalDoctors ?? 0),
-            note: "Doctors available in platform",
-            progress: Math.min(100, Number(summary?.totalDoctors ?? 0)),
-          },
-          {
-            label: "Regions/Cities served",
-            value: String(summary?.totalRegionsServed ?? 0),
-            note: "Distinct regions in patient records",
-            progress: Math.min(100, Number(summary?.totalRegionsServed ?? 0)),
-          },
-        ];
-
-        setPlatformStats(headlineStats);
-      } catch {
-        if (!active) {
-          return;
-        }
-
-        setPlatformStats([
-          {
-            label: "Total patients screened",
-            value: "—",
-            note: "Submitted patient screenings",
-            progress: 70,
-          },
-          {
-            label: "Total doctors",
-            value: "—",
-            note: "Doctors available in platform",
-            progress: 85,
-          },
-          {
-            label: "Regions/Cities served",
-            value: "—",
-            note: "Distinct regions in patient records",
-            progress: 92,
-          },
-        ]);
-      } finally {
-        if (active) {
-          setStatsLoading(false);
-        }
-      }
-    }
-
-    void loadPlatformStats();
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function createSession(body: Record<string, unknown>, messageSetter: (message: string) => void) {
     const response = await fetch("/api/session", {
@@ -166,7 +68,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         window.localStorage.setItem("sei-patient-profile-latest", JSON.stringify(profilePayload));
       }
 
-      const sessionPath = nextPath ?? "/register";
+      const sessionPath = nextPath ?? "/patient/book?journey=1";
 
       await createSession(
         {
@@ -219,7 +121,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
           <section className="order-2 bg-[linear-gradient(180deg,#f8fcff_0%,#edf6ff_100%)] p-4 sm:p-6 lg:order-1 lg:p-10">
             <div className="mb-5">
-              <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Login</h2>
+              <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Sign in</h2>
             </div>
 
             <div className="mb-4">
@@ -254,7 +156,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   (activeTab === "patient" ? "block" : "hidden")
                 }
               >
-                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Patient Login</h3>
+                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Patient</h3>
                 <div className="mt-4 space-y-3">
                   <input
                     value={phone}
@@ -262,9 +164,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                     placeholder="Phone number"
                     className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
                   />
-                  <div className="rounded-xl border border-[rgba(21,32,43,0.08)] bg-white px-3 py-2 text-xs text-[color:var(--muted)]">
-                    Enter your phone number to begin. You will complete your profile first, then continue directly to the questionnaire.
-                  </div>
                   {patientMessage ? <p className="text-sm font-medium text-[#174b8a]">{patientMessage}</p> : null}
                   <button
                     type="button"
@@ -274,12 +173,9 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   >
                     {patientSubmitting ? "Continuing..." : "Continue"}
                   </button>
-                  <p className="text-center text-xs text-[color:var(--muted)]">
-                    New patient?{" "}
-                    <a href="/register" className="font-semibold text-[var(--accent)] underline">
-                      Register to get your patient ID
-                    </a>
-                  </p>
+                  <a href="/register" className="text-center text-xs font-semibold text-[var(--accent)] underline">
+                    New patient? Register
+                  </a>
                 </div>
               </section>
 
@@ -289,7 +185,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                   (activeTab === "staff" ? "block" : "hidden")
                 }
               >
-                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Staff Login</h3>
+                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Staff</h3>
                 <div className="mt-4 space-y-3">
                   <select
                     value={staffRole}
@@ -332,9 +228,6 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                       </svg>
                     </button>
                   </div>
-                  <p className="rounded-xl border border-[rgba(22,95,192,0.14)] bg-[rgba(232,243,255,0.85)] px-3 py-2 text-xs text-[color:var(--muted)]">
-                    Use the email and password configured for your account by the admin.
-                  </p>
                   {staffMessage ? <p className="text-sm font-medium text-[#174b8a]">{staffMessage}</p> : null}
                   <button
                     type="button"
@@ -375,34 +268,11 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
                 </div>
                 <div>
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/90">SpinExperts India</div>
-                  <div className="text-[11px] uppercase tracking-[0.14em] text-white/75">Expert Care. Every Spine. Every Time.</div>
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-white/75">Secure access</div>
                 </div>
               </div>
 
-              <h1 className="headline mt-4 text-2xl font-semibold leading-tight sm:text-3xl lg:text-[2.45rem]">
-                <span className="sm:hidden">India-wide spine triage and treatment planning, built for faster right-care.</span>
-                <span className="hidden sm:inline">India-wide spine triage and treatment planning, built for faster right-care pathways.</span>
-              </h1>
-
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-                {statsLoading
-                  ? ["A", "B", "C"].map((key) => (
-                      <div key={key} className="rounded-2xl border border-white/20 bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
-                        <div className="h-3 w-12 animate-pulse rounded bg-white/30 sm:h-4 sm:w-16" />
-                        <div className="mt-2 h-6 w-14 animate-pulse rounded bg-white/30 sm:h-7 sm:w-20" />
-                      </div>
-                    ))
-                  : platformStats.slice(0, 3).map((item) => (
-                      <article key={item.label} className="rounded-2xl border border-white/20 bg-white/15 p-2.5 text-center backdrop-blur-sm sm:p-3">
-                        <div className="flex h-9 items-center justify-center text-[10px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/85 sm:h-10 sm:text-[11px] sm:tracking-[0.12em]">
-                          {item.label}
-                        </div>
-                        <div className="mt-1 text-lg font-semibold leading-none text-white sm:mt-1.5 sm:text-2xl">{item.value}</div>
-                      </article>
-                    ))}
-              </div>
-
-              {statsLoading ? <div className="mt-4 text-sm text-white/85">Loading live spine-care network metrics...</div> : null}
+              <h1 className="headline mt-4 text-2xl font-semibold leading-tight sm:text-3xl lg:text-[2.45rem]">Welcome</h1>
             </div>
           </section>
         </div>

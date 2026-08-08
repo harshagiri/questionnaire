@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/app-shell";
-import { PatientWorkflow } from "@/components/patient-workflow";
+import { OneTimeQuestionnaireMock } from "@/components/onetime-questionnaire-mock";
 import { PatientProfileGate } from "@/components/patient-profile-gate";
-import { getSavedPatientQuestionnaire } from "@/lib/patient-questionnaire-db";
 
 export default async function PatientSessionPage({
   params,
@@ -16,17 +15,13 @@ export default async function PatientSessionPage({
   const { sessionId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const profilePhone = (resolvedSearchParams?.phone ?? cookiePhone).replace(/\D/g, "");
-  const savedWorkflow = await getSavedPatientQuestionnaire({ sessionId, phone: resolvedSearchParams?.phone });
+
+  void sessionId;
 
   return (
     <AppShell role="patient">
       <PatientProfileGate phone={profilePhone}>
-        <PatientWorkflow
-          sessionId={sessionId}
-          initialSavedWorkflow={savedWorkflow}
-          mode="pre-consult"
-          dashboardHref="/patient"
-        />
+        <OneTimeQuestionnaireMock sessionId={sessionId} patientPhone={profilePhone} />
       </PatientProfileGate>
     </AppShell>
   );

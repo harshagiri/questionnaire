@@ -1,0 +1,20 @@
+<svg width="320" height="220" viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="220" rx="24" fill="#F5FBFF"/>
+  <circle cx="160" cy="100" r="78" fill="#EAF8EE"/>
+  <rect x="98" y="52" width="124" height="112" rx="18" fill="white" stroke="#D7EEE0" stroke-width="4"/>
+  <rect x="98" y="52" width="124" height="28" rx="14" fill="#B3E9BB"/>
+  <rect x="118" y="94" width="16" height="16" rx="4" fill="#9ADDAD"/>
+  <rect x="140" y="94" width="16" height="16" rx="4" fill="#6ED289"/>
+  <rect x="162" y="94" width="16" height="16" rx="4" fill="#4DC871"/>
+  <rect x="184" y="94" width="16" height="16" rx="4" fill="#39BD62"/>
+  <rect x="118" y="116" width="16" height="16" rx="4" fill="#6ED289"/>
+  <rect x="140" y="116" width="16" height="16" rx="4" fill="#4DC871"/>
+  <rect x="162" y="116" width="16" height="16" rx="4" fill="#39BD62"/>
+  <rect x="184" y="116" width="16" height="16" rx="4" fill="#24AC50"/>
+  <rect x="232" y="90" width="62" height="34" rx="17" fill="#E6F8E8" transform="rotate(-8 232 90)"/>
+  <text x="262" y="111" text-anchor="middle" font-size="19" font-weight="700" fill="#2F9F55" font-family="Arial, sans-serif" transform="rotate(-8 262 111)">6m+</text>
+  <path d="M224 160L246 124H202L224 160Z" fill="#7ED696"/>
+  <path d="M224 160L246 196H202L224 160Z" fill="#4FC470"/>
+  <rect x="118" y="42" width="8" height="22" rx="4" fill="#2F9F55"/>
+  <rect x="194" y="42" width="8" height="22" rx="4" fill="#2F9F55"/>
+</svg>

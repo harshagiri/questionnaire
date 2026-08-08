@@ -28,7 +28,7 @@ type UploadedReport = {
 const statusColors: Record<string, string> = {
   booked: "bg-blue-50 text-blue-700 border-blue-200",
   waiting: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  submitted: "bg-green-50 text-green-700 border-green-200",
+  submitted: "bg-blue-50 text-blue-700 border-blue-200",
   cancelled: "bg-gray-50 text-gray-500 border-gray-200",
   follow_up: "bg-purple-50 text-purple-700 border-purple-200",
 };
@@ -58,8 +58,8 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -72,10 +72,10 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
             </button>
           </div>
 
-          <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 mb-4">
-            <p className="text-xs font-semibold text-teal-600 mb-1">Consult ID</p>
-            <p className="text-xl font-mono font-bold text-teal-800">{modal.consultId}</p>
-            <p className="text-xs text-teal-600 mt-1">{formatDoctorDisplayName(modal.doctorName)} · {modal.date} at {modal.time}</p>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+            <p className="text-xs font-semibold text-blue-600 mb-1">Consult ID</p>
+            <p className="text-xl font-mono font-bold text-blue-800">{modal.consultId}</p>
+            <p className="text-xs text-blue-600 mt-1">{formatDoctorDisplayName(modal.doctorName)} · {modal.date} at {modal.time}</p>
           </div>
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
@@ -94,7 +94,7 @@ function ConsultConfirmModal({ modal, onClose }: { modal: ConsultModal; onClose:
               <div className="flex gap-2">
                 <a
                   href={modal.preConsultLink}
-                  className="flex-1 text-center bg-teal-600 text-white text-xs font-semibold py-2 px-3 rounded-lg hover:bg-teal-700 transition-colors"
+                  className="flex-1 text-center bg-blue-600 text-white text-xs font-semibold py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Fill now
                 </a>
@@ -321,6 +321,8 @@ export function PatientDashboard({ phone }: { phone: string }) {
   }, [phone]);
 
   const pastAppointments = appointments.filter((a) => a.status === "submitted" || a.status === "cancelled");
+  const upcomingAppointments = appointments.filter((a) => a.status !== "submitted" && a.status !== "cancelled");
+  const completedEpisodes = appointments.filter((a) => a.status === "submitted").length;
   const canProceed = isPatientProfileComplete(patientRecord);
   const questionnaireSessionId = patientRecord?.patientId ? `self-${patientRecord.patientId}` : "";
   const questionnaireHref = canProceed
@@ -344,12 +346,12 @@ export function PatientDashboard({ phone }: { phone: string }) {
         {profileLoading ? (
           <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-6 text-sm text-gray-500">Checking your profile…</div>
         ) : patientRecord ? (
-          <div className="bg-teal-700 text-white rounded-2xl p-5 mb-6">
+          <div className="bg-blue-700 text-white rounded-2xl p-5 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-teal-200 mb-1">Patient</p>
+                <p className="text-xs font-medium text-blue-200 mb-1">Patient</p>
                 <p className="text-2xl font-bold tracking-tight text-white">{patientRecord.fullName}</p>
-                <p className="text-xs text-teal-100 mt-1">ID: {patientRecord.patientId}</p>
+                <p className="text-xs text-blue-100 mt-1">ID: {patientRecord.patientId}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -369,7 +371,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
               </div>
             </div>
             {patientRecord.bmi && (
-              <div className="mt-3 flex gap-4 text-xs text-teal-200">
+              <div className="mt-3 flex gap-4 text-xs text-blue-200">
                 {patientRecord.age && <span>Age: {patientRecord.age}</span>}
                 {patientRecord.gender && <span className="capitalize">{patientRecord.gender}</span>}
                 <span>BMI: {patientRecord.bmi.toFixed(1)}</span>
@@ -385,39 +387,94 @@ export function PatientDashboard({ phone }: { phone: string }) {
             <div>
               <p className="text-sm font-semibold text-amber-800">No patient record found</p>
               <p className="text-xs text-amber-600 mt-0.5">Complete your registration to get a permanent patient ID.</p>
-              <a href="/register" className="inline-block mt-2 text-xs font-semibold text-teal-700 underline">Register now →</a>
+              <a href="/register" className="inline-block mt-2 text-xs font-semibold text-blue-700 underline">Register now →</a>
             </div>
           </div>
         )}
 
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <button
-            onClick={() => canProceed && router.push(questionnaireHref)}
-            disabled={!canProceed}
-            className={`bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
-          >
-            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
-              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
-              </svg>
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Patient journey</h2>
+          <p className="mt-1 text-xs text-gray-400">Discover & Access → Register & Onboard → Pre-Consultation → Consultation → Follow-up</p>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700">Discover & Access</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/patient/book")}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-semibold text-gray-800 transition-colors hover:border-blue-400 hover:bg-blue-50"
+              >
+                Book appointment
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/patient")}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-semibold text-gray-800 transition-colors hover:border-blue-400 hover:bg-blue-50"
+              >
+                My appointments
+              </button>
             </div>
-            <p className="text-sm font-semibold text-gray-800">Start questionnaire</p>
-            <p className="text-xs text-gray-400 mt-0.5">Fill or continue</p>
-          </button>
-          <button
-            onClick={() => canProceed && router.push("/patient/upload")}
-            disabled={!canProceed}
-            className={`bg-white border rounded-xl p-4 text-left transition-colors ${canProceed ? "border-gray-200 hover:border-teal-400 hover:bg-teal-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
-          >
-            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center mb-2">
-              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 8l-3-3m3 3l3-3M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5z" />
-              </svg>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700">Register & Onboard</p>
+            <div className="mt-2 flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+              <p className="text-sm text-gray-700">Profile status</p>
+              <span className={`text-xs font-semibold ${canProceed ? "text-green-700" : "text-amber-700"}`}>{canProceed ? "Complete" : "Pending"}</span>
             </div>
-            <p className="text-sm font-semibold text-gray-800">Upload documents</p>
-            <p className="text-xs text-gray-400 mt-0.5">MRI, X-ray, labs</p>
-          </button>
+            {!canProceed ? (
+              <button
+                type="button"
+                onClick={() => router.push("/register")}
+                className="mt-2 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm font-semibold text-amber-800"
+              >
+                Complete profile to unlock pre-consultation
+              </button>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700">Pre-Consultation</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => canProceed && router.push(questionnaireHref)}
+                disabled={!canProceed}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${canProceed ? "border-gray-200 text-gray-800 hover:border-blue-400 hover:bg-blue-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
+              >
+                Health questionnaire (PROMs)
+              </button>
+              <button
+                onClick={() => canProceed && router.push("/patient/upload")}
+                disabled={!canProceed}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${canProceed ? "border-gray-200 text-gray-800 hover:border-blue-400 hover:bg-blue-50" : "border-gray-100 text-gray-400 cursor-not-allowed opacity-70"}`}
+              >
+                Upload reports & documents
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700">Consultation & Follow-up</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-gray-500">Upcoming consults</p>
+                <p className="mt-0.5 text-lg font-semibold text-gray-800">{upcomingAppointments.length}</p>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-gray-500">Completed episodes</p>
+                <p className="mt-0.5 text-lg font-semibold text-gray-800">{completedEpisodes}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/patient/book")}
+              className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-semibold text-gray-800 transition-colors hover:border-blue-400 hover:bg-blue-50"
+            >
+              Schedule follow-up appointment
+            </button>
+          </div>
         </div>
 
         {uploadedReports.length > 0 ? (
@@ -445,7 +502,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
                       href={report.storedPath}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs font-semibold text-teal-700 hover:underline shrink-0"
+                      className="text-xs font-semibold text-blue-700 hover:underline shrink-0"
                     >
                       Open
                     </a>
@@ -459,7 +516,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
         {/* Past appointments */}
         {pastAppointments.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Past</h2>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Recovery & outcomes</h2>
             <div className="space-y-2">
               {pastAppointments.map((appt, index) => (
                 <div

@@ -1,34 +1,33 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/app-shell";
-import { PatientWorkflow } from "@/components/patient-workflow";
+import { OneTimeQuestionnaireMock } from "@/components/onetime-questionnaire-mock";
 import { PatientProfileGate } from "@/components/patient-profile-gate";
-import { getSavedPatientQuestionnaire } from "@/lib/patient-questionnaire-db";
 
 export default async function PreConsultPage({
   params,
   searchParams,
 }: {
   params: Promise<{ consultId: string }>;
-  searchParams?: Promise<{ phone?: string }>;
+  searchParams?: Promise<{ phone?: string; journey?: string; summary?: string }>;
 }) {
   const cookieStore = await cookies();
-  const cookiePhone = (cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");
+  const cookiePhone = (cookieStore.get("se_phone")?.value ?? cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");
   const { consultId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const profilePhone = (resolvedSearchParams?.phone ?? cookiePhone).replace(/\D/g, "");
+  const journeyMode = resolvedSearchParams?.journey === "1";
+  const summaryMode = resolvedSearchParams?.summary === "1";
 
-  const savedWorkflow = await getSavedPatientQuestionnaire({
-    sessionId: consultId,
-    phone: resolvedSearchParams?.phone,
-  });
+  void consultId;
 
   return (
     <AppShell role="patient">
       <PatientProfileGate phone={profilePhone}>
-        <PatientWorkflow
+        <OneTimeQuestionnaireMock
           sessionId={consultId}
-          initialSavedWorkflow={savedWorkflow}
-          mode="pre-consult"
+          patientPhone={profilePhone}
+          journeyMode={journeyMode}
+          summaryMode={summaryMode}
         />
       </PatientProfileGate>
     </AppShell>

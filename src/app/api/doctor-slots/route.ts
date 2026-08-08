@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-const MAX_SLOTS = 5;
-
 const slotSchema = z.object({
   doctorProfileId: z.string().min(1),
   dayOfWeek: z.number().int().min(0).max(6),
@@ -29,7 +27,11 @@ export async function GET(request: Request) {
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
     });
     return NextResponse.json({ ok: true, slots });
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("P1001") || msg.includes("ECONNREFUSED") || msg.includes("Can't reach database server")) {
+      return NextResponse.json({ ok: false, message: "Database unavailable" }, { status: 503 });
+    }
     return NextResponse.json({ ok: true, slots: [] });
   }
 }
@@ -48,13 +50,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const existing = await prisma.doctorAvailabilitySlot.count({
-      where: { doctorProfileId: parsed.data.doctorProfileId },
+    const doctorProfile = await prisma.doctorProfile.findUnique({
+      where: { id: parsed.data.doctorProfileId },
+      select: { id: true },
     });
 
-    if (existing >= MAX_SLOTS) {
+    if (!doctorProfile) {
       return NextResponse.json(
-        { ok: false, message: `Maximum ${MAX_SLOTS} slots per doctor allowed.` },
+        {
+          ok: false,
+          message:
+            "Doctor profile is not in the database. Switch DOCTORS_STORAGE_MODE to auto/database and re-create or migrate this doctor before adding slots.",
+        },
         { status: 400 },
       );
     }
@@ -63,7 +70,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, slot }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Could not create slot";
-    return NextResponse.json({ ok: false, message: msg }, { status: 409 });
+
+    if (msg.includes("P1001") || msg.includes("ECONNREFUSED") || msg.includes("Can't reach database server")) {
+      return NextResponse.json({ ok: false, message: "Database unavailable" }, { status: 503 });
+    }
+
+    if (msg.includes("Unique constraint") || msg.includes("doctorProfileId_dayOfWeek_startTime")) {
+      return NextResponse.json(
+        { ok: false, message: "This slot already exists for the selected day and time." },
+        { status: 409 },
+      );
+    }
+
+    if (msg.includes("Foreign key") || msg.includes("P2003")) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Doctor profile reference is invalid in the database. Re-create/migrate this doctor in DB first, then add slots.",
+        },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({ ok: false, message: `Could not create slot right now. ${msg}` }, { status: 409 });
   }
 }
 

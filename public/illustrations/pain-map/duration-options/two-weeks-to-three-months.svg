@@ -1,0 +1,18 @@
+<svg width="320" height="220" viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="220" rx="24" fill="#F5FBFF"/>
+  <circle cx="160" cy="100" r="78" fill="#E8F3FF"/>
+  <rect x="98" y="52" width="124" height="112" rx="18" fill="white" stroke="#D2E6FA" stroke-width="4"/>
+  <rect x="98" y="52" width="124" height="28" rx="14" fill="#9FD7FF"/>
+  <rect x="118" y="94" width="16" height="16" rx="4" fill="#D6EAFD"/>
+  <rect x="140" y="94" width="16" height="16" rx="4" fill="#BFDFFD"/>
+  <rect x="162" y="94" width="16" height="16" rx="4" fill="#A4D1FC"/>
+  <rect x="184" y="94" width="16" height="16" rx="4" fill="#D6EAFD"/>
+  <rect x="118" y="116" width="16" height="16" rx="4" fill="#D6EAFD"/>
+  <rect x="140" y="116" width="16" height="16" rx="4" fill="#A4D1FC"/>
+  <rect x="162" y="116" width="16" height="16" rx="4" fill="#86C2FA"/>
+  <rect x="184" y="116" width="16" height="16" rx="4" fill="#D6EAFD"/>
+  <rect x="232" y="90" width="64" height="34" rx="17" fill="#E6F8E8"/>
+  <text x="264" y="111" text-anchor="middle" font-size="19" font-weight="700" fill="#2F9F55" font-family="Arial, sans-serif">2w-3m</text>
+  <rect x="118" y="42" width="8" height="22" rx="4" fill="#2D7FC4"/>
+  <rect x="194" y="42" width="8" height="22" rx="4" fill="#2D7FC4"/>
+</svg>

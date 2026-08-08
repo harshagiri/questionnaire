@@ -1,0 +1,41 @@
+<svg width="640" height="520" viewBox="0 0 640 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 250) rotate(90) scale(250 310)">
+      <stop stop-color="#F4FFF6"/>
+      <stop offset="1" stop-color="#E2F5E7"/>
+    </radialGradient>
+    <linearGradient id="car" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#B9F0AF"/>
+      <stop offset="1" stop-color="#62BD68"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="520" rx="32" fill="url(#bg)"/>
+  <ellipse cx="324" cy="260" rx="216" ry="186" fill="#EFFBF1"/>
+  <path d="M180 366c56-26 220-20 292 0" stroke="#D3EDD8" stroke-width="30" stroke-linecap="round"/>
+
+  <g transform="translate(176 188)">
+    <rect x="52" y="92" width="286" height="92" rx="36" fill="url(#car)"/>
+    <path d="M94 96c24-44 56-64 104-64h76c34 0 56 18 84 64" fill="url(#car)"/>
+    <rect x="132" y="52" width="112" height="42" rx="16" fill="#DDF6E2"/>
+    <rect x="252" y="52" width="64" height="42" rx="14" fill="#DDF6E2"/>
+    <circle cx="124" cy="184" r="30" fill="#2E8E48"/>
+    <circle cx="124" cy="184" r="15" fill="#DDF6E2"/>
+    <circle cx="278" cy="184" r="30" fill="#2E8E48"/>
+    <circle cx="278" cy="184" r="15" fill="#DDF6E2"/>
+    <rect x="64" y="122" width="32" height="18" rx="8" fill="#89CE87"/>
+    <rect x="304" y="122" width="32" height="18" rx="8" fill="#89CE87"/>
+  </g>
+
+  <g stroke="#63BA69" stroke-width="8" stroke-linecap="round" opacity="0.95">
+    <path d="M150 172l24 16"/>
+    <path d="M168 134l26 6"/>
+    <path d="M488 156l-20 18"/>
+    <path d="M512 124l-24 10"/>
+  </g>
+
+  <g transform="translate(396 326) rotate(-10)">
+    <rect width="164" height="62" rx="28" fill="#DDF7E2"/>
+    <text x="82" y="39" text-anchor="middle" fill="#2D8D47" font-family="Arial, sans-serif" font-size="27" font-weight="700">accident</text>
+  </g>
+</svg>

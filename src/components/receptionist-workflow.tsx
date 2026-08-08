@@ -458,7 +458,7 @@ export function ReceptionistWorkflow() {
 
   const magicStatusClass: Record<MagicLinkStatusEntry["status"], string> = {
     pending: "bg-slate-100 text-slate-700",
-    sent: "bg-emerald-100 text-emerald-700",
+    sent: "bg-blue-100 text-blue-700",
     failed: "bg-rose-100 text-rose-700",
     skipped: "bg-amber-100 text-amber-700",
     used: "bg-indigo-100 text-indigo-700",
@@ -504,7 +504,7 @@ export function ReceptionistWorkflow() {
           </button>
         </div>
 
-        {magicLinkMessage ? <p className="mt-3 text-sm font-medium text-[color:#2f6f57]">{magicLinkMessage}</p> : null}
+        {magicLinkMessage ? <p className="mt-3 text-sm font-medium text-[color:#165fc0]">{magicLinkMessage}</p> : null}
         {magicLinkPreviewUrl ? (
           <a
             href={magicLinkPreviewUrl}
@@ -695,7 +695,7 @@ export function ReceptionistWorkflow() {
               {isLoadingQueue ? "Loading appointments…" : "No appointments yet."}
             </div>
           )}
-          {saveMessage ? <p className="text-sm font-medium text-[color:#2f6f57]">{saveMessage}</p> : null}
+          {saveMessage ? <p className="text-sm font-medium text-[color:#165fc0]">{saveMessage}</p> : null}
         </div>
       </section>
 

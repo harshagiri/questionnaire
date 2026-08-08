@@ -123,7 +123,7 @@ function SlotManager({
   const canAdd = totalSlots < MAX_SLOTS;
 
   return (
-    <div className="mt-6 rounded-[1.5rem] border-2 border-teal-200 bg-teal-50/40 p-5 shadow-sm">
+    <div className="mt-6 rounded-[1.5rem] border-2 border-blue-200 bg-blue-50/40 p-5 shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -151,7 +151,7 @@ function SlotManager({
         <>
           {/* Slot duration setting */}
           <div className="mb-4 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3">
-            <svg className="w-4 h-4 text-teal-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <label className="text-sm font-medium text-gray-700 flex-1">
@@ -161,7 +161,7 @@ function SlotManager({
               <select
                 value={globalDuration}
                 onChange={(e) => setGlobalDuration(Number(e.target.value))}
-                className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {[15, 20, 30, 45, 60, 90, 120].map((m) => (
                   <option key={m} value={m}>{m} min</option>
@@ -175,7 +175,7 @@ function SlotManager({
             {[...Array(MAX_SLOTS)].map((_, i) => (
               <div
                 key={i}
-                className={`h-2.5 flex-1 rounded-full transition-colors ${i < totalSlots ? "bg-teal-500" : "bg-gray-200"}`}
+                className={`h-2.5 flex-1 rounded-full transition-colors ${i < totalSlots ? "bg-blue-500" : "bg-gray-200"}`}
               />
             ))}
             <span className="text-xs font-semibold text-gray-500 ml-1 whitespace-nowrap">
@@ -190,7 +190,7 @@ function SlotManager({
                 const daySlotsArr = slotsByDay[dayIdx];
                 return (
                   <div key={dayIdx} className="text-center">
-                    <div className={`text-[10px] font-semibold mb-1 ${daySlotsArr.length > 0 ? "text-teal-700" : "text-gray-300"}`}>
+                    <div className={`text-[10px] font-semibold mb-1 ${daySlotsArr.length > 0 ? "text-blue-700" : "text-gray-300"}`}>
                       {day}
                     </div>
                     {daySlotsArr.length > 0 ? (
@@ -199,7 +199,7 @@ function SlotManager({
                           key={s.id}
                           onClick={() => removeSlot(s.id)}
                           title={`${DAY_FULL[s.dayOfWeek]} ${s.startTime} — click to remove`}
-                          className="block w-full mb-1 rounded-lg bg-teal-600 text-white text-[10px] font-medium px-1 py-1.5 hover:bg-red-500 transition-colors leading-tight"
+                          className="block w-full mb-1 rounded-lg bg-blue-600 text-white text-[10px] font-medium px-1 py-1.5 hover:bg-red-500 transition-colors leading-tight"
                         >
                           {s.startTime}
                           <span className="block text-[9px] opacity-80">{s.slotDurationMinutes}m</span>
@@ -215,7 +215,7 @@ function SlotManager({
           )}
 
           {totalSlots === 0 && (
-            <div className="rounded-xl border border-dashed border-teal-200 px-4 py-6 text-center mb-4">
+            <div className="rounded-xl border border-dashed border-blue-200 px-4 py-6 text-center mb-4">
               <p className="text-sm text-gray-400">No slots configured yet.</p>
               <p className="text-xs text-gray-300 mt-0.5">Add up to {MAX_SLOTS} weekly recurring time slots below.</p>
             </div>
@@ -233,7 +233,7 @@ function SlotManager({
                   <select
                     value={newDay}
                     onChange={(e) => setNewDay(Number(e.target.value))}
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {DAY_FULL.map((d, i) => (
                       <option key={i} value={i}>{d}</option>
@@ -246,7 +246,7 @@ function SlotManager({
                     type="time"
                     value={newTime}
                     onChange={(e) => setNewTime(e.target.value)}
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="text-xs text-gray-400 self-end pb-2">
@@ -255,7 +255,7 @@ function SlotManager({
                 <button
                   onClick={addSlot}
                   disabled={saving}
-                  className="ml-auto rounded-xl bg-teal-600 text-white text-sm font-semibold px-4 py-2 hover:bg-teal-700 disabled:opacity-60 transition-colors"
+                  className="ml-auto rounded-xl bg-blue-600 text-white text-sm font-semibold px-4 py-2 hover:bg-blue-700 disabled:opacity-60 transition-colors"
                 >
                   {saving ? "Saving…" : "Save slot"}
                 </button>
@@ -524,7 +524,7 @@ export function AdminDoctorManagement() {
         className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-[rgba(21,32,43,0.02)] transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white bg-teal-600">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white bg-blue-600">
             D
           </span>
           <div>
@@ -569,7 +569,7 @@ export function AdminDoctorManagement() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={selectedPreview} alt="Doctor preview" className="h-11 w-11 rounded-full object-cover" />
                   ) : (
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
                       {form.name.trim().slice(0, 2).toUpperCase() || "DR"}
                     </div>
                   )}
@@ -594,7 +594,7 @@ export function AdminDoctorManagement() {
               <div className="rounded-[1.25rem] border border-[rgba(21,32,43,0.08)] bg-[rgba(21,32,43,0.01)] p-5">
                 <h3 className="text-base font-semibold text-gray-900">Doctor roster</h3>
                 <p className="mt-1 text-sm text-[color:var(--muted)]">
-                  Click <span className="font-semibold text-teal-700">Manage slots</span> to configure weekly availability.
+                  Click <span className="font-semibold text-blue-700">Manage slots</span> to configure weekly availability.
                 </p>
                 <div className="mt-4 space-y-2">
                   {doctors.length === 0 ? (
@@ -607,12 +607,12 @@ export function AdminDoctorManagement() {
                       const slotCount = (doctor as DoctorRecord & { slots?: unknown[] }).slots?.length ?? 0;
                       const currentlyActive = doctor.isActive !== false;
                       return (
-                        <div key={doctor.id ?? doctor.email} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${isActive ? "border-teal-300 bg-teal-50/40" : "border-[rgba(21,32,43,0.08)]"}`}>
+                        <div key={doctor.id ?? doctor.email} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${isActive ? "border-blue-300 bg-blue-50/40" : "border-[rgba(21,32,43,0.08)]"}`}>
                           {doctor.photoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={doctor.photoUrl} alt={doctor.name} className="h-10 w-10 rounded-full object-cover shrink-0 border border-white shadow-sm" />
                           ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white bg-teal-100 text-xs font-semibold text-teal-700 shadow-sm">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white bg-blue-100 text-xs font-semibold text-blue-700 shadow-sm">
                               {doctor.name.trim().slice(0, 2).toUpperCase() || "DR"}
                             </div>
                           )}
@@ -620,10 +620,10 @@ export function AdminDoctorManagement() {
                             <div className="text-sm font-semibold truncate">{formatDoctorDisplayName(doctor.name)}</div>
                             <div className="text-xs text-[color:var(--muted)] truncate">{doctor.registrationNumber}</div>
                           </div>
-                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${currentlyActive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${currentlyActive ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
                             {currentlyActive ? "Active" : "Inactive"}
                           </div>
-                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${slotCount > 0 ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"}`}>
+                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${slotCount > 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
                             {slotCount}/{MAX_SLOTS} slots
                           </div>
                           <button
@@ -650,7 +650,7 @@ export function AdminDoctorManagement() {
                           <button
                             onClick={() => setManagingSlotsFor(isActive ? null : doctor)}
                             disabled={!currentlyActive || actioningDoctorEmail === doctor.email}
-                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? "bg-gray-200 text-gray-700" : "bg-teal-600 text-white hover:bg-teal-700"}`}
+                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? "bg-gray-200 text-gray-700" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                           >
                             {isActive ? "Close" : "Manage slots"}
                           </button>

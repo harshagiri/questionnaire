@@ -930,9 +930,9 @@ export function computeSeiScore(
 export const triageConfig: Record<SeiTriagePathway, { label: string; color: string; bg: string; border: string; action: string }> = {
   GREEN: {
     label: "GREEN",
-    color: "text-green-700",
-    bg: "bg-green-50",
-    border: "border-green-300",
+    color: "text-blue-700",
+    bg: "bg-blue-50",
+    border: "border-blue-300",
     action: "Education + Rehabilitation",
   },
   YELLOW: {

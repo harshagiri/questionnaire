@@ -56,10 +56,12 @@ export function PatientLabUpload({
   consultId,
   patientPhone,
   backHref = "/patient",
+  continueHref,
 }: {
   consultId?: string;
   patientPhone?: string;
   backHref?: string;
+  continueHref?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reports, setReports] = useState<UploadedReport[]>([]);
@@ -236,7 +238,7 @@ export function PatientLabUpload({
                 key={ft.value}
                 type="button"
                 onClick={() => setSelectedType(ft.value)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-colors ${selectedType === ft.value ? "border-teal-500 bg-teal-50 text-teal-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-colors ${selectedType === ft.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
               >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-600">{ft.icon}</span>
                 <span className="text-xs font-medium leading-tight">{ft.label}</span>
@@ -246,7 +248,7 @@ export function PatientLabUpload({
         </div>
 
         <div
-          className={`border-2 border-dashed rounded-xl p-8 mb-4 text-center cursor-pointer transition-colors ${dragOver ? "border-teal-400 bg-teal-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
+          className={`border-2 border-dashed rounded-xl p-8 mb-4 text-center cursor-pointer transition-colors ${dragOver ? "border-blue-400 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);
@@ -258,7 +260,7 @@ export function PatientLabUpload({
           <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
           </svg>
-          <p className="text-sm font-medium text-gray-500">Drop files here or <span className="text-teal-600 underline">browse</span></p>
+          <p className="text-sm font-medium text-gray-500">Drop files here or <span className="text-blue-600 underline">browse</span></p>
           <p className="text-xs text-gray-400 mt-1">PDF or JPEG only - max 5 MB per file</p>
           <input
             ref={fileInputRef}
@@ -291,18 +293,27 @@ export function PatientLabUpload({
         )}
 
         {uploadError && <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700">{uploadError}</div>}
-        {successMessage && <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-100 text-sm text-green-700">{successMessage}</div>}
+        {successMessage && <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-700">{successMessage}</div>}
 
         {pendingFiles.length > 0 && (
           <button
             type="button"
             onClick={handleUpload}
             disabled={uploading}
-            className="w-full bg-teal-600 text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-colors mb-6"
+            className="w-full bg-blue-600 text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors mb-6"
           >
             {uploading ? "Uploading..." : `Upload ${pendingFiles.length} file${pendingFiles.length > 1 ? "s" : ""}`}
           </button>
         )}
+
+        {continueHref ? (
+          <a
+            href={continueHref}
+            className="mb-6 block w-full rounded-xl bg-blue-600 px-6 py-3.5 text-center font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            Continue to appointment confirmation
+          </a>
+        ) : null}
 
         {loadingReports ? (
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">Loading uploaded files...</div>
@@ -315,7 +326,7 @@ export function PatientLabUpload({
                   <FileTypeIcon type={r.fileType} />
                   <div className="flex-1 min-w-0">
                     {r.storedPath ? (
-                      <a href={r.storedPath} target="_blank" rel="noreferrer" className="text-sm text-teal-700 hover:underline break-all">
+                      <a href={r.storedPath} target="_blank" rel="noreferrer" className="text-sm text-blue-700 hover:underline break-all">
                         {r.fileName}
                       </a>
                     ) : (
@@ -328,7 +339,7 @@ export function PatientLabUpload({
                     </div>
                   </div>
                   {r.storedPath ? (
-                    <a href={r.storedPath} target="_blank" rel="noreferrer" className="text-xs font-medium text-teal-700 hover:underline">
+                    <a href={r.storedPath} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-700 hover:underline">
                       Open
                     </a>
                   ) : null}
