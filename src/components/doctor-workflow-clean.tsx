@@ -9,6 +9,8 @@ import {
 } from "@/lib/questionnaire";
 import type { PromDisplaySummary } from "@/lib/prom-scoring";
 import { QuestionnaireFlow } from "@/components/questionnaire-flow";
+import { CarePlanCard } from "@/components/care-plan-card";
+import type { CarePlan, CarePlanRecord } from "@/lib/care-plan";
 import { patientWorkflowSections, preConsultSections } from "@/lib/workflow-data";
 import { findPatientRecordByPhone, listAppointments, loadPatientQuestionnaire, type PatientRecord } from "@/lib/portal-storage";
 
@@ -204,6 +206,7 @@ function stableSerialize(value: unknown): string {
 type DoctorPatient = {
   id: string;
   consultSessionId: string;
+  doctorName: string;
   name: string;
   patientId: string;
   phone: string;
@@ -624,6 +627,7 @@ async function loadDoctorQueue(date?: string, doctorEmail?: string) {
       return {
         id: appointment.id,
         consultSessionId: sessionId,
+        doctorName: appointment.doctorName,
         name: patientName,
         patientId: sessionId,
         phone,
@@ -684,6 +688,9 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
   const [doctorSummaryGenerating, setDoctorSummaryGenerating] = useState(false);
   const [doctorSummaryCompletionPercent, setDoctorSummaryCompletionPercent] = useState<number | null>(null);
   const [doctorSummaryAnswerCount, setDoctorSummaryAnswerCount] = useState(0);
+  const [carePlanRecord, setCarePlanRecord] = useState<CarePlanRecord | null>(null);
+  const [carePlanBusy, setCarePlanBusy] = useState(false);
+  const [carePlanError, setCarePlanError] = useState("");
 
   const normalizedQueueSearchPhone = queueSearchPhone.replace(/\D/g, "");
 
@@ -1282,6 +1289,46 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
     };
   }, [selectedPatient?.consultSessionId]);
 
+  useEffect(() => {
+    const consultSessionId = selectedPatient?.consultSessionId;
+
+    if (!consultSessionId) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadCarePlan() {
+      if (!active) {
+        return;
+      }
+
+      setCarePlanRecord(null);
+      setCarePlanError("");
+
+      try {
+        const response = await fetch(`/api/care-plan?consultSessionId=${encodeURIComponent(consultSessionId!)}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; record?: CarePlanRecord | null }
+          | null;
+
+        if (active && response.ok && payload?.ok && payload.record) {
+          setCarePlanRecord(payload.record);
+        }
+      } catch {
+        // Care plan is optional context; ignore load failures.
+      }
+    }
+
+    void loadCarePlan();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPatient?.consultSessionId]);
+
   async function openPatientAiSummary() {
     setAiModalMode("patient-preconsult");
     setAiModalOpen(true);
@@ -1390,6 +1437,79 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
       setAiSummaryLoading(false);
       setDoctorSummaryGenerating(false);
     }
+  }
+
+  async function generateVisitCarePlan(doctorAnswers: Record<string, DoctorSummaryAnswer>) {
+    if (!selectedPatient) {
+      return;
+    }
+
+    setCarePlanBusy(true);
+    setCarePlanError("");
+
+    try {
+      const response = await fetch("/api/care-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "generate",
+          consultSessionId: selectedPatient.consultSessionId,
+          context: {
+            doctorName: selectedPatient.doctorName,
+            patient: {
+              name: selectedPatient.name,
+              age: selectedPatient.age,
+              sex: selectedPatient.sex,
+              promSummary: formatPromSummary(selectedPatient.promSummary),
+              facts: patientSummaryFacts,
+            },
+            doctor: {
+              facts: Object.entries(doctorAnswers).map(([key, value]) => formatDoctorAnswerFact(key, value)),
+            },
+          },
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; record?: CarePlanRecord | null; message?: string }
+        | null;
+
+      if (!response.ok || !payload?.ok || !payload.record) {
+        throw new Error(payload?.message ?? "Could not create the care plan for this visit");
+      }
+
+      setCarePlanRecord(payload.record);
+    } catch (error) {
+      setCarePlanError(error instanceof Error ? error.message : "Could not create the care plan for this visit");
+    } finally {
+      setCarePlanBusy(false);
+    }
+  }
+
+  async function saveVisitCarePlan(plan: CarePlan) {
+    if (!selectedPatient) {
+      return;
+    }
+
+    const response = await fetch("/api/care-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "save",
+        consultSessionId: selectedPatient.consultSessionId,
+        plan,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; record?: CarePlanRecord | null; message?: string }
+      | null;
+
+    if (!response.ok || !payload?.ok || !payload.record) {
+      throw new Error(payload?.message ?? "Could not save the care plan");
+    }
+
+    setCarePlanRecord(payload.record);
   }
 
   const aiSummaryParsed = useMemo(() => parseAiSummaryText(aiSummary), [aiSummary]);
@@ -1848,6 +1968,28 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             </div>
           ) : null}
 
+          {carePlanBusy ? (
+            <div className="mb-3 rounded-xl border border-[rgba(22,95,192,0.2)] bg-[rgba(22,95,192,0.08)] px-3 py-2 text-xs font-semibold text-[var(--accent)]">
+              Preparing the patient care plan...
+            </div>
+          ) : null}
+
+          {carePlanError ? (
+            <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{carePlanError}</p>
+          ) : null}
+
+          {carePlanRecord ? (
+            <div className="mb-3">
+              <CarePlanCard
+                plan={carePlanRecord.plan}
+                updatedAt={carePlanRecord.updatedAt}
+                editable={canEditDoctorForm}
+                phone={selectedPatient.phone}
+                onSave={saveVisitCarePlan}
+              />
+            </div>
+          ) : null}
+
           <QuestionnaireFlow
             key={selectedPatient.consultSessionId}
             sessionId={selectedPatient.consultSessionId}
@@ -1863,6 +2005,7 @@ export function DoctorWorkflow({ doctorEmail }: { doctorEmail?: string }) {
             allowSubmittedEdit={canEditDoctorForm}
             onSubmitted={({ answers, completionPercent }) => {
               void generateDoctorPostConsultSummary({ answers, completionPercent });
+              void generateVisitCarePlan(answers);
             }}
           />
         </div>

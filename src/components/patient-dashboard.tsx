@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 import { findPatientRecordByPhone, type PatientRecord, type AppointmentRecord } from "@/lib/portal-storage";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
 import { isPatientProfileComplete } from "@/lib/patient-profile-completion";
+import { CarePlanCard } from "@/components/care-plan-card";
+import type { CarePlan } from "@/lib/care-plan";
+
+type PatientCarePlan = {
+  consultSessionId: string;
+  plan: CarePlan;
+  updatedAt?: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+};
 
 type ConsultModal = {
   consultId: string;
@@ -209,6 +220,7 @@ export function PatientDashboard({ phone }: { phone: string }) {
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [consultModal, setConsultModal] = useState<ConsultModal | null>(null);
   const [uploadedReports, setUploadedReports] = useState<UploadedReport[]>([]);
+  const [carePlans, setCarePlans] = useState<PatientCarePlan[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +311,41 @@ export function PatientDashboard({ phone }: { phone: string }) {
     }
 
     void loadUploadedReports();
+
+    return () => {
+      active = false;
+    };
+  }, [phone]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCarePlans() {
+      const normalizedPhone = phone.replace(/\D/g, "");
+      if (normalizedPhone.length < 10) {
+        if (active) {
+          setCarePlans([]);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/care-plan?patientPhone=${encodeURIComponent(normalizedPhone)}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { ok?: boolean; records?: PatientCarePlan[] } | null;
+
+        if (active) {
+          setCarePlans(response.ok && payload?.ok ? payload.records ?? [] : []);
+        }
+      } catch {
+        if (active) {
+          setCarePlans([]);
+        }
+      }
+    }
+
+    void loadCarePlans();
 
     return () => {
       active = false;
@@ -476,6 +523,22 @@ export function PatientDashboard({ phone }: { phone: string }) {
             </button>
           </div>
         </div>
+
+        {carePlans.length > 0 ? (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">My care plans</h2>
+            <div className="space-y-3">
+              {carePlans.map((carePlan) => (
+                <div key={carePlan.consultSessionId}>
+                  <p className="mb-1 text-xs text-gray-500">
+                    {formatDoctorDisplayName(carePlan.doctorName)} · {carePlan.appointmentDate} at {carePlan.appointmentTime}
+                  </p>
+                  <CarePlanCard plan={carePlan.plan} updatedAt={carePlan.updatedAt} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {uploadedReports.length > 0 ? (
           <div className="mb-6">
