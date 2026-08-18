@@ -3,6 +3,8 @@ import { routeRoleMap, roleHomePath } from "@/lib/auth";
 
 const publicPaths = [
   "/",
+  "/login",
+  "/find-doctors",
   "/access",
   "/register",
   "/api/health",
@@ -31,7 +33,7 @@ export function middleware(request: NextRequest) {
 
   const role = request.cookies.get("se_role")?.value;
   if (!role) {
-    const loginUrl = new URL("/", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
     loginUrl.searchParams.set("role", requiredRole);
     return NextResponse.redirect(loginUrl);

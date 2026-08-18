@@ -1,9 +1,5 @@
-import { LoginPortal } from "@/components/login-portal";
+import { PatientLanding } from "@/components/patient-landing";
 
-export default function Home({
-  searchParams,
-}: {
-  searchParams?: { next?: string; role?: string };
-}) {
-  return <LoginPortal searchParams={searchParams ?? {}} />;
+export default function Home() {
+  return <PatientLanding />;
 }

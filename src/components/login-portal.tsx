@@ -192,167 +192,165 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl items-start bg-[radial-gradient(circle_at_5%_10%,#eaf5ff_0%,#f7fafe_38%,#f8fafc_100%)] px-3 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8">
-      <div className="w-full overflow-hidden rounded-[2rem] border border-[color:var(--border)] bg-white shadow-[0_30px_90px_rgba(16,53,103,0.16)]">
-        <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
-          <section className="order-2 bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] p-4 sm:p-6 lg:order-1 lg:p-10">
-            <div className="mb-5">
-              <h2 className="headline text-3xl font-semibold text-[color:var(--foreground)] sm:text-4xl">Sign in</h2>
+    <div className="min-h-screen bg-white">
+      <header className="border-b border-[color:var(--border)] bg-white">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+          <a href="/" className="focus-ring flex items-center gap-2.5">
+            <span className="relative h-8 w-8 overflow-hidden rounded-xl bg-[rgba(59,130,246,0.08)]">
+              <Image src="/favicon.png" alt="SpinExperts icon" fill sizes="32px" className="object-contain" />
+            </span>
+            <span className="headline text-base font-semibold leading-none text-[color:var(--foreground)]">SpinExperts India</span>
+          </a>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
+        <h1 className="headline text-2xl font-semibold text-[color:var(--foreground)]">Sign in</h1>
+
+        <div className="mt-5">
+          <div className="inline-flex rounded-full border border-[rgba(21,32,43,0.12)] bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("patient")}
+              className={
+                "focus-ring rounded-l-full px-4 py-2 text-sm font-semibold transition-colors " +
+                (activeTab === "patient" ? "bg-[var(--accent)] text-white" : "bg-white text-[color:var(--muted)]")
+              }
+            >
+              Patient
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("staff")}
+              className={
+                "focus-ring rounded-r-full px-4 py-2 text-sm font-semibold transition-colors " +
+                (activeTab === "staff" ? "bg-[var(--accent)] text-white" : "bg-white text-[color:var(--muted)]")
+              }
+            >
+              Staff
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <section className={activeTab === "patient" ? "block" : "hidden"}>
+            <div className="flex border-b border-[rgba(21,32,43,0.08)]">
+              <span className="flex-1 border-b-2 border-[var(--accent)] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">
+                Login
+              </span>
+              <a
+                href="/register"
+                className="flex-1 px-4 py-3 text-center text-sm font-semibold text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+              >
+                Register
+              </a>
             </div>
 
-            <div className="mb-4">
-              <div className="inline-flex rounded-full border border-[rgba(21,32,43,0.12)] bg-white p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("patient")}
-                  className={
-                    "focus-ring rounded-l-full px-4 py-2 text-sm font-semibold transition-colors " +
-                    (activeTab === "patient" ? "bg-[var(--accent)] text-white" : "bg-white text-[color:var(--muted)]")
-                  }
-                >
-                  Patient
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("staff")}
-                  className={
-                    "focus-ring rounded-r-full px-4 py-2 text-sm font-semibold transition-colors " +
-                    (activeTab === "staff" ? "bg-[var(--accent)] text-white" : "bg-white text-[color:var(--muted)]")
-                  }
-                >
-                  Staff
-                </button>
+            <div className="space-y-3.5 py-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[color:var(--muted)]">Mobile Number / Email ID</label>
+                <input
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Mobile Number / Email ID"
+                  className="focus-ring w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
+                />
               </div>
-            </div>
 
-            <div>
-              <section
-                className={
-                  "rounded-[1.2rem] border border-[rgba(59,130,246,0.28)] bg-[rgba(59,130,246,0.08)] p-4 shadow-sm sm:p-5 " +
-                  (activeTab === "patient" ? "block" : "hidden")
-                }
-              >
-                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Patient</h3>
-                <div className="mt-4 space-y-3">
-                  <input
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="Phone number"
-                    className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
-                  />
-                  {patientMessage ? <p className="text-sm font-medium text-[#1d4ed8]">{patientMessage}</p> : null}
-                  <button
-                    type="button"
-                    onClick={handlePatientLogin}
-                    disabled={patientSubmitting}
-                    className="focus-ring w-full rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {patientSubmitting ? "Continuing..." : "Continue"}
-                  </button>
-                  <a href="/register" className="text-center text-xs font-semibold text-[var(--accent)] underline">
-                    New patient? Register
-                  </a>
-                </div>
-              </section>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[color:var(--muted)]">Password</label>
+                <input
+                  value=""
+                  disabled
+                  readOnly
+                  placeholder="Password"
+                  title="Password login is disabled — patient sign-in uses OTP only for now"
+                  className="w-full cursor-not-allowed rounded-lg border border-[rgba(21,32,43,0.1)] bg-[rgba(21,32,43,0.05)] px-3 py-2.5 text-[color:var(--muted)] outline-none"
+                />
+              </div>
 
-              <section
-                className={
-                  "rounded-[1.2rem] border border-[rgba(21,32,43,0.12)] bg-white p-4 shadow-sm sm:p-5 " +
-                  (activeTab === "staff" ? "block" : "hidden")
-                }
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex items-center gap-1.5 text-[color:var(--muted)]">
+                  <input type="checkbox" disabled className="h-3.5 w-3.5 cursor-not-allowed rounded" />
+                  Remember me for 30 days
+                </label>
+                <span className="cursor-not-allowed font-semibold text-[var(--accent)] opacity-60">Forgot password?</span>
+              </div>
+
+              <label className="flex items-center gap-1.5 text-xs font-medium text-[color:var(--foreground)]">
+                <input type="checkbox" checked disabled className="h-3.5 w-3.5 rounded" />
+                Login with OTP instead of password
+              </label>
+
+              {patientMessage ? <p className="text-sm font-medium text-[#1d4ed8]">{patientMessage}</p> : null}
+              <button
+                type="button"
+                onClick={handlePatientLogin}
+                disabled={patientSubmitting}
+                className="focus-ring w-full rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
               >
-                <h3 className="text-xl font-semibold text-[color:var(--foreground)]">Staff</h3>
-                <div className="mt-4 space-y-3">
-                  <select
-                    value={staffRole}
-                    onChange={(event) => setStaffRole(event.target.value as StaffRole)}
-                    className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
-                  >
-                    {staffRoles.map((item) => (
-                      <option key={item.role} value={item.role}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={staffEmail}
-                    onChange={(event) => setStaffEmail(event.target.value)}
-                    placeholder="Staff email"
-                    className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
-                  />
-                  <div className="relative">
-                    <input
-                      type={showStaffPassword ? "text" : "password"}
-                      value={staffPassword}
-                      onChange={(event) => setStaffPassword(event.target.value)}
-                      placeholder="Password"
-                      className="focus-ring w-full rounded-xl border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 pr-11 outline-none"
-                    />
-                    <button
-                      type="button"
-                      aria-label="Press and hold to show password"
-                      onPointerDown={() => setShowStaffPassword(true)}
-                      onPointerUp={() => setShowStaffPassword(false)}
-                      onPointerLeave={() => setShowStaffPassword(false)}
-                      onPointerCancel={() => setShowStaffPassword(false)}
-                      onBlur={() => setShowStaffPassword(false)}
-                      className="focus-ring absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[color:var(--muted)] hover:bg-[rgba(59,130,246,0.12)]"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    </button>
-                  </div>
-                  {staffMessage ? <p className="text-sm font-medium text-[#1d4ed8]">{staffMessage}</p> : null}
-                  <button
-                    type="button"
-                    onClick={handleStaffLogin}
-                    disabled={staffSubmitting}
-                    className="focus-ring w-full rounded-full bg-[color:var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {staffSubmitting ? "Logging in..." : "Continue"}
-                  </button>
-                </div>
-              </section>
+                {patientSubmitting ? "Continuing..." : "Login"}
+              </button>
             </div>
           </section>
 
-          <section className="order-1 relative overflow-hidden bg-[linear-gradient(132deg,#1e3a8a_0%,#1d4ed8_48%,#60a5fa_100%)] p-4 text-white sm:p-6 lg:order-2 lg:p-10">
-            <div className="absolute -left-10 top-16 h-44 w-44 rounded-full bg-white/15 blur-2xl" />
-            <div className="absolute -right-12 bottom-14 h-52 w-52 rounded-full bg-[#94cfff]/35 blur-2xl" />
-            <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 opacity-12 sm:h-64 sm:w-64">
-              <Image
-                src="/favicon.png"
-                alt=""
-                fill
-                sizes="256px"
-                className="object-contain blur-[1px] saturate-0"
+          <section className={activeTab === "staff" ? "block" : "hidden"}>
+            <h3 className="border-b border-[rgba(21,32,43,0.08)] px-1 py-3 text-sm font-semibold text-[color:var(--foreground)]">Staff login</h3>
+            <div className="space-y-3 py-4">
+              <select
+                value={staffRole}
+                onChange={(event) => setStaffRole(event.target.value as StaffRole)}
+                className="focus-ring w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
+              >
+                {staffRoles.map((item) => (
+                  <option key={item.role} value={item.role}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={staffEmail}
+                onChange={(event) => setStaffEmail(event.target.value)}
+                placeholder="Staff email"
+                className="focus-ring w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 outline-none"
               />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/30 bg-white/12 px-3 py-3 shadow-[0_20px_44px_rgba(2,18,36,0.2)] backdrop-blur sm:w-fit sm:gap-4 sm:px-4">
-                <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-white/70 shadow-[0_12px_24px_rgba(2,18,36,0.24)] sm:h-20 sm:w-20">
-                  <Image
-                    src="/favicon.png"
-                    alt="SpinExperts mark"
-                    fill
-                    sizes="80px"
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/90">SpinExperts India</div>
-                  <div className="text-[11px] uppercase tracking-[0.14em] text-white/75">Secure access</div>
-                </div>
+              <div className="relative">
+                <input
+                  type={showStaffPassword ? "text" : "password"}
+                  value={staffPassword}
+                  onChange={(event) => setStaffPassword(event.target.value)}
+                  placeholder="Password"
+                  className="focus-ring w-full rounded-lg border border-[rgba(21,32,43,0.12)] bg-white px-3 py-2.5 pr-11 outline-none"
+                />
+                <button
+                  type="button"
+                  aria-label="Press and hold to show password"
+                  onPointerDown={() => setShowStaffPassword(true)}
+                  onPointerUp={() => setShowStaffPassword(false)}
+                  onPointerLeave={() => setShowStaffPassword(false)}
+                  onPointerCancel={() => setShowStaffPassword(false)}
+                  onBlur={() => setShowStaffPassword(false)}
+                  className="focus-ring absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[color:var(--muted)] hover:bg-[rgba(59,130,246,0.12)]"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
               </div>
-
-              <h1 className="headline mt-4 text-2xl font-semibold leading-tight sm:text-3xl lg:text-[2.45rem]">Welcome</h1>
+              {staffMessage ? <p className="text-sm font-medium text-[#1d4ed8]">{staffMessage}</p> : null}
+              <button
+                type="button"
+                onClick={handleStaffLogin}
+                disabled={staffSubmitting}
+                className="focus-ring w-full rounded-full bg-[color:var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {staffSubmitting ? "Logging in..." : "Continue"}
+              </button>
             </div>
           </section>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

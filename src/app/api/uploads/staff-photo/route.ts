@@ -67,17 +67,18 @@ function buildPhotoUrl(role: "doctor" | "receptionist" | "coordinator" | "admin"
 }
 
 export async function GET(request: Request) {
-  if (!isStaffSession(request)) {
+  const { searchParams } = new URL(request.url);
+  const role = searchParams.get("role");
+  const email = (searchParams.get("email") ?? "").trim().toLowerCase();
+
+  // Doctor photos are shown on the public doctor directory/search, before any login.
+  if (role !== "doctor" && !isStaffSession(request)) {
     return NextResponse.json({ ok: false, message: "Authentication required" }, { status: 401 });
   }
 
   if (!prisma) {
     return NextResponse.json({ ok: false, message: "Database is unavailable" }, { status: 503 });
   }
-
-  const { searchParams } = new URL(request.url);
-  const role = searchParams.get("role");
-  const email = (searchParams.get("email") ?? "").trim().toLowerCase();
 
   if ((role !== "doctor" && role !== "receptionist" && role !== "coordinator" && role !== "admin") || !email) {
     return NextResponse.json({ ok: false, message: "role and email are required" }, { status: 400 });

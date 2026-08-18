@@ -78,7 +78,14 @@ export async function AppShell({ children, role }: AppShellProps) {
               avatarLabel={avatarLabel}
               sessionAvatar={sessionAvatar}
             />
-          ) : null}
+          ) : (
+            <Link
+              href="/login"
+              className="focus-ring shrink-0 rounded-full border border-[color:var(--border)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[rgba(59,130,246,0.08)]"
+            >
+              Sign In
+            </Link>
+          )}
         </div>
       </header>
 

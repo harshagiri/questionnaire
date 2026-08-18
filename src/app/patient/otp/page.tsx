@@ -18,7 +18,7 @@ export default async function PatientOtpPage({
 
   if (!role || role !== "patient") {
     const nextPath = "/patient/otp";
-    redirect(`/?role=patient&next=${encodeURIComponent(nextPath)}`);
+    redirect(`/login?role=patient&next=${encodeURIComponent(nextPath)}`);
   }
 
   const cookiePhone = (cookieStore.get("se_phone")?.value ?? cookieStore.get("se_name")?.value ?? "").replace(/\D/g, "");

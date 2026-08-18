@@ -24,7 +24,7 @@ export default async function PatientBookPage({
 
   if (!role || role !== "patient") {
     const nextPath = journeyMode ? "/patient/book?journey=1" : "/patient/book";
-    redirect(`/?role=patient&next=${encodeURIComponent(nextPath)}`);
+    redirect(`/login?role=patient&next=${encodeURIComponent(nextPath)}`);
   }
 
   const phone = (phoneCookie ?? name ?? "").replace(/\D/g, "");

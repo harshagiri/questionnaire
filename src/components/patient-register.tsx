@@ -1158,12 +1158,12 @@ export function PatientRegister({
             </section>
           );
         })}
-        <div className="mt-2 rounded-md bg-[linear-gradient(132deg,#1e3a8a_0%,#1d4ed8_48%,#60a5fa_100%)] px-4 py-3 text-white">
-          <p className="text-sm font-semibold">
+        <div className="mt-2 rounded-md border border-[rgba(21,32,43,0.12)] bg-[rgba(59,130,246,0.06)] px-4 py-3">
+          <p className="text-sm font-semibold text-[color:var(--foreground)]">
             {healthGroups.filter(groupComplete).length} clinical details
             prepared
           </p>
-          <p className="mt-0.5 text-xs text-[#dbeafe]">
+          <p className="mt-0.5 text-xs text-[color:var(--muted)]">
             Your doctor can review these before the consultation.
           </p>
         </div>
@@ -1399,9 +1399,9 @@ export function PatientRegister({
           </div>
         </div>
       ) : null}
-      <aside className="hidden h-screen overflow-y-auto bg-[linear-gradient(160deg,#1e3a8a_0%,#1d4ed8_58%,#60a5fa_100%)] px-5 py-8 text-white lg:block">
-        <p className="headline text-xl font-semibold">SpineExpert</p>
-        <p className="mt-2 text-xs leading-5 text-[#dbeafe]">
+      <aside className="hidden h-screen overflow-y-auto border-r border-[color:var(--border)] bg-white px-5 py-8 lg:block">
+        <p className="headline text-xl font-semibold text-[color:var(--foreground)]">SpineExpert</p>
+        <p className="mt-2 text-xs leading-5 text-[color:var(--muted)]">
           Build your care profile
           <br />
           About 4–6 minutes
@@ -1412,7 +1412,7 @@ export function PatientRegister({
               key={item.id}
               type="button"
               onClick={() => index <= sectionIndex && setSectionIndex(index)}
-              className={`focus-ring flex min-h-12 items-center gap-3 rounded-xl border px-3 text-left text-xs ${index === sectionIndex ? "border-[#93c5fd] bg-white/10 text-white" : "border-white/15 text-[#dbeafe]"}`}
+              className={`focus-ring flex min-h-12 items-center gap-3 rounded-xl border px-3 text-left text-xs ${index === sectionIndex ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.1)] text-[color:var(--muted)]"}`}
             >
               <span>{completed[index] ? "✓" : index + 1}</span>
               <span>{chapterLabels[index]}</span>
@@ -1436,14 +1436,14 @@ export function PatientRegister({
             Need help?
           </span>
         </header>
-        <section className="sticky top-11 z-10 bg-[linear-gradient(160deg,#1e3a8a_0%,#1d4ed8_58%,#60a5fa_100%)] px-3 py-2 text-white sm:top-14 sm:px-4 sm:py-3 lg:hidden">
-          <div className="flex items-center justify-between text-[9px] text-[#dbeafe] sm:text-[10px]">
+        <section className="sticky top-11 z-10 border-b border-[color:var(--border)] bg-white px-3 py-2 sm:top-14 sm:px-4 sm:py-3 lg:hidden">
+          <div className="flex items-center justify-between text-[9px] text-[color:var(--muted)] sm:text-[10px]">
             <span>YOUR CARE PROFILE</span>
             <span>{completed.filter(Boolean).length} chapters ready</span>
           </div>
-          <div className="mt-2 rounded-xl border border-white/15 bg-white/5 px-2 py-2.5">
+          <div className="mt-2 rounded-xl border border-[rgba(21,32,43,0.1)] bg-[rgba(21,32,43,0.02)] px-2 py-2.5">
             <div className="relative">
-              <div className="absolute left-4 right-4 top-4 h-[2px] bg-white/20" />
+              <div className="absolute left-4 right-4 top-4 h-[2px] bg-[rgba(21,32,43,0.1)]" />
               <div className="relative flex items-start justify-between gap-1">
                 {chapterLabels.map((label, index) => {
                   const isDone = completed[index];
@@ -1460,7 +1460,7 @@ export function PatientRegister({
                       aria-current={isCurrent ? "step" : undefined}
                     >
                       <span
-                        className={`grid h-8 w-8 place-items-center rounded-full border text-[11px] font-bold transition ${isCurrent ? "border-[#93c5fd] bg-[#93c5fd] text-[#1e3a8a] shadow-[0_0_0_3px_rgba(147,197,253,0.24)]" : isDone ? "border-white/45 bg-white/20 text-white" : "border-white/25 bg-white/10 text-[#dbeafe]"}`}
+                        className={`grid h-8 w-8 place-items-center rounded-full border text-[11px] font-bold transition ${isCurrent ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_0_0_3px_rgba(59,130,246,0.18)]" : isDone ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[rgba(21,32,43,0.15)] bg-white text-[color:var(--muted)]"}`}
                       >
                         {isCurrent ? "●" : isDone ? "✓" : index + 1}
                       </span>

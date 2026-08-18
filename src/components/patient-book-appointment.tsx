@@ -253,19 +253,25 @@ function ConfirmationScreen({ result, onDone }: { result: BookedResult; onDone: 
 }
 
 export function PatientBookAppointment({
-  phone,
+  phone: phoneProp,
   journeyMode = false,
   manageMode = false,
   targetAppointmentId,
+  publicMode = false,
+  initialConsultMode = "clinic",
+  initialSearchTerm = "",
 }: {
   phone: string;
   journeyMode?: boolean;
   manageMode?: boolean;
   targetAppointmentId?: string;
+  publicMode?: boolean;
+  initialConsultMode?: ConsultMode;
+  initialSearchTerm?: string;
 }) {
   const router = useRouter();
-  const [bookingStep, setBookingStep] = useState<"doctors" | "schedule" | "checkout">("doctors");
-  const [consultMode, setConsultMode] = useState<ConsultMode>("clinic");
+  const [bookingStep, setBookingStep] = useState<"doctors" | "schedule" | "login" | "checkout">("doctors");
+  const [consultMode, setConsultMode] = useState<ConsultMode>(initialConsultMode);
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([]);
   const [form, setForm] = useState<BookingForm>({
     doctorId: "",
@@ -273,7 +279,7 @@ export function PatientBookAppointment({
     appointmentDate: "",
     appointmentTime: "",
   });
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [submitting, setSubmitting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -281,6 +287,17 @@ export function PatientBookAppointment({
   const [booked, setBooked] = useState<BookedResult | null>(null);
   const [existingAppointment, setExistingAppointment] = useState<ExistingAppointment | null>(null);
   const [bookingIntent, setBookingIntent] = useState<"newAppointment" | "updateExisting">("newAppointment");
+
+  // In public mode, no phone is known until the inline login step verifies one.
+  const [patientPhone, setPatientPhone] = useState(phoneProp);
+  const phone = publicMode ? patientPhone : phoneProp;
+
+  const [loginStage, setLoginStage] = useState<"phone" | "otp">("phone");
+  const [loginPhoneInput, setLoginPhoneInput] = useState("");
+  const [loginOtp, setLoginOtp] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
 
   const patientRecord = findPatientRecordByPhone(phone);
   const selectedDoctor = useMemo(
@@ -503,6 +520,13 @@ export function PatientBookAppointment({
       return;
     }
 
+    if (bookingStep === "login") {
+      setLoginError("");
+      setLoginStage("phone");
+      setBookingStep("schedule");
+      return;
+    }
+
     if (bookingStep === "schedule") {
       setBookingStep("doctors");
       setForm((prev) => ({
@@ -519,6 +543,58 @@ export function PatientBookAppointment({
     }
 
     router.push("/patient");
+  }
+
+  function handleContinueFromSchedule() {
+    if (publicMode && !phone) {
+      setBookingStep("login");
+      return;
+    }
+
+    setBookingStep("checkout");
+  }
+
+  function handleSendLoginOtp() {
+    setLoginError("");
+    const normalized = loginPhoneInput.replace(/\D/g, "");
+    if (normalized.length < 10) {
+      setLoginError("Enter a valid phone number");
+      return;
+    }
+
+    setLoginStage("otp");
+  }
+
+  async function handleVerifyLoginOtp() {
+    setLoginError("");
+    if (loginOtp.trim().length < 4) {
+      setLoginError("Enter the 4-digit OTP");
+      return;
+    }
+
+    setLoginSubmitting(true);
+    try {
+      const normalizedPhone = loginPhoneInput.replace(/\D/g, "");
+      const response = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "patient", name: normalizedPhone, phone: normalizedPhone }),
+      });
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+
+      if (!response.ok || !payload?.ok) {
+        setLoginError(payload?.message ?? "Could not verify. Please try again.");
+        return;
+      }
+
+      setPatientPhone(normalizedPhone);
+      setLoginStage("phone");
+      setBookingStep("checkout");
+    } catch {
+      setLoginError("Network error. Please try again.");
+    } finally {
+      setLoginSubmitting(false);
+    }
   }
 
   function canSubmit() {
@@ -780,11 +856,11 @@ export function PatientBookAppointment({
           >
             <span aria-hidden="true">←</span>
             <span>
-              {bookingStep === "checkout" ? "Back to slots" : bookingStep === "schedule" ? "Back to doctors" : "Back"}
+              {bookingStep === "checkout" ? "Back to slots" : bookingStep === "login" ? "Back to slots" : bookingStep === "schedule" ? "Back to doctors" : "Back"}
             </span>
           </button>
           <span className="font-medium text-gray-700">
-            {bookingStep === "doctors" ? "Find doctor" : bookingStep === "schedule" ? "Choose slot" : "Review & pay"}
+            {bookingStep === "doctors" ? "Find doctor" : bookingStep === "schedule" ? "Choose slot" : bookingStep === "login" ? "Confirm your number" : "Review & pay"}
           </span>
         </div>
 
@@ -1009,6 +1085,86 @@ export function PatientBookAppointment({
 
               <p className="mt-3 text-center text-sm font-semibold text-blue-700">View all slots</p>
             </div>
+          ) : bookingStep === "login" ? (
+            <div className="rounded-xl bg-white p-3 ring-1 ring-[rgba(166,189,227,0.3)]">
+              <div className="flex items-center gap-2.5 rounded-2xl bg-[rgba(228,242,255,0.8)] p-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedDoctor ? getDoctorAvatarUrl(selectedDoctor) : ""}
+                  alt={selectedDoctor ? formatDoctorDisplayName(selectedDoctor.name) : "Doctor"}
+                  className="h-14 w-14 rounded-xl object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-base font-semibold text-gray-900">
+                    {formatDoctorDisplayName(selectedDoctor?.name ?? "Selected doctor")}
+                  </p>
+                  <p className="truncate text-[13px] text-gray-600">SpinExpert Clinic</p>
+                </div>
+              </div>
+
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Appointment date and time</p>
+                <p className="mt-1 text-sm font-medium text-gray-800">
+                  {formatReadableDate(form.appointmentDate)}, {form.appointmentTime}
+                </p>
+              </div>
+
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                {loginStage === "phone" ? (
+                  <>
+                    <p className="text-sm font-semibold text-gray-900">Please provide your number to continue</p>
+                    <label className="mt-3 block text-xs font-medium text-gray-500">Mobile*</label>
+                    <div className="mt-1 flex items-center gap-2 border-b border-gray-200 pb-2">
+                      <span className="text-sm font-semibold text-gray-700">+91</span>
+                      <input
+                        value={loginPhoneInput}
+                        onChange={(event) => setLoginPhoneInput(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                        placeholder="10-digit mobile number"
+                        inputMode="numeric"
+                        className="w-full bg-transparent text-sm outline-none"
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">You will receive an SMS with a verification code on this number.</p>
+                    {loginError ? <p className="mt-2 text-sm text-red-600">{loginError}</p> : null}
+                    <button
+                      type="button"
+                      onClick={handleSendLoginOtp}
+                      className="mt-4 w-full rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
+                    >
+                      Send OTP
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-gray-900">Enter the OTP sent to +91 {loginPhoneInput}</p>
+                    <p className="mt-1 text-xs text-blue-700">Demo mode: use any 4 digits.</p>
+                    <input
+                      value={loginOtp}
+                      onChange={(event) => setLoginOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="Enter OTP"
+                      inputMode="numeric"
+                      className="mt-3 w-full rounded-xl border border-gray-200 px-4 py-3 text-center text-lg tracking-[0.35em] text-gray-900 outline-none focus:border-blue-500"
+                    />
+                    {loginError ? <p className="mt-2 text-sm text-red-600">{loginError}</p> : null}
+                    <button
+                      type="button"
+                      onClick={handleVerifyLoginOtp}
+                      disabled={loginSubmitting}
+                      className="mt-4 w-full rounded-xl bg-blue-700 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-60"
+                    >
+                      {loginSubmitting ? "Verifying..." : "Verify & continue"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoginStage("phone")}
+                      className="mt-2 w-full rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Change number
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="space-y-3">
               <div className="rounded-xl bg-white p-3 ring-1 ring-[rgba(166,189,227,0.3)]">
@@ -1098,13 +1254,13 @@ export function PatientBookAppointment({
           ) : bookingStep === "schedule" ? (
             <button
               type="button"
-              onClick={() => setBookingStep("checkout")}
+              onClick={handleContinueFromSchedule}
               disabled={!canSubmit()}
               className="w-full rounded-xl bg-blue-700 py-3.5 px-6 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               {manageMode && existingAppointment && bookingIntent === "updateExisting" ? "Review update" : "Continue to review"}
             </button>
-          ) : (
+          ) : bookingStep === "login" ? null : (
             <div className="flex items-center gap-3">
               <div className="min-w-[110px] text-left">
                 <p className="text-2xl font-bold text-gray-900">
