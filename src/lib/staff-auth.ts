@@ -30,7 +30,7 @@ export function buildStaffPhotoUrl(role: Exclude<AppRole, "patient">, email: str
 }
 
 function isStaffRole(role: string): role is Exclude<AppRole, "patient"> {
-  return role === "doctor" || role === "receptionist" || role === "admin";
+  return role === "doctor" || role === "receptionist" || role === "coordinator" || role === "admin";
 }
 
 const staffStorePath = join(process.cwd(), "data", "staff-users.json");
@@ -75,7 +75,7 @@ export async function listStaffAccounts(options: ListStaffOptions = {}): Promise
   if (shouldUseDb() && prisma) {
     const dbUsers = await prisma.user.findMany({
       where: {
-        role: { in: ["doctor", "receptionist", "admin"] },
+        role: { in: ["doctor", "receptionist", "coordinator", "admin"] },
         ...(includeDeleted ? {} : { deletedAt: null }),
       },
       orderBy: { createdAt: "desc" },

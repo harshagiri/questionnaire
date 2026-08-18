@@ -10,6 +10,7 @@ const roleCards: Array<{ role: AppRole; label: string; note: string }> = [
   { role: "patient", label: "Patient", note: "Intake, secure access code, and questionnaire start" },
   { role: "doctor", label: "Doctor", note: "Consult review and sectioned validation" },
   { role: "receptionist", label: "Receptionist", note: "Appointment booking only" },
+  { role: "coordinator", label: "Coordinator", note: "Readiness tracking and patient outreach before consult" },
   { role: "admin", label: "Admin", note: "Usage metrics and RBAC controls" },
 ];
 

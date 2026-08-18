@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { AppRole } from "@/lib/rbac";
+import { isPatientProfileComplete } from "@/lib/patient-profile-completion";
 
 type StaffRole = Exclude<AppRole, "patient">;
 
@@ -14,9 +15,44 @@ type AppointmentLite = {
   status: string;
 };
 
+function toAppointmentMillis(dateValue: string, timeValue: string) {
+  const parsed = new Date(`${dateValue}T${timeValue}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
+function pickCurrentAppointmentId(appointments: AppointmentLite[]) {
+  const now = Date.now();
+  const active = appointments
+    .filter((item) => item.status !== "cancelled")
+    .map((item) => ({ item, when: toAppointmentMillis(item.appointmentDate, item.appointmentTime) }))
+    .filter((entry): entry is { item: AppointmentLite; when: number } => entry.when !== null);
+
+  const upcoming = active
+    .filter((entry) => entry.when >= now - 30 * 60 * 1000)
+    .sort((a, b) => a.when - b.when);
+
+  if (upcoming[0]) {
+    return upcoming[0].item.id;
+  }
+
+  return null;
+}
+
+type PatientProfileSnapshot = {
+  patientId?: string;
+  fullName?: string;
+  age?: number;
+  gender?: string;
+  region?: string;
+  preferredLanguage?: string;
+  heightCm?: number;
+  weightKg?: number;
+};
+
 const staffRoles: Array<{ role: StaffRole; label: string }> = [
   { role: "doctor", label: "Doctor" },
   { role: "receptionist", label: "Receptionist" },
+  { role: "coordinator", label: "Coordinator" },
   { role: "admin", label: "Admin" },
 ];
 
@@ -66,20 +102,7 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
       return null;
     }
 
-    const now = new Date();
-    const upcoming = (payload.appointments ?? [])
-      .filter((item) => item.status !== "cancelled")
-      .filter((item) => {
-        const dt = new Date(`${item.appointmentDate}T${item.appointmentTime}`);
-        return !Number.isNaN(dt.getTime()) && dt.getTime() >= now.getTime() - 30 * 60 * 1000;
-      })
-      .sort((a, b) => {
-        const left = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const right = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
-        return left - right;
-      });
-
-    return upcoming[0]?.id ?? null;
+    return pickCurrentAppointmentId(payload.appointments ?? []);
   }
 
   async function handlePatientLogin() {
@@ -98,11 +121,30 @@ export function LoginPortal({ searchParams }: { searchParams: { next?: string; r
         window.localStorage.setItem("sei-patient-profile-latest", JSON.stringify(profilePayload));
       }
 
+      let profileIsComplete = false;
+      try {
+        const profileResponse = await fetch(`/api/patient-register?phone=${encodeURIComponent(normalizedPhone)}`, {
+          cache: "no-store",
+        });
+        const profilePayload = (await profileResponse.json()) as {
+          ok?: boolean;
+          record?: PatientProfileSnapshot | null;
+        };
+
+        if (profileResponse.ok && profilePayload.ok) {
+          profileIsComplete = isPatientProfileComplete(profilePayload.record);
+        }
+      } catch {
+        profileIsComplete = false;
+      }
+
       const upcomingAppointmentId = await findUpcomingAppointmentId(normalizedPhone).catch(() => null);
-      const sessionPath = nextPath
+      const sessionPath = profileIsComplete
+        ? (nextPath
         ?? (upcomingAppointmentId
           ? `/patient/otp?phone=${encodeURIComponent(normalizedPhone)}&next=${encodeURIComponent(`/patient/book?manage=1&appointmentId=${encodeURIComponent(upcomingAppointmentId)}`)}`
-          : "/patient/book?journey=1");
+          : "/patient/book?journey=1"))
+        : `/register?journey=1&phone=${encodeURIComponent(normalizedPhone)}&reason=profile-incomplete`;
 
       await createSession(
         {

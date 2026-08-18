@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     const normalizedEmail = (body.email ?? "").trim().toLowerCase();
     const authResult = await verifyStaffCredentials(
-      body.role as "doctor" | "receptionist" | "admin",
+      body.role as "doctor" | "receptionist" | "coordinator" | "admin",
       normalizedEmail,
       body.password ?? "",
     );

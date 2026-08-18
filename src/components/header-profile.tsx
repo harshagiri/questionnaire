@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 
@@ -21,6 +22,7 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
   const pathname = usePathname();
   const canUseDom = typeof window !== "undefined";
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const patientProfileRaw = useSyncExternalStore(
     () => () => undefined,
     () => {
@@ -67,6 +69,46 @@ export function HeaderProfile({ role, roleLabel, displayName, avatarLabel, sessi
 
   return (
     <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+      {role === "patient" ? (
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="Open patient menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((current) => !current)}
+            className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(21,32,43,0.16)] bg-white text-[color:var(--foreground)] transition hover:bg-[rgba(21,32,43,0.04)]"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+              <path
+                d="M4 7h16M4 12h16M4 17h16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          {menuOpen ? (
+            <div className="absolute right-0 top-11 z-40 min-w-52 overflow-hidden rounded-xl border border-[rgba(21,32,43,0.12)] bg-white p-1.5 shadow-[0_14px_34px_rgba(16,53,103,0.16)]">
+              <Link
+                href="/patient"
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-lg px-3 py-2 text-sm font-semibold text-[color:var(--foreground)] hover:bg-[rgba(59,130,246,0.08)]"
+              >
+                My dashboard
+              </Link>
+              <Link
+                href="/patient/book"
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-lg px-3 py-2 text-sm font-semibold text-[color:var(--foreground)] hover:bg-[rgba(59,130,246,0.08)]"
+              >
+                Book new appointment
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex min-w-0 items-center gap-2 rounded-[1.2rem] border border-[rgba(22,95,192,0.2)] bg-[rgba(22,95,192,0.08)] px-2 py-1.5 sm:px-2.5">
         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(22,95,192,0.24),rgba(16,53,103,0.14))] shadow-sm sm:h-9 sm:w-9">
           {sessionAvatar && !avatarLoadError ? (

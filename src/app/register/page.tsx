@@ -7,7 +7,7 @@ export const metadata = {
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ journey?: string; consultId?: string; phone?: string }>;
+  searchParams?: Promise<{ journey?: string; consultId?: string; phone?: string; reason?: string }>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -16,6 +16,7 @@ export default async function RegisterPage({
       journeyMode={resolvedSearchParams?.journey === "1"}
       consultId={resolvedSearchParams?.consultId}
       phoneFromJourney={resolvedSearchParams?.phone}
+      registrationReason={resolvedSearchParams?.reason}
     />
   );
 }

@@ -7,20 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { buildStaffPhotoUrl } from "@/lib/staff-auth";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
-type DbDoctorRecord = {
-  id: string;
-  name: string;
-  phone: string;
-  registrationNumber: string;
-  licenseNumber: string;
-  bio: string | null;
-  photoUrl: string | null;
-  createdAt: Date;
-  user: {
-    email: string;
-  };
-};
-
 const doctorCreateSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -28,7 +14,7 @@ const doctorCreateSchema = z.object({
   phone: z.string().min(8),
   registrationNumber: z.string().min(2),
   licenseNumber: z.string().min(2),
-  bio: z.string().min(2),
+  bio: z.string().optional().or(z.literal("")),
   photoUrl: z.string().min(1).optional().or(z.literal("")),
 });
 
@@ -198,7 +184,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const payload = doctorCreateSchema.safeParse(await request.json());
   if (!payload.success) {
-    return NextResponse.json({ ok: false, message: "Invalid doctor payload" }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Invalid doctor payload",
+        errors: payload.error.flatten().fieldErrors,
+      },
+      { status: 400 },
+    );
   }
 
   const input = payload.data;

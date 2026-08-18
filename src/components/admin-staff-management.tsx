@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatDoctorDisplayName } from "@/lib/doctor-display";
 
-type StaffRole = "receptionist" | "admin";
+type StaffRole = "receptionist" | "coordinator" | "admin";
 
 type StaffUser = {
   id?: string;
@@ -101,6 +101,7 @@ function ReceptionistAssignments({ receptionistEmail }: { receptionistEmail: str
 
 const ROLES: Array<{ role: StaffRole; label: string; color: string }> = [
   { role: "receptionist", label: "Receptionists", color: "bg-blue-600" },
+  { role: "coordinator", label: "Coordinators", color: "bg-emerald-600" },
   { role: "admin", label: "Admins", color: "bg-purple-600" },
 ];
 

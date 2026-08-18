@@ -56,6 +56,11 @@ type ExistingAppointment = {
   videoConsultLink?: string;
 };
 
+function toAppointmentMillis(dateValue: string, timeValue: string) {
+  const parsed = new Date(`${dateValue}T${timeValue}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
 type ConsultMode = "clinic" | "video";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -275,6 +280,7 @@ export function PatientBookAppointment({
   const [error, setError] = useState("");
   const [booked, setBooked] = useState<BookedResult | null>(null);
   const [existingAppointment, setExistingAppointment] = useState<ExistingAppointment | null>(null);
+  const [bookingIntent, setBookingIntent] = useState<"newAppointment" | "updateExisting">("newAppointment");
 
   const patientRecord = findPatientRecordByPhone(phone);
   const selectedDoctor = useMemo(
@@ -387,22 +393,31 @@ export function PatientBookAppointment({
           return;
         }
 
-        const now = new Date();
-        const upcoming = (payload.appointments ?? [])
+        const active = (payload.appointments ?? [])
           .filter((appointment) => appointment.status !== "cancelled")
-          .filter((appointment) => {
-            const when = new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
-            return !Number.isNaN(when.getTime()) && when.getTime() >= now.getTime() - 30 * 60 * 1000;
-          })
-          .sort((a, b) => {
-            const left = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-            const right = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
-            return left - right;
-          });
+          .map((appointment) => ({
+            appointment,
+            when: toAppointmentMillis(appointment.appointmentDate, appointment.appointmentTime),
+          }))
+          .filter(
+            (entry): entry is {
+              appointment: NonNullable<typeof payload.appointments>[number];
+              when: number;
+            } => entry.when !== null,
+          );
+
+        const upcoming = active
+          .filter((entry) => entry.when >= Date.now() - 30 * 60 * 1000)
+          .sort((a, b) => a.when - b.when)
+          .map((entry) => entry.appointment);
+
+        const latestActive = active
+          .sort((a, b) => b.when - a.when)
+          .map((entry) => entry.appointment)[0] ?? null;
 
         const selected = targetAppointmentId
-          ? upcoming.find((appointment) => appointment.id === targetAppointmentId) ?? null
-          : upcoming[0] ?? null;
+          ? (payload.appointments ?? []).find((appointment) => appointment.id === targetAppointmentId) ?? null
+          : upcoming[0] ?? latestActive;
 
         if (!selected) {
           setError("No upcoming appointment found for this phone number.");
@@ -424,14 +439,7 @@ export function PatientBookAppointment({
         };
 
         setExistingAppointment(appointment);
-        setForm({
-          doctorId: appointment.doctorId,
-          doctorName: appointment.doctorName,
-          appointmentDate: appointment.appointmentDate,
-          appointmentTime: appointment.appointmentTime,
-        });
-        setConsultMode(appointment.appointmentType.toLowerCase().includes("video") ? "video" : "clinic");
-        setBookingStep("schedule");
+        setBookingIntent("updateExisting");
       } catch {
         setError("Could not load existing appointments right now.");
       } finally {
@@ -469,6 +477,23 @@ export function PatientBookAppointment({
       appointmentDate: earliestDate,
       appointmentTime: "",
     });
+    setBookingIntent("newAppointment");
+    setBookingStep("schedule");
+  }
+
+  function handleEditExistingAppointment() {
+    if (!existingAppointment) {
+      return;
+    }
+
+    setForm({
+      doctorId: existingAppointment.doctorId,
+      doctorName: existingAppointment.doctorName,
+      appointmentDate: existingAppointment.appointmentDate,
+      appointmentTime: existingAppointment.appointmentTime,
+    });
+    setConsultMode(existingAppointment.appointmentType.toLowerCase().includes("video") ? "video" : "clinic");
+    setBookingIntent("updateExisting");
     setBookingStep("schedule");
   }
 
@@ -515,7 +540,9 @@ export function PatientBookAppointment({
         return;
       }
 
-      const isUpdatingExisting = Boolean(manageMode && existingAppointment?.id);
+      const isUpdatingExisting = Boolean(
+        manageMode && existingAppointment?.id && bookingIntent === "updateExisting",
+      );
 
       let bookedResult: BookedResult;
 
@@ -732,6 +759,7 @@ export function PatientBookAppointment({
       }
 
       setExistingAppointment(null);
+      setBookingIntent("newAppointment");
       setForm({ doctorId: "", doctorName: "", appointmentDate: "", appointmentTime: "" });
       setBookingStep("doctors");
     } catch {
@@ -765,18 +793,30 @@ export function PatientBookAppointment({
             {loadingExisting ? (
               <p className="text-sm text-blue-700">Loading your upcoming appointment...</p>
             ) : existingAppointment ? (
-              <div className="flex items-center justify-between gap-3">
+              <div className="grid gap-2">
                 <p className="text-sm text-blue-800">
                   Upcoming appointment: {formatDoctorDisplayName(existingAppointment.doctorName)} on {existingAppointment.appointmentDate} at {existingAppointment.appointmentTime}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCancelExistingAppointment}
-                  disabled={cancelling}
-                  className="shrink-0 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60"
-                >
-                  {cancelling ? "Cancelling..." : "Cancel"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleEditExistingAppointment}
+                    className="shrink-0 rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Edit current appointment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelExistingAppointment}
+                    disabled={cancelling}
+                    className="shrink-0 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60"
+                  >
+                    {cancelling ? "Cancelling..." : "Cancel"}
+                  </button>
+                  <span className="text-xs text-blue-700">
+                    Or choose any doctor below to book a new appointment.
+                  </span>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-blue-700">No upcoming appointment found. You can book a new one below.</p>
@@ -1062,7 +1102,7 @@ export function PatientBookAppointment({
               disabled={!canSubmit()}
               className="w-full rounded-xl bg-blue-700 py-3.5 px-6 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {manageMode && existingAppointment ? "Review update" : "Continue to review"}
+              {manageMode && existingAppointment && bookingIntent === "updateExisting" ? "Review update" : "Continue to review"}
             </button>
           ) : (
             <div className="flex items-center gap-3">
@@ -1078,8 +1118,8 @@ export function PatientBookAppointment({
                 className="w-full rounded-xl bg-[linear-gradient(90deg,#2563eb,#1d4ed8)] py-3.5 px-6 font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting
-                  ? (manageMode && existingAppointment ? "Updating..." : "Booking...")
-                  : (manageMode && existingAppointment
+                  ? (manageMode && existingAppointment && bookingIntent === "updateExisting" ? "Updating..." : "Booking...")
+                  : (manageMode && existingAppointment && bookingIntent === "updateExisting"
                     ? "Update appointment"
                     : (consultMode === "video" ? "Pay & Confirm Video Consult" : "Pay & Confirm Clinic Visit"))}
               </button>

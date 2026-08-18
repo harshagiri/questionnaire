@@ -5,7 +5,7 @@ import { HeaderProfile } from "@/components/header-profile";
 
 type AppShellProps = {
   children: React.ReactNode;
-  role?: "patient" | "doctor" | "receptionist" | "admin";
+  role?: "patient" | "doctor" | "receptionist" | "coordinator" | "admin";
 };
 
 export async function AppShell({ children, role }: AppShellProps) {
@@ -16,12 +16,12 @@ export async function AppShell({ children, role }: AppShellProps) {
   const sessionEmail = cookieStore.get("se_email")?.value?.trim().toLowerCase() || "";
   const resolvedRole = role ?? sessionRole;
   const staffRole =
-    resolvedRole === "doctor" || resolvedRole === "receptionist" || resolvedRole === "admin"
+    resolvedRole === "doctor" || resolvedRole === "receptionist" || resolvedRole === "coordinator" || resolvedRole === "admin"
       ? resolvedRole
       : null;
   const sessionAvatar =
     staffRole && sessionEmail
-      ? `/api/uploads/staff-photo?role=${encodeURIComponent(staffRole)}&email=${encodeURIComponent(sessionEmail)}&v=${Date.now()}`
+      ? `/api/uploads/staff-photo?role=${encodeURIComponent(staffRole)}&email=${encodeURIComponent(sessionEmail)}`
       : sessionAvatarCookie;
 
   const roleLabel =
@@ -31,6 +31,8 @@ export async function AppShell({ children, role }: AppShellProps) {
         ? "Doctor"
         : resolvedRole === "receptionist"
           ? "Reception"
+          : resolvedRole === "coordinator"
+            ? "Coordinator"
           : resolvedRole === "admin"
             ? "Admin"
             : null;

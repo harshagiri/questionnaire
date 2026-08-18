@@ -10,7 +10,15 @@ enum RoleName {
   patient
   doctor
   receptionist
+  coordinator
   admin
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  waived
 }
 
 enum AppointmentStatus {
@@ -189,6 +197,23 @@ model Appointment {
   patientRecord PatientRecord?            @relation(fields: [patientRecordId], references: [id], onDelete: SetNull)
   submissions   QuestionnaireSubmission[]
   labReports    LabReport[]
+  payment       AppointmentPayment?
+}
+
+model AppointmentPayment {
+  id            String        @id @default(cuid())
+  appointmentId String        @unique
+  status        PaymentStatus @default(pending)
+  amountPaise   Int?
+  currency      String        @default("INR")
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
 }
 
 model LabReport {

@@ -297,10 +297,12 @@ export function PatientRegister({
   journeyMode = false,
   consultId,
   phoneFromJourney,
+  registrationReason,
 }: {
   journeyMode?: boolean;
   consultId?: string;
   phoneFromJourney?: string;
+  registrationReason?: string;
 }) {
   const router = useRouter();
   const normalizedJourneyPhone = String(phoneFromJourney ?? "").replace(/\D/g, "");
@@ -945,23 +947,6 @@ export function PatientRegister({
                     </div>
                   </div>
                 </div>
-                <FloatingInput
-                  label="Height"
-                  required
-                  inputMode="numeric"
-                  type="number"
-                  min={100}
-                  max={250}
-                  value={String(answers.heightCm ?? "")}
-                  onChange={(event) =>
-                    setValue(
-                      "heightCm",
-                      event.target.value === "" ? "" : Number(event.target.value),
-                    )
-                  }
-                  suffix="cm"
-                  aria-label="Height"
-                />
               </div>
             ) : null}
 
@@ -1487,6 +1472,14 @@ export function PatientRegister({
           </div>
         </section>
         <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4 sm:py-6 md:px-8 md:py-10">
+          {registrationReason === "profile-incomplete" ? (
+            <div
+              role="status"
+              className="mb-4 rounded-md border border-[rgba(59,130,246,0.24)] bg-[rgba(59,130,246,0.08)] px-3 py-2 text-[13px] text-[#1d4ed8] sm:mb-5 sm:text-sm"
+            >
+              Please complete your profile details to continue with booking.
+            </div>
+          ) : null}
           <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[var(--accent)] sm:text-[10px]">
             Chapter {sectionIndex + 1} of {registrationSections.length}
           </p>

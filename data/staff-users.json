@@ -53,5 +53,38 @@
     "deletedAt": null,
     "photoUrl": "",
     "createdAt": "2026-07-19T18:34:13.909Z"
+  },
+  {
+    "role": "coordinator",
+    "email": "testcord@spinexpert.local",
+    "passwordHash": "$2b$10$uRfHiRq/A6GoSMEMdQ4HHOHFOvyaDARI2z/hIUK9tNhJLld4D1EoS",
+    "displayName": "Testcoordinator",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-08-10T13:14:26.349Z"
+  },
+  {
+    "role": "doctor",
+    "email": "vishal.k@spinexperts.in",
+    "passwordHash": "$2b$10$IkM4XWjNnxc4dVtE4KexK.K2putPwbkvrYS9mauV58D/M97FyruM6",
+    "displayName": "Vishal K",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-08-10T13:28:05.066Z"
+  },
+  {
+    "role": "doctor",
+    "email": "umesh.s@spinexperts.in",
+    "passwordHash": "$2b$10$WpCHqEoo469Iri2oF367eeJISSFVCXojUfVHJ/whtCC3zd22IFZCK",
+    "displayName": "Umesh S",
+    "isActive": true,
+    "deactivatedAt": null,
+    "deletedAt": null,
+    "photoUrl": "",
+    "createdAt": "2026-08-10T13:28:43.132Z"
   }
 ]

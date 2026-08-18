@@ -565,6 +565,7 @@ export const roleLandingCopy: Record<AppRole, string> = {
   patient: "Patient screening with calm, mobile-first intake.",
   doctor: "Doctor consult review with sectioned validation and MRI-aware decisioning.",
   receptionist: "Front-desk appointment booking only.",
+  coordinator: "Pre-consult readiness tracking for profile, payment, and questionnaire completion.",
   admin: "Operational metrics and backend-driven RBAC controls.",
 };
 

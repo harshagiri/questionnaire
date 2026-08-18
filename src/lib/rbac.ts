@@ -1,4 +1,4 @@
-export type AppRole = "patient" | "doctor" | "receptionist" | "admin";
+export type AppRole = "patient" | "doctor" | "receptionist" | "coordinator" | "admin";
 
 export type Permission =
   | "questionnaire:create"
@@ -7,6 +7,7 @@ export type Permission =
   | "appointment:create"
   | "appointment:assign"
   | "appointment:view"
+  | "appointment:readiness"
   | "access:issue"
   | "metrics:view"
   | "patient:view"
@@ -28,6 +29,7 @@ export const permissionCatalog: Record<Permission, string> = {
   "appointment:create": "Create or update consult bookings",
   "appointment:assign": "Associate patients with doctors",
   "appointment:view": "View appointment queue and timings",
+  "appointment:readiness": "Track patient readiness before consultation",
   "access:issue": "Issue and display patient access codes",
   "metrics:view": "Monitor completion and operational metrics",
   "patient:view": "Open patient journey and current state",
@@ -83,6 +85,18 @@ export const roleCapabilities: RoleCapability[] = [
       "Backend-driven RBAC and settings management",
     ],
       permissions: ["metrics:view", "questionnaire:create", "appointment:create"],
+  },
+  {
+    role: "coordinator",
+    badge: "Readiness desk",
+    summary:
+      "A readiness command center for pre-consult coordination across profile completion, payment status, and questionnaire readiness.",
+    highlights: [
+      "Date-wise patient readiness board with complete/pending/red-flag counts",
+      "Quick outreach actions via call, WhatsApp, and SMS with appointment context",
+      "Doctor-aware prioritization to resolve blockers before consultation",
+    ],
+    permissions: ["appointment:view", "appointment:readiness", "patient:view"],
   },
 ];
 

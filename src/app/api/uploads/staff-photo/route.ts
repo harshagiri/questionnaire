@@ -15,7 +15,7 @@ function isStaffSession(request: Request) {
   }
 
   const role = roleCookie.replace("se_role=", "");
-  return role === "doctor" || role === "receptionist" || role === "admin" || role === "patient";
+  return role === "doctor" || role === "receptionist" || role === "coordinator" || role === "admin" || role === "patient";
 }
 
 function isAdmin(request: Request) {
@@ -55,13 +55,13 @@ function detectImageMimeType(bytes: Uint8Array) {
 }
 
 function parseStaffRole(value: FormDataEntryValue | null) {
-  if (value !== "doctor" && value !== "receptionist" && value !== "admin") {
+  if (value !== "doctor" && value !== "receptionist" && value !== "coordinator" && value !== "admin") {
     return null;
   }
   return value;
 }
 
-function buildPhotoUrl(role: "doctor" | "receptionist" | "admin", email: string) {
+function buildPhotoUrl(role: "doctor" | "receptionist" | "coordinator" | "admin", email: string) {
   const params = new URLSearchParams({ role, email: email.trim().toLowerCase() });
   return `/api/uploads/staff-photo?${params.toString()}`;
 }
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
   const role = searchParams.get("role");
   const email = (searchParams.get("email") ?? "").trim().toLowerCase();
 
-  if ((role !== "doctor" && role !== "receptionist" && role !== "admin") || !email) {
+  if ((role !== "doctor" && role !== "receptionist" && role !== "coordinator" && role !== "admin") || !email) {
     return NextResponse.json({ ok: false, message: "role and email are required" }, { status: 400 });
   }
 

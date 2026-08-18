@@ -9,7 +9,7 @@ import {
 } from "@/lib/staff-auth";
 
 const createStaffSchema = z.object({
-  role: z.enum(["doctor", "receptionist", "admin"]),
+  role: z.enum(["doctor", "receptionist", "coordinator", "admin"]),
   email: z.string().email(),
   password: z.string().min(8),
   displayName: z.string().min(2),
@@ -17,7 +17,7 @@ const createStaffSchema = z.object({
 });
 
 const updateStaffSchema = z.object({
-  role: z.enum(["doctor", "receptionist", "admin"]),
+  role: z.enum(["doctor", "receptionist", "coordinator", "admin"]),
   email: z.string().email(),
   displayName: z.string().min(2).optional(),
   password: z.string().min(8).optional(),
@@ -25,13 +25,13 @@ const updateStaffSchema = z.object({
 });
 
 const statusActionSchema = z.object({
-  role: z.enum(["doctor", "receptionist", "admin"]),
+  role: z.enum(["doctor", "receptionist", "coordinator", "admin"]),
   email: z.string().email(),
   action: z.enum(["activate", "deactivate"]),
 });
 
 const softDeleteSchema = z.object({
-  role: z.enum(["doctor", "receptionist", "admin"]),
+  role: z.enum(["doctor", "receptionist", "coordinator", "admin"]),
   email: z.string().email(),
 });
 
